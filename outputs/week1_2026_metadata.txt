@@ -1,0 +1,13 @@
+Week 1 2026 fffloorceiling run
+ranking_snapshot=C:/Users/matts/Local Projects/nfl2026/fantasy-draft-season/etr_rankings_full_ppr_2qb_superflex_2026-08-20.csv
+outcome_pool=C:/Users/matts/Local Projects/nfl2026/ffsimulator/inst/cache/adp_outcomes.rds
+simulations=10000
+seed=20260901
+team_rating=3 times cross-team fantasy-total standard deviation
+positions=QB,RB,WR,TE
+schedule_source=https://www.nfl.com/schedules/2026/by-week/week-1
+player_ranges=outputs/week1_2026_player_ranges.csv
+team_ranges=outputs/week1_2026_team_ranges.csv
+game_outcomes=outputs/week1_2026_game_outcomes.csv
+game_range_definition=home-team margin p15 to p85
+game_model_status=experimental, independently sampled player outcomes

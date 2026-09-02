@@ -1,0 +1,16 @@
+Week 1 2026 FBG fffloorceiling run
+ranking_snapshot=C:/Users/matts/Local Projects/nfl2026/ff_floor_ceiling/tests/test-data/wk1-26-fbg-08-31-26.csv
+outcome_pool=C:/Users/matts/Local Projects/nfl2026/ffsimulator/inst/cache/adp_outcomes.rds
+simulations=100
+seed=20260901
+team_rating=3 times cross-team fantasy-total standard deviation
+positions=QB,RB,WR,TE
+ranking_source=Footballguys Projections Consensus
+rank_definition=source row order within position after FA removal
+rank_uncertainty=median historical FantasyPros weekly sd by position and rank
+schedule_source=https://www.nfl.com/schedules/2026/by-week/week-1
+player_ranges=outputs/week1_2026_fbg_player_ranges.csv
+team_ranges=outputs/week1_2026_fbg_team_ranges.csv
+game_outcomes=outputs/week1_2026_fbg_game_outcomes.csv
+game_range_definition=home-team margin p15 to p85
+game_model_status=experimental, independently sampled player outcomes

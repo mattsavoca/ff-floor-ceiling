@@ -1,0 +1,7 @@
+data/raw/fbg/**/*.csv
+data/raw/nflreadr/**/*.parquet
+data/derived/**/*.parquet
+outputs/**/*.parquet
+outputs/**/*.csv
+outputs/**/*.png
+outputs/**/*.rds

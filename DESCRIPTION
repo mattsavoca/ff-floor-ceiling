@@ -1,0 +1,20 @@
+Package: fffloorceiling
+Type: Package
+Title: Fantasy Football Outcome Ranges and NFL Team Signals
+Version: 0.1.0
+Author: Matt Project [aut, cre]
+Maintainer: Matt Project <matts@users.noreply.github.com>
+Description: Normalize fantasy football rankings, generate player outcome
+    ranges with ffsimulator, and pass experimental team signals to nflseedR.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.2
+Depends: R (>= 4.1.0)
+Imports:
+    data.table (>= 1.14.0)
+Suggests:
+    ffsimulator,
+    nflseedR,
+    testthat (>= 3.0.0)
+Config/testthat/edition: 3

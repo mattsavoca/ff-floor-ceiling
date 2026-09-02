@@ -1,0 +1,6 @@
+fbg_id,position,gsis_id,reason
+JohnKa01,RB,00-0040142,FBG uses JohnKa01 for Kaleb Johnson while the sibling crosswalk uses a different FBG ID
+WalkKe01,RB,00-0038134,FBG uses Ken Walker and a stale KC team in the historical export
+BrowMa05,WR,00-0035662,FBG uses Hollywood Brown and a stale PHI team in the historical export
+BeckAn00,RB,00-0034959,FBG position and team differ from the weekly roster record
+CartNa00,RB,00-0040547,Drafter player crosswalk supplies the GSIS ID
