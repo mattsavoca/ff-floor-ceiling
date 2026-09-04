@@ -1,17 +1,66 @@
 # Rank-conditioned player and team simulation helpers.
 
-make_outcome_pool <- function(panel, target_season) {
-  check_columns(panel, c("season", "position", "ecr", "actual_score"), "backtest panel")
-  x <- data.table::as.data.table(data.table::copy(panel))[
-    season != target_season & position %in% BACKTEST_POSITIONS &
-      is.finite(ecr) & is.finite(actual_score)
+make_scoring_history <- function(stats) {
+  scored <- score_nflreadr_weekly(stats)
+  scored[, .(
+    gsis_id = as.character(player_id),
+    week = as.integer(week),
+    season = as.integer(season),
+    points = as.numeric(actual_score)
+  )]
+}
+
+assert_scoring_history_precedes_target <- function(scoring_history, target_season) {
+  check_columns(scoring_history, c("gsis_id", "week", "season", "points"), "scoring history")
+  if (length(target_season) != 1L || is.na(target_season) ||
+      !is.finite(target_season) || target_season != as.integer(target_season)) {
+    abort("target_season must be one finite integer.")
+  }
+  seasons <- sort(unique(as.integer(scoring_history$season)))
+  seasons <- seasons[!is.na(seasons)]
+  if (!length(seasons)) abort("Scoring history has no valid seasons.")
+  invalid <- seasons[seasons >= as.integer(target_season)]
+  if (length(invalid)) {
+    abort(
+      "Scoring history for target season ", target_season,
+      " contains target or future seasons: ", paste(invalid, collapse = ","), "."
+    )
+  }
+  invisible(scoring_history)
+}
+
+scoring_history_before <- function(scoring_history, target_season) {
+  check_columns(scoring_history, c("gsis_id", "week", "season", "points"), "scoring history")
+  x <- data.table::as.data.table(data.table::copy(scoring_history))[
+    season < as.integer(target_season) & !is.na(gsis_id) &
+      is.finite(week) & is.finite(points)
   ]
-  x[, rank_key := pmax(1L, as.integer(round(ecr)))]
-  pool <- x[
-    , .(scores = list(as.numeric(actual_score))),
+  assert_scoring_history_precedes_target(x, target_season)
+  x
+}
+
+ffsimulator_outcomes_to_pool <- function(adp_outcomes, positions = BACKTEST_POSITIONS) {
+  check_columns(adp_outcomes, c("pos", "rank", "week_outcomes"), "ffsimulator outcomes")
+  x <- data.table::as.data.table(data.table::copy(adp_outcomes))[
+    toupper(as.character(pos)) %in% positions & is.finite(rank)
+  ]
+  x[, `:=`(
+    position = toupper(as.character(pos)),
+    rank_key = pmax(1L, as.integer(round(rank)))
+  )]
+  pool_rows <- x[
+    , .(scores = list({
+      values <- as.numeric(unlist(week_outcomes, recursive = TRUE, use.names = FALSE))
+      values[is.finite(values)]
+    })),
     by = .(position, rank_key)
   ]
-  by_position <- split(pool, pool$position)
+  pool_rows <- pool_rows[lengths(scores) > 0L]
+  missing_positions <- setdiff(positions, unique(pool_rows$position))
+  if (length(missing_positions)) {
+    abort("The ffsimulator outcome pool has no scores for: ", paste(missing_positions, collapse = ", "), ".")
+  }
+  by_position <- split(pool_rows, pool_rows$position)
   lapply(by_position, function(z) {
     values <- z$scores
     names(values) <- as.character(z$rank_key)
@@ -20,6 +69,31 @@ make_outcome_pool <- function(panel, target_season) {
       ranks = sort(as.integer(z$rank_key))
     )
   })
+}
+
+make_outcome_pool <- function(
+    scoring_history,
+    target_season,
+    positions = BACKTEST_POSITIONS,
+    outcome_builder = NULL) {
+  target_history <- scoring_history_before(scoring_history, target_season)
+  if (is.null(outcome_builder)) {
+    if (!requireNamespace("ffsimulator", quietly = TRUE)) {
+      abort("Install ffsimulator to build the historical outcome pool.")
+    }
+    ranking_seasons <- unique(as.integer(ffsimulator::fp_rankings_history_week$season))
+    target_history <- target_history[season %in% ranking_seasons]
+    outcome_builder <- ffsimulator::ffs_adp_outcomes_week
+  }
+  assert_scoring_history_precedes_target(target_history, target_season)
+  adp_outcomes <- outcome_builder(
+    scoring_history = target_history,
+    pos_filter = positions
+  )
+  pool <- ffsimulator_outcomes_to_pool(adp_outcomes, positions = positions)
+  attr(pool, "scoring_history_seasons") <- sort(unique(target_history$season))
+  attr(pool, "scoring_history_rows") <- nrow(target_history)
+  pool
 }
 
 nearest_pool_scores <- function(position, rank, pool) {
@@ -46,6 +120,13 @@ sample_rank_conditioned_scores <- function(position, ecr, rank_sd, n_simulations
   list(scores = output, ranks = sampled_ranks)
 }
 
+mean_above_threshold <- function(values, threshold) {
+  values <- as.numeric(values)
+  above <- values[is.finite(values) & values > as.numeric(threshold)]
+  if (!length(above)) return(NA_real_)
+  mean(above)
+}
+
 simulate_player_week <- function(players, pool, n_simulations = 1000L, sd_multiplier = 0.5) {
   check_columns(players, c("player_id", "player_name", "position", "team", "ecr", "rank_sd"), "week players")
   n <- nrow(players)
@@ -70,11 +151,19 @@ simulate_player_week <- function(players, pool, n_simulations = 1000L, sd_multip
 summarize_player_week <- function(players, simulation) {
   scores <- simulation$scores
   ranks <- simulation$ranks
+  p85 <- apply(scores, 2L, stats::quantile, probs = 0.85, names = FALSE, type = 7)
+  mean_above_p85 <- vapply(
+    seq_len(ncol(scores)),
+    function(index) mean_above_threshold(scores[, index], p85[[index]]),
+    numeric(1L)
+  )
   output <- data.table::copy(data.table::as.data.table(players))
   output[, `:=`(
     p15 = apply(scores, 2L, stats::quantile, probs = 0.15, names = FALSE, type = 7),
     p50 = apply(scores, 2L, stats::quantile, probs = 0.50, names = FALSE, type = 7),
-    p85 = apply(scores, 2L, stats::quantile, probs = 0.85, names = FALSE, type = 7),
+    p85 = p85,
+    mean_above_p85 = mean_above_p85,
+    p85_tail_excess = mean_above_p85 - p85,
     sim_mean = colMeans(scores),
     sim_sd = apply(scores, 2L, stats::sd),
     probability_zero = colMeans(scores == 0),

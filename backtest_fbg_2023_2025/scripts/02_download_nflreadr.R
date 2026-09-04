@@ -12,6 +12,7 @@ usage <- function() {
     "  Rscript scripts/02_download_nflreadr.R [options]\n\n",
     "Options:\n",
     "  --years 2023,2024,2025\n",
+    "  --history-years 2012:2022\n",
     "  --force\n"
   ))
 }
@@ -22,11 +23,12 @@ if (has_cli_flag(args, "--help")) {
   quit(status = 0L)
 }
 years <- parse_int_list(read_cli_value(args, "--years", "2023,2024,2025"), "--years")
+history_years <- parse_int_list(read_cli_value(args, "--history-years", "2012:2022"), "--history-years")
 force <- has_cli_flag(args, "--force")
 
 manifest <- list()
 
-for (season in years) {
+for (season in sort(unique(c(years, history_years)))) {
   stats_path <- stats_raw_path(season)
   if (file.exists(stats_path) && !force) {
     stats <- read_parquet_local(stats_path)
@@ -46,6 +48,8 @@ for (season in years) {
     write_parquet_local(stats, stats_path)
   }
   manifest[[length(manifest) + 1L]] <- data.table::data.table(source = "player_stats", season = season, rows = nrow(stats), path = normalizePath(stats_path, winslash = "/"))
+
+  if (!season %in% years) next
 
   schedule_path <- schedule_raw_path(season)
   if (file.exists(schedule_path) && !force) {

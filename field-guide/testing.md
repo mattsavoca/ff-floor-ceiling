@@ -43,6 +43,31 @@ The fixture verifies the current FBG export shape. It does not prove that the
 historical FantasyPros uncertainty proxy is calibrated or that the
 `nflseedR` game mapping predicts real scores.
 
+## Historical Backtest Checks
+
+The separate historical backtest suite currently reports 14 passing checks. Run it from the
+backtest directory:
+
+```powershell
+& 'C:\Program Files\R\R-4.4.2\bin\Rscript.exe' tests/testthat.R
+```
+
+After changing calibration code, run `scripts/06_make_plots.R` and compare the
+generated summary with a direct `data.table` aggregation from
+`outputs/player_predictions.parquet`. The p15 and p85 checks must use raw
+`actual_score`, `stats::quantile()` with `type = 7`, the matching rounded tail
+estimate, and a position grouping. The summary must include `n`.
+
+The current backtest validation covers 13,378 player prediction rows and 43
+p15 estimate bins. It also confirms that the persisted `xfpts_p15` field and
+the p15 summary agree row for row.
+
+## Backtest Limits
+
+The backtest checks validate joins, output shape, bin definitions, and summary
+math. They do not establish forecast quality. Use larger simulation counts for
+reported model metrics after the data and identity checks pass.
+
 ## Related Code or Enforcement
 
 - `tests/testthat.R`
@@ -50,3 +75,5 @@ historical FantasyPros uncertainty proxy is calibrated or that the
 - `tests/testthat/test-outcomes.R`
 - `tests/testthat/test-team-and-nflseedr.R`
 - `scripts/week1_2026.R`
+- `backtest_fbg_2023_2025/tests/testthat.R`
+- `backtest_fbg_2023_2025/scripts/06_make_plots.R`

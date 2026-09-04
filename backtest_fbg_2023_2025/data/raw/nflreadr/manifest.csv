@@ -1,4 +1,15 @@
 source,season,rows,path
+player_stats,2012,5320,C:/Users/matts/Local Projects/nfl2026/ff_floor_ceiling/backtest_fbg_2023_2025/data/raw/nflreadr/player_stats/season=2012.parquet
+player_stats,2013,5251,C:/Users/matts/Local Projects/nfl2026/ff_floor_ceiling/backtest_fbg_2023_2025/data/raw/nflreadr/player_stats/season=2013.parquet
+player_stats,2014,5412,C:/Users/matts/Local Projects/nfl2026/ff_floor_ceiling/backtest_fbg_2023_2025/data/raw/nflreadr/player_stats/season=2014.parquet
+player_stats,2015,5423,C:/Users/matts/Local Projects/nfl2026/ff_floor_ceiling/backtest_fbg_2023_2025/data/raw/nflreadr/player_stats/season=2015.parquet
+player_stats,2016,5413,C:/Users/matts/Local Projects/nfl2026/ff_floor_ceiling/backtest_fbg_2023_2025/data/raw/nflreadr/player_stats/season=2016.parquet
+player_stats,2017,5448,C:/Users/matts/Local Projects/nfl2026/ff_floor_ceiling/backtest_fbg_2023_2025/data/raw/nflreadr/player_stats/season=2017.parquet
+player_stats,2018,5363,C:/Users/matts/Local Projects/nfl2026/ff_floor_ceiling/backtest_fbg_2023_2025/data/raw/nflreadr/player_stats/season=2018.parquet
+player_stats,2019,5411,C:/Users/matts/Local Projects/nfl2026/ff_floor_ceiling/backtest_fbg_2023_2025/data/raw/nflreadr/player_stats/season=2019.parquet
+player_stats,2020,5543,C:/Users/matts/Local Projects/nfl2026/ff_floor_ceiling/backtest_fbg_2023_2025/data/raw/nflreadr/player_stats/season=2020.parquet
+player_stats,2021,5527,C:/Users/matts/Local Projects/nfl2026/ff_floor_ceiling/backtest_fbg_2023_2025/data/raw/nflreadr/player_stats/season=2021.parquet
+player_stats,2022,5461,C:/Users/matts/Local Projects/nfl2026/ff_floor_ceiling/backtest_fbg_2023_2025/data/raw/nflreadr/player_stats/season=2022.parquet
 player_stats,2023,5464,C:/Users/matts/Local Projects/nfl2026/ff_floor_ceiling/backtest_fbg_2023_2025/data/raw/nflreadr/player_stats/season=2023.parquet
 schedules,2023,256,C:/Users/matts/Local Projects/nfl2026/ff_floor_ceiling/backtest_fbg_2023_2025/data/raw/nflreadr/schedules/season=2023.parquet
 rosters_weekly,2023,12612,C:/Users/matts/Local Projects/nfl2026/ff_floor_ceiling/backtest_fbg_2023_2025/data/raw/nflreadr/rosters_weekly/season=2023.parquet

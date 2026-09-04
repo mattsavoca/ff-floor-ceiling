@@ -1,6 +1,7 @@
 # Shared paths, validation, and small data helpers for the FBG backtest.
 
 BACKTEST_YEARS <- 2023:2025
+OUTCOME_HISTORY_YEARS <- 2012:2022
 BACKTEST_WEEKS <- 1:17
 BACKTEST_POSITIONS <- c("QB", "RB", "WR", "TE")
 

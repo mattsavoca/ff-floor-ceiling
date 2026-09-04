@@ -14,6 +14,14 @@ then promote reusable lessons into this guide after review.
   - Keywords: BYOR, ffsimulator, player draws, team signals, game outcomes,
     shared environment
 
+## Backtesting and Calibration
+
+- [Historical FBG backtesting and calibration](backtesting.md)
+  - Read when downloading historical FBG data, reconciling player identities,
+    defining calibration summaries, or changing position plots.
+  - Keywords: backtest, FBG, nflreadr, identity, quantile, p15, p85,
+    rounding, calibration, ggplot
+
 ## Conventions
 
 - [Code conventions](code-conventions.md)

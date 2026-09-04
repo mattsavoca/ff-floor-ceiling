@@ -33,7 +33,147 @@ player_interval_metrics <- function(predictions, levels = 0.70, group_by = "posi
   output
 }
 
-fit_team_calibration <- function(games, training_seasons) {
+player_p85_tail_calibration <- function(
+    predictions,
+    group_by = c("season", "position"),
+    p85_increment = 1) {
+  check_columns(
+    predictions,
+    c("actual_score", "p85", "mean_above_p85", "p85_tail_excess", "position", "season", "week"),
+    "player predictions"
+  )
+  if (!length(group_by) || any(!group_by %in% names(predictions))) {
+    abort("group_by must contain columns from player predictions.")
+  }
+  if (length(p85_increment) != 1L || !is.finite(p85_increment) || p85_increment <= 0) {
+    abort("p85_increment must be one positive finite number.")
+  }
+
+  x <- data.table::as.data.table(data.table::copy(predictions))[
+    is.finite(actual_score) & is.finite(p85) &
+      is.finite(mean_above_p85) & is.finite(p85_tail_excess)
+  ]
+  if (!nrow(x)) abort("No complete p85 tail predictions are available for evaluation.")
+  x[, `:=`(
+    actual_above_p85 = actual_score > p85,
+    actual_tail_excess = actual_score - p85,
+    p85_bin = round_to_increment(p85, increment = p85_increment)
+  )]
+
+  by_columns <- c(group_by, "p85_bin")
+  output <- x[
+    , {
+      tail_rows <- actual_above_p85
+      data.table::data.table(
+        n = .N,
+        n_actual_above_p85 = sum(tail_rows),
+        observed_coverage = mean(!tail_rows),
+        observed_exceedance_rate = mean(tail_rows),
+        predicted_p85 = mean(p85),
+        predicted_mean_above_p85 = mean(mean_above_p85),
+        predicted_p85_tail_excess = mean(p85_tail_excess),
+        observed_tail_mean = if (any(tail_rows)) mean(actual_score[tail_rows]) else NA_real_,
+        observed_tail_excess = if (any(tail_rows)) mean(actual_tail_excess[tail_rows]) else NA_real_,
+        tail_mean_error = if (any(tail_rows)) {
+          mean(actual_score[tail_rows]) - mean(mean_above_p85)
+        } else {
+          NA_real_
+        },
+        tail_excess_error = if (any(tail_rows)) {
+          mean(actual_tail_excess[tail_rows]) - mean(p85_tail_excess)
+        } else {
+          NA_real_
+        }
+      )
+    },
+    by = by_columns
+  ]
+  data.table::setorderv(output, by_columns)
+  output[]
+}
+
+player_p85_tail_explanation <- function(predictions, positions = c("RB", "WR", "TE")) {
+  check_columns(
+    predictions,
+    c("actual_score", "p85", "mean_above_p85", "p85_tail_excess", "position", "season"),
+    "player predictions"
+  )
+  x <- data.table::as.data.table(data.table::copy(predictions))[
+    position %in% positions & is.finite(actual_score) & is.finite(p85) &
+      is.finite(mean_above_p85) & is.finite(p85_tail_excess)
+  ]
+  x[, actual_above_p85 := actual_score > p85]
+  seasons <- sort(unique(x$season))
+  result <- list()
+  result_index <- 0L
+
+  for (target_season in seasons) {
+    train <- x[season < target_season & actual_above_p85]
+    test <- x[season == target_season & actual_above_p85]
+    if (!nrow(train) || !nrow(test)) next
+
+    for (position_value in positions) {
+      train_position <- train[position == position_value]
+      test_position <- test[position == position_value]
+      if (nrow(train_position) < 20L || !nrow(test_position)) next
+
+      p85_only_model <- stats::lm(actual_score ~ p85, data = train_position)
+      p85_plus_tail_excess_model <- stats::lm(
+        actual_score ~ p85 + p85_tail_excess,
+        data = train_position
+      )
+      predictions <- list(
+        p85_only_linear = as.numeric(stats::predict(p85_only_model, newdata = test_position)),
+        p85_plus_prior_tail_excess = test_position$p85 +
+          mean(train_position$actual_score - train_position$p85),
+        mean_above_p85_raw = test_position$mean_above_p85,
+        p85_plus_tail_excess_linear = as.numeric(
+          stats::predict(p85_plus_tail_excess_model, newdata = test_position)
+        )
+      )
+      for (method in names(predictions)) {
+        predicted <- as.numeric(predictions[[method]])
+        actual <- test_position$actual_score
+        result_index <- result_index + 1L
+        result[[result_index]] <- data.table::data.table(
+          target_season = target_season,
+          position = position_value,
+          method = method,
+          n_training_exceedances = nrow(train_position),
+          n_test_exceedances = nrow(test_position),
+          rmse = sqrt(mean((actual - predicted)^2)),
+          mae = mean(abs(actual - predicted)),
+          mean_error = mean(predicted - actual),
+          correlation = if (length(unique(predicted)) > 1L && length(unique(actual)) > 1L) {
+            stats::cor(predicted, actual)
+          } else {
+            NA_real_
+          }
+        )
+      }
+    }
+  }
+
+  if (!length(result)) {
+    return(data.table::data.table(
+      target_season = integer(), position = character(), method = character(),
+      n_training_exceedances = integer(), n_test_exceedances = integer(),
+      rmse = numeric(), mae = numeric(), mean_error = numeric(), correlation = numeric()
+    ))
+  }
+  data.table::rbindlist(result, fill = TRUE)
+}
+
+fit_team_calibration <- function(games, training_seasons, target_season = NULL) {
+  if (!is.null(target_season)) {
+    invalid <- sort(unique(as.integer(training_seasons[training_seasons >= target_season])))
+    if (length(invalid)) {
+      abort(
+        "Team calibration for target season ", target_season,
+        " contains target or future seasons: ", paste(invalid, collapse = ","), "."
+      )
+    }
+  }
   x <- data.table::as.data.table(data.table::copy(games))[
     season %in% training_seasons & is.finite(team_diff_p50) & is.finite(actual_margin)
   ]

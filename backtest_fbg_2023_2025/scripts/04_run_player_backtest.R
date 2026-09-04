@@ -1,13 +1,14 @@
 #!/usr/bin/env Rscript
 
 source(file.path(dirname(dirname(normalizePath(sub("^--file=", "", grep("^--file=", commandArgs(FALSE), value = TRUE)[[1L]]), winslash = "/"))), "R", "common.R"), local = TRUE)
+source(path_in_project("R", "scoring.R"), local = TRUE)
 source(path_in_project("R", "simulation.R"), local = TRUE)
 source(path_in_project("R", "evaluation.R"), local = TRUE)
-require_packages(c("data.table", "arrow"))
+require_packages(c("data.table", "arrow", "ffsimulator"))
 
 usage <- function() {
   cat(paste0(
-    "Run leave-one-season-out rank-conditioned player simulations.\n\n",
+    "Run walk-forward rank-conditioned player simulations.\n\n",
     "Usage:\n",
     "  Rscript scripts/04_run_player_backtest.R [options]\n\n",
     "Options:\n",
@@ -33,13 +34,30 @@ panel[, `:=`(position = toupper(position), team = normalize_team(team))]
 panel <- panel[season %in% BACKTEST_YEARS & week %in% BACKTEST_WEEKS]
 if (!nrow(panel)) abort("The FBG rank summary is empty. Run 03_build_panel.R first.")
 
+scoring_seasons <- sort(unique(c(OUTCOME_HISTORY_YEARS, BACKTEST_YEARS)))
+scoring_paths <- vapply(scoring_seasons, stats_raw_path, character(1L))
+missing_scoring_paths <- scoring_paths[!file.exists(scoring_paths)]
+if (length(missing_scoring_paths)) {
+  abort(
+    "Historical player statistics are missing for the scoring history. Run ",
+    "02_download_nflreadr.R. First missing file: ", missing_scoring_paths[[1L]]
+  )
+}
+scoring_stats <- data.table::rbindlist(
+  lapply(scoring_paths, read_parquet_local),
+  fill = TRUE,
+  use.names = TRUE
+)
+scoring_history <- make_scoring_history(scoring_stats)
+
 prediction_parts <- list()
 team_draw_parts <- list()
 metric_parts <- list()
 
 for (target_season in BACKTEST_YEARS) {
-  pool <- make_outcome_pool(panel, target_season)
-  training_seasons <- sort(setdiff(BACKTEST_YEARS, target_season))
+  pool <- make_outcome_pool(scoring_history, target_season)
+  training_seasons <- attr(pool, "scoring_history_seasons")
+  scoring_history_rows <- attr(pool, "scoring_history_rows")
   if (!length(pool)) abort("No outcome pool exists for target season ", target_season, ".")
 
   for (target_week in BACKTEST_WEEKS) {
@@ -71,9 +89,13 @@ for (target_season in BACKTEST_YEARS) {
       xfpts_p15 = round_to_increment(p15, increment = 1),
       xfpts_p85 = round_to_increment(p85, increment = 1),
       pool_training_seasons = paste(training_seasons, collapse = ","),
+      pool_max_training_season = max(training_seasons),
+      scoring_history_seasons = paste(training_seasons, collapse = ","),
+      scoring_history_max_season = max(training_seasons),
+      scoring_history_rows = scoring_history_rows,
       n_simulations = n_simulations,
       rank_sd_multiplier = sd_multiplier,
-      pool_mode = "leave_one_season_out"
+      pool_mode = "walk_forward_prior_seasons"
     )]
     prediction_parts[[length(prediction_parts) + 1L]] <- predictions
 
@@ -83,7 +105,9 @@ for (target_season in BACKTEST_YEARS) {
       week = target_week,
       n_players = nrow(players),
       rank_sd_multiplier = sd_multiplier,
-      pool_mode = "leave_one_season_out"
+      pool_max_training_season = max(training_seasons),
+      scoring_history_max_season = max(training_seasons),
+      pool_mode = "walk_forward_prior_seasons"
     )]
     team_draw_parts[[length(team_draw_parts) + 1L]] <- team_draws
     metric_parts[[length(metric_parts) + 1L]] <- data.table::data.table(
@@ -92,6 +116,11 @@ for (target_season in BACKTEST_YEARS) {
       projected_players = nrow(players),
       team_count = data.table::uniqueN(players$team),
       training_seasons = paste(training_seasons, collapse = ","),
+      max_training_season = max(training_seasons),
+      scoring_history_seasons = paste(training_seasons, collapse = ","),
+      scoring_history_max_season = max(training_seasons),
+      scoring_history_rows = scoring_history_rows,
+      pool_mode = "walk_forward_prior_seasons",
       n_simulations = n_simulations
     )
     message(sprintf("Simulated %d week %02d: %d players, %d teams", target_season, target_week, nrow(players), data.table::uniqueN(players$team)))

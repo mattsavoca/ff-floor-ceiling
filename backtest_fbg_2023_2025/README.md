@@ -7,6 +7,7 @@ The data path is:
 
 ```text
 FBG projector rows -> positional ranks -> ECR and rank SD
+                 -> prior-season scoring history -> ffsimulator outcome pool
                  -> rank-conditioned player score simulations
                  -> team fantasy simulations -> game margin predictions
 ```
@@ -35,7 +36,7 @@ Use smaller ranges while you test the code:
 
 ```text
 Rscript scripts/01_download_fbg.R --years 2025 --weeks 1:2 --delay-min 3 --delay-max 6
-Rscript scripts/02_download_nflreadr.R --years 2025
+Rscript scripts/02_download_nflreadr.R --years 2023:2025 --history-years 2012:2022
 Rscript scripts/03_build_panel.R
 Rscript scripts/04_run_player_backtest.R --n-simulations 1000
 Rscript scripts/05_run_team_backtest.R
@@ -59,18 +60,27 @@ standard nflreadr fantasy points, 0.5 points per reception, a 0.5 TE reception
 bonus, and 0.5 points per receiving first down. The scoring code is in
 `R/scoring.R`.
 
-The default player simulation draws an integer rank from a normal distribution
-with mean `ecr` and standard deviation `rank_sd * 0.5`. The 0.5 multiplier
-matches the rank spread used by the current `ffsimulator` generator. It then
-samples a real historical score from the nearest available rank and position.
-The outcome pool uses the other 2 seasons, which gives each target season a
-leave-one-season-out test. This is a cross-season test, not a strict live
-forecast test for 2023.
-The player simulation keeps rows with at least 3 projectors.
+The player stage scores nflreadr history with the same FFFL rules and sends it to
+`ffsimulator::ffs_adp_outcomes_week()`. It filters this table before each call.
+Every row must satisfy `season < target_season`. The initial cache covers 2012
+through 2022. The current `ffsimulator` weekly ranking history also ends in
+2022, so each target uses those 11 seasons. A later ranking-history update can
+add recent prior seasons without changing the cutoff rule.
+
+The simulation draws an integer rank from a normal distribution with mean
+`ecr` and standard deviation `rank_sd * 0.5`. It then samples a score from the
+nearest rank and position in the `ffsimulator` outcome pool. The player output
+stores the scoring-history seasons, maximum season, row count, and pool mode.
+The stage keeps rows with at least 3 projectors.
 
 The player range uses the current definitions: `p15` is the floor, `p50` is
 the middle estimate, and `p85` is the ceiling. The main coverage target for
 the floor-to-ceiling range is 70 percent.
+
+The player output also stores `mean_above_p85`, the mean of simulated scores
+strictly above that player's simulated p85. `p85_tail_excess` is the
+difference between `mean_above_p85` and `p85`. These fields describe the shape
+of the simulated upper tail. They do not change the p85 definition.
 
 The player output stores `ffpts_rounded` and `xfpts_rounded`, which round the
 observed score and simulated p50 estimate to 0.5 FPTS. It also stores
@@ -84,7 +94,9 @@ output applies the same process to the empirical 15th percentile within each
 
 The team stage sums simulated scores for the FBG-projected player universe.
 It calibrates simulated home-away fantasy differences to actual game margins
-with training seasons that exclude the target season. It reports 3 methods:
+with seasons before the target season. The 2023 player result supplies the
+first team training season, so team prediction output starts with 2024. It
+reports 3 methods:
 
 | Method | Definition |
 | --- | --- |
@@ -125,6 +137,8 @@ needs a manual link. The override key is the FBG ID and position.
 | `outputs/position_xfpts_calibration_summary.csv` | Average rounded observed FPTS grouped by rounded simulation estimate and position |
 | `outputs/position_xfpts_calibration_integer_summary.csv` | Whole-point estimate bins with average observed, p15, and p85 values by position |
 | `outputs/position_xfpts_p85_calibration_summary.csv` | Empirical observed p85 grouped by whole-point p85 simulation estimate and position |
+| `outputs/position_xfpts_p85_tail_calibration_summary.csv` | Observed and predicted conditional means above p85 by season, position, and p85 bin |
+| `outputs/p85_tail_explanation_metrics.csv` | Walk-forward upper-tail regression comparison for p85 and mean_above_p85 |
 | `outputs/position_xfpts_p15_calibration_summary.csv` | Empirical observed p15 grouped by whole-point p15 simulation estimate and position |
 | `outputs/team_draws.parquet` | Team fantasy score for each simulation, team, and week |
 | `outputs/game_predictions.parquet` | Team-derived game margins and win probabilities |
@@ -132,6 +146,7 @@ needs a manual link. The override key is the FBG ID and position.
 | `outputs/plots/position_xfpts_calibration.png` | White-background calibration plots by position |
 | `outputs/plots/position_xfpts_calibration_integer.png` | Whole-point calibration plots with average p15 and p85 dots |
 | `outputs/plots/position_xfpts_p85_calibration.png` | Whole-point p85 calibration plots by position |
+| `outputs/plots/position_xfpts_p85_tail_mean_calibration.png` | Observed upper-tail means compared with predicted mean_above_p85 |
 | `outputs/plots/position_xfpts_p15_calibration.png` | Whole-point p15 calibration plots by position |
 | `outputs/plots/` | Other ggplot player and game diagnostics |
 

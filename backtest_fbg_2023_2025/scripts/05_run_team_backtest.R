@@ -92,10 +92,33 @@ prediction_parts <- list()
 calibration_parts <- list()
 set.seed(20260902L)
 for (target_season in BACKTEST_YEARS) {
-  training_seasons <- sort(setdiff(BACKTEST_YEARS, target_season))
-  calibration <- fit_team_calibration(game_features, training_seasons)
+  training_seasons <- sort(unique(game_features$season[game_features$season < target_season]))
+  if (!length(training_seasons)) {
+    calibration_parts[[length(calibration_parts) + 1L]] <- data.table::data.table(
+      target_season = target_season,
+      calibration_status = "skipped_no_prior_season",
+      sim_intercept = NA_real_,
+      sim_beta = NA_real_,
+      sim_residual_sd = NA_real_,
+      blend_residual_sd = NA_real_,
+      market_residual_sd = NA_real_,
+      n_training_games = 0L,
+      training_seasons = ""
+    )
+    message("Skipped ", target_season, " team calibration: no prior backtest season is available.")
+    next
+  }
+  if (any(training_seasons >= target_season)) {
+    abort("Team calibration contains a target or future season for ", target_season, ".")
+  }
+  calibration <- fit_team_calibration(
+    game_features,
+    training_seasons,
+    target_season = target_season
+  )
   calibration_parts[[length(calibration_parts) + 1L]] <- data.table::data.table(
     target_season = target_season,
+    calibration_status = "fit_walk_forward",
     sim_intercept = calibration$sim_intercept,
     sim_beta = calibration$sim_beta,
     sim_residual_sd = calibration$sim_residual_sd,
@@ -126,7 +149,9 @@ for (target_season in BACKTEST_YEARS) {
     market_home_win_probability = stats::pnorm(market_margin_p50 / calibration$market_residual_sd),
     blend_home_win_probability = stats::pnorm(blend_margin_p50 / calibration$blend_residual_sd),
     calibration_training_seasons = paste(training_seasons, collapse = ","),
-    calibration_training_games = calibration$n_training_games
+    calibration_max_training_season = max(training_seasons),
+    calibration_training_games = calibration$n_training_games,
+    calibration_mode = "walk_forward_prior_seasons"
   )]
 
   for (current_game_id in current$game_id) {

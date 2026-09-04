@@ -1,6 +1,7 @@
 #!/usr/bin/env Rscript
 
 source(file.path(dirname(dirname(normalizePath(sub("^--file=", "", grep("^--file=", commandArgs(FALSE), value = TRUE)[[1L]]), winslash = "/"))), "R", "common.R"), local = TRUE)
+source(path_in_project("R", "evaluation.R"), local = TRUE)
 require_packages(c("data.table", "arrow", "ggplot2", "scales"))
 
 predictions <- read_parquet_local(path_in_project("outputs", "player_predictions.parquet"))
@@ -215,6 +216,67 @@ ggplot2::ggsave(
   height = 7,
   dpi = 160,
   bg = "white"
+)
+
+p85_tail_calibration <- player_p85_tail_calibration(
+  predictions,
+  group_by = c("season", "position"),
+  p85_increment = 1
+)
+data.table::fwrite(
+  p85_tail_calibration,
+  path_in_project("outputs", "position_xfpts_p85_tail_calibration_summary.csv")
+)
+
+p85_tail_plot_data <- p85_tail_calibration[
+  position %in% c("RB", "WR", "TE") & n_actual_above_p85 >= 10L &
+    is.finite(predicted_mean_above_p85) & is.finite(observed_tail_mean)
+]
+p_position_p85_tail <- ggplot2::ggplot(
+  p85_tail_plot_data,
+  ggplot2::aes(
+    x = predicted_mean_above_p85,
+    y = observed_tail_mean,
+    colour = factor(season),
+    size = n_actual_above_p85
+  )
+) +
+  ggplot2::geom_abline(
+    slope = 1,
+    intercept = 0,
+    linetype = "dotted",
+    linewidth = 0.6,
+    colour = "grey50"
+  ) +
+  ggplot2::geom_point(alpha = 0.8) +
+  ggplot2::facet_wrap(~position, scales = "free") +
+  ggplot2::scale_colour_brewer(palette = "Dark2", name = "Season") +
+  ggplot2::scale_size_continuous(name = "Observed tail rows", range = c(1.5, 4)) +
+  ggplot2::labs(
+    title = "Observed upper-tail mean by predicted mean above p85",
+    subtitle = "Each point is a position-season p85 bin with at least 10 actual scores above that row's p85.",
+    x = "Predicted mean score above p85, mean_above_p85",
+    y = "Observed mean score above row-level p85"
+  ) +
+  ggplot2::theme_bw(base_size = 11) +
+  ggplot2::theme(
+    panel.background = ggplot2::element_rect(fill = "white", colour = NA),
+    plot.background = ggplot2::element_rect(fill = "white", colour = NA),
+    legend.position = "bottom"
+  )
+ggplot2::ggsave(
+  path_in_project("outputs", "plots", "position_xfpts_p85_tail_mean_calibration.png"),
+  p_position_p85_tail,
+  width = 10,
+  height = 7,
+  dpi = 160,
+  bg = "white"
+)
+
+p85_tail_explanation <- player_p85_tail_explanation(predictions, positions = c("RB", "WR", "TE"))
+data.table::fwrite(
+  p85_tail_explanation,
+  path_in_project("outputs", "p85_tail_explanation_metrics.csv")
 )
 
 position_calibration_p15 <- predictions[

@@ -45,6 +45,25 @@ current snapshot requires the sibling `ffsimulator` outcome cache, while the
 full `nflseedR` simulation interface remains available as an experimental
 downstream adapter.
 
+## Historical FBG Backtest
+
+Run these commands from `backtest_fbg_2023_2025/`:
+
+```powershell
+& 'C:\Program Files\R\R-4.4.2\bin\Rscript.exe' scripts/01_download_fbg.R
+& 'C:\Program Files\R\R-4.4.2\bin\Rscript.exe' scripts/02_download_nflreadr.R
+& 'C:\Program Files\R\R-4.4.2\bin\Rscript.exe' scripts/03_build_panel.R
+& 'C:\Program Files\R\R-4.4.2\bin\Rscript.exe' scripts/04_run_player_backtest.R --n-simulations 1000
+& 'C:\Program Files\R\R-4.4.2\bin\Rscript.exe' scripts/05_run_team_backtest.R
+& 'C:\Program Files\R\R-4.4.2\bin\Rscript.exe' scripts/06_make_plots.R
+```
+
+`scripts/run_all.R` runs the same sequence. Cached downloads let later runs
+skip network requests unless a source file is missing or `--force` is used.
+The backtest writes summaries and plots under
+`backtest_fbg_2023_2025/outputs/`. Windows R may print `C.UTF-8` startup
+warnings while the scripts still complete successfully.
+
 ## Limits
 
 The repository is currently inside a parent tree with no commits. Do not record
@@ -56,3 +75,5 @@ a commit hash in a session log until a focused commit exists.
 - `.gitignore`
 - `.Rbuildignore`
 - `scripts/week1_2026.R`
+- `backtest_fbg_2023_2025/scripts/run_all.R`
+- `backtest_fbg_2023_2025/README.md`
