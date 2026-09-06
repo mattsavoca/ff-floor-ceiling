@@ -36,6 +36,9 @@ The Python DST data and model commands run from
 season cache, `11_build_dst_panel.py` for the scored scenario panel,
 `12_train_dst_xgb.py` for the model bundle, and
 `14_score_dst_from_fbg_sims.py` for a forward batch.
+The forward scorer discovers prior-season PBP partitions from the raw cache.
+Set `DST_RAW_DIR` when the root Week 1 bridge uses a cache outside the default
+`backtest_fbg_2023_2025/data/raw/dst/` path.
 
 ## Snapshot Inputs and Outputs
 

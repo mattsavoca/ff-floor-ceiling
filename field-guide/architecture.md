@@ -59,6 +59,9 @@ Use `backtest_fbg_2023_2025/dst_xgb/` for target construction, feature
 engineering, native XGBoost training, and forward scoring. The DST bridge must
 consume `simulation_mode=original_fbg` rows from the independent R
 `ffsimulator` path. It must reject QB-conditioned experiment rows.
+Use `season`, `week`, `game_id`, and `def_team` as the team-game key. Add
+`simulation_id` only for scenario rows. Keep PBP target data separate from
+simulated offense inputs.
 
 ## Limits
 
@@ -74,6 +77,9 @@ The 2026-09-04 QB conditioning sweep did not support production use. At
 strength 0.1, the 10,000-simulation run had 85.53% QB p85 coverage versus
 85.87% for the independent baseline. It had higher p85 pinball loss and lower
 top-fifth boom capture. The independent baseline remains the default.
+
+The current local FBG export has no kicker rows. Keep kicker share in the DST
+feature contract and zero-fill it until the source simulator emits K outcomes.
 
 ## Related Code or Enforcement
 

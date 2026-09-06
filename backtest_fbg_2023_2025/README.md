@@ -303,4 +303,5 @@ To add DST rows to the current Week 1 forward output, set
 `scripts/week1_2026.R`. The R script writes the original FBG player draws,
 calls `14_score_dst_from_fbg_sims.py`, and adds the returned `DST` rows before
 team aggregation. With no `DST_MODEL_DIR`, the existing skill-position output
-is unchanged.
+is unchanged. Set `DST_RAW_DIR` when the PBP cache is outside the default
+`backtest_fbg_2023_2025/data/raw/dst/` path.

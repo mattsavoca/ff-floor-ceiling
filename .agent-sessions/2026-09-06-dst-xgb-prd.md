@@ -1,5 +1,14 @@
 # Team defense XGBoost rebuild PRD
 
+## Session metadata
+
+- Agent effort: 1.25 hours.
+- Date: 2026-09-06.
+- Branch: `master`.
+- Implementation commit: `7449f39` (`Add team defense XGBoost pipeline and
+  forward scoring`).
+- Documentation update: uncommitted at session close.
+
 ## Objective
 
 Assess whether the team defense model from
@@ -62,7 +71,7 @@ feature data, historical backtest plan, forward plan, and Python XGBoost design.
 - Checked the raw target and retained offense feature correlation: `-0.786`.
 - Checked the PRD for em dashes, semicolons, curly quotes, and selected banned
   words. All checks passed after revision.
-- No commit was created.
+- At this checkpoint, no commit had been created.
 
 ## Implementation continuation
 
@@ -90,7 +99,7 @@ feature data, historical backtest plan, forward plan, and Python XGBoost design.
 - Ran the Week 1 R bridge and verified 3,200 DST rows, 32 teams, and one DST
   row for each simulation and team.
 - Initial Python tests: 8 passed. R tests: all existing helper tests passed.
-- No commit was created.
+- At this checkpoint, no commit had been created.
 
 ## Final implementation verification
 
@@ -114,4 +123,15 @@ feature data, historical backtest plan, forward plan, and Python XGBoost design.
 - The current local FBG export has no kicker rows. The K feature remains in
   the versioned contract and is zero-filled until the source simulator adds K
   outcomes.
-- No commit was created.
+
+## Field-guide review
+
+- Reviewed `field-guide/init.md`, `architecture.md`, `testing.md`,
+  `tooling.md`, and `model-experimentation.md`.
+- Durable rules are recorded in the architecture, testing, and tooling
+  entries. No new field-guide entry was needed.
+- Session-only details remain here: the exact holdout scorecard, local data
+  counts, the current K-slot limitation, and missing pre-2023 FBG inputs.
+- Enforcement comes from the Python DST tests, the R draw-key test,
+  `simulation_mode` validation, cached-PBP discovery, and the panel audit.
+- Review status: complete.

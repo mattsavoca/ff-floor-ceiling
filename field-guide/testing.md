@@ -16,6 +16,7 @@ outputs are too noisy to validate model quality.
 - Adding a provider or changing its column mapping.
 - Changing rank uncertainty or outcome-pool selection.
 - Changing the Week 1 snapshot script or game adapter.
+- Changing the DST panel, PBP history window, or forward scoring bridge.
 
 ## Preferred Shape
 
@@ -90,6 +91,8 @@ rest polarity, `DST` and `TD` aliases, target-week QB exclusion, grouped game
 splits, and rejection of experimental FBG draw modes. A panel audit must show
 one row per simulation, team, and game. The target table must show one row per
 team and game.
+The forward scorer must report prior-QB-history availability. A `--no-pbp` run
+is a documented fallback, and target-week PBP must never feed the QB feature.
 
 ## Related Code or Enforcement
 

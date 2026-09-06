@@ -12,7 +12,7 @@ then promote reusable lessons into this guide after review.
   - Read when changing provider adapters, simulation stages, team aggregation,
     or the `nflseedR` boundary.
   - Keywords: BYOR, ffsimulator, player draws, team signals, game outcomes,
-    shared environment
+    shared environment, DST, team defense, Python XGBoost
 
 ## Backtesting and Calibration
 
@@ -40,15 +40,18 @@ then promote reusable lessons into this guide after review.
 ## Testing
 
 - [Testing](testing.md)
-  - Read when changing adapters, sampling, summaries, or snapshot scripts.
-  - Keywords: testthat, fixture, smoke test, 100 simulations, coverage, check
+  - Read when changing adapters, sampling, summaries, snapshot scripts, or
+    DST model inputs.
+  - Keywords: testthat, fixture, smoke test, 100 simulations, coverage, check,
+    DST, PBP, game-grouped split, QB history
 
 ## Tooling
 
 - [Tooling](tooling.md)
   - Read when installing, testing, building, checking, or reproducing a
     snapshot on Windows.
-  - Keywords: R 4.4.2, R CMD, sibling repository, output files, locale
+  - Keywords: R 4.4.2, R CMD, sibling repository, output files, locale,
+    nflreadpy, Python, XGBoost, DST cache
 
 ## Recurring Problems
 

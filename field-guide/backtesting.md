@@ -65,8 +65,8 @@ coverage of the full p15 to p85 interval.
 
 The player simulation uses leave-one-season-out outcome pools for the target
 season. The team stage aggregates independently drawn player outcomes, so team
-and game calibration remains experimental until shared team or game effects
-are validated.
+and game calibration remains experimental until shared team or game effects are
+validated.
 
 The QB conditioning experiment uses a standardized blend. The strength is a
 tuning parameter, not the regression R2 and not a fitted coefficient. The
