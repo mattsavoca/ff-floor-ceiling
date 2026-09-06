@@ -1,7 +1,12 @@
 data/raw/fbg/**/*.csv
 data/raw/nflreadr/**/*.parquet
+data/raw/dst/**/*.parquet
+data/raw/dst/**/*.json
 data/derived/**/*.parquet
+data/derived/**/*.json
 outputs/**/*.parquet
 outputs/**/*.csv
 outputs/**/*.png
 outputs/**/*.rds
+**/__pycache__/
+outputs/dst_xgb/

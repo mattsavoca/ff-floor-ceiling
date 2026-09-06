@@ -30,6 +30,13 @@ cmd /c 'set LC_ALL=C&& set LANG=C&& set LC_CTYPE=C&& "C:\Program Files\R\R-4.4.2
 The clean locale in the check command avoids the local Windows R startup
 warning for `C.UTF-8`.
 
+The Python DST data and model commands run from
+`backtest_fbg_2023_2025/`. Install `nflreadpy`, `polars`, and `pyarrow` from
+`scripts/requirements-xgb.txt`. Use `10_download_dst_data.py` for the ignored
+season cache, `11_build_dst_panel.py` for the scored scenario panel,
+`12_train_dst_xgb.py` for the model bundle, and
+`14_score_dst_from_fbg_sims.py` for a forward batch.
+
 ## Snapshot Inputs and Outputs
 
 - FBG input: `tests/test-data/wk1-26-fbg-08-31-26.csv`

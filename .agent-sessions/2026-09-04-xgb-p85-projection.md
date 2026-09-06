@@ -94,8 +94,8 @@ improve. The experiment does not support a full replacement yet.
 
 ## Field-guide review status
 
-No permanent field-guide rule was added. The mixed result belongs in this
-session log until more seasons or a separate QB calibration experiment shows a
-stable rule.
+The durable experiment workflow was consolidated in
+`field-guide/model-experimentation.md` on 2026-09-06. The mixed position
+results and current QB limitation remain specific to this session.
 
 No commit was created.

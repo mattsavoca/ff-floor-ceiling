@@ -161,6 +161,13 @@ needs a manual link. The override key is the FBG ID and position.
 | `outputs/p85_tail_explanation_metrics.csv` | Walk-forward upper-tail regression comparison for p85 and mean_above_p85 |
 | `outputs/position_xfpts_p15_calibration_summary.csv` | Empirical observed p15 grouped by whole-point p15 simulation estimate and position |
 | `outputs/team_draws.parquet` | Team fantasy score for each simulation, team, and week |
+| `outputs/fbg_player_draws.parquet` | Original FBG player draw rows used by the DST scenario bridge |
+| `data/derived/dst_targets.parquet` | One PBP-backed DST target row per completed team-game |
+| `data/derived/dst_scenario_panel.parquet` | Scenario-expanded DST training rows |
+| `outputs/dst_xgb/models/` | Native XGBoost point and quantile model bundle |
+| `outputs/dst_xgb/backtest_predictions.parquet` | Historical DST point and range predictions |
+| `outputs/dst_xgb/dst_backtest_metrics.csv` | Historical mean and market-baseline scorecard |
+| `outputs/dst_xgb/dst_backtest_breakdowns.csv` | Error by opponent total, home status, roof, and wind |
 | `outputs/game_predictions.parquet` | Team-derived game margins and win probabilities |
 | `outputs/team_metrics.csv` | Margin, win, and spread metrics |
 | `outputs/plots/position_xfpts_calibration.png` | White-background calibration plots by position |
@@ -229,3 +236,71 @@ improve QB ceiling ordering while changing marginal p85 coverage. Compare the
 conditioned and baseline files with the same simulation count and seed rules,
 then evaluate QB p85 coverage, empirical p85 calibration, boom capture, and
 interval width before selecting a strength.
+
+## Python team defense model
+
+The `dst_xgb/` package rebuilds the upstream team defense target and feature
+contract in Python. It uses full nflverse data through `nflreadpy`, caches each
+season as Parquet, derives the DST target from play-by-play when that cache is
+available, and falls back to full weekly player statistics.
+
+The DST model uses the original R `ffsimulator` path for offense scenarios.
+The backtest script now exports `outputs/fbg_player_draws.parquet`. The Python
+panel builder aggregates those rows into simulated QB, RB, WR, TE, and K slots
+for each simulation and team. The current four-position FBG export has no K
+rows, so the K slot is zero until the source simulator adds kicker outcomes. It
+then joins the same scenario rows to one defense target per team-game.
+
+The forward scorer discovers cached play-by-play seasons before the target
+season and uses them for the leakage-safe opponent QB features. If no prior PBP
+cache exists, it reports the zero QB-history fallback in the command output and
+the `opponent_qb_history_available` field.
+
+Run the stages from this directory:
+
+```powershell
+python scripts/10_download_dst_data.py --seasons 2023:2025 --pbp-start-season 2023
+Rscript scripts/04_run_player_backtest.R --n-simulations 1000
+python scripts/11_build_dst_panel.py `
+  --seasons 2023:2025 `
+  --fbg-draws outputs/fbg_player_draws.parquet `
+  --raw-dir data/raw/dst `
+  --output data/derived/dst_scenario_panel.parquet
+python scripts/12_train_dst_xgb.py `
+  --panel data/derived/dst_scenario_panel.parquet `
+  --model-dir outputs/dst_xgb/models `
+  --target-season 2026
+python scripts/13_backtest_dst_xgb.py `
+  --panel data/derived/dst_scenario_panel.parquet `
+  --target-seasons 2025 `
+  --model-dir outputs/dst_xgb/models `
+  --output outputs/dst_xgb/backtest_predictions.parquet
+```
+
+For a forward batch, run `scripts/14_score_dst_from_fbg_sims.py`. It discovers
+prior PBP files under `data/raw/dst/pbp/` and writes one `DST` row per original
+FBG simulation and scheduled team. Use `--no-pbp` only when the documented
+zero QB-history fallback is acceptable for the run.
+
+```powershell
+python scripts/14_score_dst_from_fbg_sims.py `
+  --draws outputs/fbg_player_draws.parquet `
+  --schedule <pregame-schedule.csv> `
+  --model-dir outputs/dst_xgb/models `
+  --season 2026 `
+  --week 1 `
+  --output outputs/dst_xgb/week1_2026_dst.parquet
+```
+
+The default XGBoost model uses native `DMatrix` inputs, `hist` tree
+construction, grouped temporal validation, and point plus p15, p50, and p85
+models. The unstable upstream `days_in_past` feature is excluded. The model
+metadata records the feature contract, training seasons, scoring profile, and
+package versions.
+
+To add DST rows to the current Week 1 forward output, set
+`DST_MODEL_DIR` to the trained model directory before running
+`scripts/week1_2026.R`. The R script writes the original FBG player draws,
+calls `14_score_dst_from_fbg_sims.py`, and adds the returned `DST` rows before
+team aggregation. With no `DST_MODEL_DIR`, the existing skill-position output
+is unchanged.

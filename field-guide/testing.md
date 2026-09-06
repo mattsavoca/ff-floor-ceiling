@@ -79,6 +79,18 @@ The backtest checks validate joins, output shape, bin definitions, and summary
 math. They do not establish forecast quality. Use larger simulation counts for
 reported model metrics after the data and identity checks pass.
 
+For the DST path, run the Python unit tests before a real data build:
+
+```powershell
+python -m pytest -q backtest_fbg_2023_2025/tests/test_dst_xgb.py
+```
+
+The checks must cover the points-allowed buckets, PBP event assignment, team
+rest polarity, `DST` and `TD` aliases, target-week QB exclusion, grouped game
+splits, and rejection of experimental FBG draw modes. A panel audit must show
+one row per simulation, team, and game. The target table must show one row per
+team and game.
+
 ## Related Code or Enforcement
 
 - `tests/testthat.R`

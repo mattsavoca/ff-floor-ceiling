@@ -238,6 +238,53 @@ simulate_player_week <- function(players, pool, n_simulations = 1000L, sd_multip
   list(scores = scores, ranks = ranks)
 }
 
+#' Convert one original ffsimulator score matrix into player draw rows
+#'
+#' The Python DST bridge consumes these rows to preserve the same simulation
+#' scenarios that feed the existing team fantasy totals. This helper does not
+#' alter sampling or apply the optional QB conditioning step.
+#'
+#' @param players The player table passed to [simulate_player_week].
+#' @param simulation The list returned by [simulate_player_week].
+#' @param season Season to attach to every row.
+#' @param week Week to attach to every row.
+#' @return A data table with one row per simulation and player.
+#' @export
+simulation_to_player_draws <- function(players, simulation, season, week) {
+  check_columns(players, c("player_id", "player_name", "position", "team"), "week players")
+  if (is.null(simulation$scores) || !is.matrix(simulation$scores)) {
+    abort("simulation$scores must be a matrix.")
+  }
+  if (ncol(simulation$scores) != nrow(players)) {
+    abort("simulation$scores and players have different player counts.")
+  }
+  ranks <- simulation$ranks
+  if (is.null(ranks)) ranks <- matrix(NA_real_, nrow = nrow(simulation$scores), ncol = ncol(simulation$scores))
+  if (!is.matrix(ranks) || !all(dim(ranks) == dim(simulation$scores))) {
+    abort("simulation$ranks must have the same dimensions as simulation$scores.")
+  }
+  player_count <- nrow(players)
+  simulation_count <- nrow(simulation$scores)
+  output <- data.table::data.table(
+    simulation_id = rep(seq_len(simulation_count), each = player_count),
+    player_index = rep(seq_len(player_count), times = simulation_count),
+    projected_score = as.vector(t(simulation$scores)),
+    rank = as.vector(t(ranks))
+  )
+  metadata <- data.table::as.data.table(data.table::copy(players))
+  metadata[, player_index := .I]
+  metadata <- metadata[, .(player_index, player_id, player_name, position, team)]
+  output <- merge(output, metadata, by = "player_index", all.x = TRUE, sort = FALSE)
+  output[, `:=`(
+    season = as.integer(season),
+    week = as.integer(week),
+    active = 1L
+  )]
+  data.table::setorder(output, simulation_id, player_index)
+  output[, player_index := NULL]
+  output[]
+}
+
 summarize_player_week <- function(players, simulation) {
   scores <- simulation$scores
   ranks <- simulation$ranks

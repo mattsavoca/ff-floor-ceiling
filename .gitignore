@@ -1,3 +1,8 @@
 *.Rcheck/
 ..Rcheck/
 *.tar.gz
+outputs/week1_2026_fbg_*_dst_draws.csv
+outputs/week1_2026_fbg_*_dst_draws.parquet
+outputs/week1_2026_fbg_dst_draws.*
+outputs/week1_2026_fbg_player_draws.csv
+outputs/week1_2026_fbg_schedule.csv

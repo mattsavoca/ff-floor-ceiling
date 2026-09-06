@@ -218,6 +218,26 @@ test_that("QB skill conditioning preserves the baseline QB mean and spread", {
   expect_true(cor(conditioned[, 1], conditioned[, 2] + conditioned[, 3] + conditioned[, 4]) > 0)
 })
 
+test_that("original simulation matrices export stable player draw keys", {
+  players <- data.table::data.table(
+    player_id = c("p1", "p2"),
+    player_name = c("One", "Two"),
+    position = c("QB", "RB"),
+    team = c("AAA", "BBB")
+  )
+  simulation <- list(
+    scores = matrix(c(1, 2, 3, 4, 5, 6), nrow = 3, byrow = TRUE),
+    ranks = matrix(c(1, 2, 3, 4, 5, 6), nrow = 3, byrow = TRUE)
+  )
+  out <- simulation_to_player_draws(players, simulation, season = 2025L, week = 1L)
+  expect_equal(nrow(out), 6)
+  expect_equal(out$simulation_id, rep(1:3, each = 2))
+  expect_equal(out$player_id, rep(c("p1", "p2"), times = 3))
+  expect_equal(out$projected_score, c(1, 2, 3, 4, 5, 6))
+  expect_equal(out$season, rep(2025L, 6))
+  expect_equal(out$week, rep(1L, 6))
+})
+
 test_that("QB conditioning rejects invalid strength", {
   model <- structure(list(coefficients = c(`(Intercept)` = 0, RB = 1, WR = 1, TE = 1)), class = "ff_qb_skill_model")
   players <- data.frame(position = c("QB", "WR"), team = c("AAA", "AAA"))

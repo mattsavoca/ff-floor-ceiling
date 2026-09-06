@@ -22,6 +22,14 @@ then promote reusable lessons into this guide after review.
   - Keywords: backtest, FBG, nflreadr, identity, quantile, p15, p85,
     rounding, calibration, QB conditioning, boom capture, ggplot
 
+## Model Experimentation
+
+- [Direct p85 model experiments and SHAP](model-experimentation.md)
+  - Read when testing a direct ceiling model, adding projection features,
+    tuning an XGBoost quantile model, or explaining model predictions.
+  - Keywords: experiment, XGBoost, quantile, p85, ceiling, projections,
+    walk-forward, per position, pinball loss, SHAP, explainability
+
 ## Conventions
 
 - [Code conventions](code-conventions.md)

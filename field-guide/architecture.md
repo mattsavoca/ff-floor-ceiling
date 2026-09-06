@@ -10,6 +10,14 @@ provider export -> normalized BYOR rankings -> ffsimulator draws
                -> player ranges -> team signals -> experimental nflseedR results
 ```
 
+The team-defense path is a separate branch:
+
+```text
+full nflverse data -> PBP DST target and schedule features
+original FBG draws -> simulated offense features
+                     -> Python DST XGBoost rows -> optional R team aggregation
+```
+
 `fffloorceiling` owns the orchestration and contracts. The installed internal
 `ffsimulator` package remains the rank-conditioned fantasy outcome engine.
 `nflseedR` is a downstream consumer of experimental team signals.
@@ -45,6 +53,12 @@ WR, and TE points. It uses a bounded conditioning strength to mix the
 independent QB draw with a standardized team environment. A strength of 0
 leaves the current sampler unchanged. Positive strengths write separate
 `_qb_conditioned` or tagged output files.
+
+Keep `DST` as a team-game identity. Accept `TD` only at the provider boundary.
+Use `backtest_fbg_2023_2025/dst_xgb/` for target construction, feature
+engineering, native XGBoost training, and forward scoring. The DST bridge must
+consume `simulation_mode=original_fbg` rows from the independent R
+`ffsimulator` path. It must reject QB-conditioned experiment rows.
 
 ## Limits
 

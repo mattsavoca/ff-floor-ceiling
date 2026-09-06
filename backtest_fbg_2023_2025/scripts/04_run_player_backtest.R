@@ -69,6 +69,7 @@ scoring_history <- make_scoring_history(scoring_stats)
 
 prediction_parts <- list()
 team_draw_parts <- list()
+player_draw_parts <- list()
 metric_parts <- list()
 
 for (target_season in BACKTEST_YEARS) {
@@ -136,6 +137,12 @@ for (target_season in BACKTEST_YEARS) {
       qb_conditioning_strength = qb_conditioning_strength
     )]
     team_draw_parts[[length(team_draw_parts) + 1L]] <- team_draws
+    player_draw_parts[[length(player_draw_parts) + 1L]] <- simulation_to_player_draws(
+      players,
+      simulation,
+      season = target_season,
+      week = target_week
+    )
     metric_parts[[length(metric_parts) + 1L]] <- data.table::data.table(
       season = target_season,
       week = target_week,
@@ -157,10 +164,13 @@ for (target_season in BACKTEST_YEARS) {
 if (!length(prediction_parts)) abort("No player simulations were produced.")
 predictions <- data.table::rbindlist(prediction_parts, fill = TRUE, use.names = TRUE)
 team_draws <- data.table::rbindlist(team_draw_parts, fill = TRUE, use.names = TRUE)
+player_draws <- data.table::rbindlist(player_draw_parts, fill = TRUE, use.names = TRUE)
+player_draws[, simulation_mode := if (qb_conditioning_strength == 0) "original_fbg" else "qb_conditioned_experiment"]
 run_metrics <- data.table::rbindlist(metric_parts, fill = TRUE, use.names = TRUE)
 
 write_parquet_local(predictions, path_in_project("outputs", paste0("player_predictions", output_suffix, ".parquet")))
 write_parquet_local(team_draws, path_in_project("outputs", paste0("team_draws", output_suffix, ".parquet")))
+write_parquet_local(player_draws, path_in_project("outputs", paste0("fbg_player_draws", output_suffix, ".parquet")))
 write_csv_local(run_metrics, path_in_project("outputs", paste0("player_run_metrics", output_suffix, ".csv")))
 
 intervals <- player_interval_metrics(predictions, group_by = "position")
@@ -168,4 +178,5 @@ write_csv_local(intervals, path_in_project("outputs", paste0("player_interval_me
 
 message("Player predictions: ", format(nrow(predictions), big.mark = ","))
 message("Team simulation draws: ", format(nrow(team_draws), big.mark = ","))
+message("FBG player draw rows: ", format(nrow(player_draws), big.mark = ","))
 message("Player backtest complete.")
