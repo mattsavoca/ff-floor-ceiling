@@ -45,7 +45,7 @@ historical FantasyPros uncertainty proxy is calibrated or that the
 
 ## Historical Backtest Checks
 
-The separate historical backtest suite currently reports 14 passing checks. Run it from the
+The separate historical backtest suite currently reports 42 passing checks. Run it from the
 backtest directory:
 
 ```powershell
@@ -62,6 +62,17 @@ The current backtest validation covers 13,378 player prediction rows and 43
 p15 estimate bins. It also confirms that the persisted `xfpts_p15` field and
 the p15 summary agree row for row.
 
+For QB conditioning work, run the strength sweep after the focused tests:
+
+```powershell
+& 'C:\Program Files\R\R-4.4.2\bin\Rscript.exe' scripts/07_calibrate_qb_conditioning.R --n-simulations 1000
+```
+
+Verify 6 tagged prediction files, 13,378 rows per file, and separate 10,000
+simulation confirmation runs for the baseline and the selected candidate.
+Treat a strength as viable only when it improves the ceiling scorecard without
+moving p85 coverage away from 85 percent.
+
 ## Backtest Limits
 
 The backtest checks validate joins, output shape, bin definitions, and summary
@@ -77,3 +88,5 @@ reported model metrics after the data and identity checks pass.
 - `scripts/week1_2026.R`
 - `backtest_fbg_2023_2025/tests/testthat.R`
 - `backtest_fbg_2023_2025/scripts/06_make_plots.R`
+- `backtest_fbg_2023_2025/scripts/07_calibrate_qb_conditioning.R`
+- `backtest_fbg_2023_2025/tests/testthat/test_helpers.R`

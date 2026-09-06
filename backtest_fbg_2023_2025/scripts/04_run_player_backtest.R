@@ -14,6 +14,10 @@ usage <- function() {
     "Options:\n",
     "  --n-simulations 1000\n",
     "  --rank-sd-multiplier 0.5\n",
+    "  --qb-conditioning-strength 0\n",
+    "    Optional 0 to 1 shrinkage toward a shared RB/WR/TE team environment.\n",
+    "  --output-tag <optional>\n",
+    "    Optional file suffix for calibration runs, using letters, numbers, _ or -.\n",
     "  --help\n"
   ))
 }
@@ -25,8 +29,21 @@ if (has_cli_flag(args, "--help")) {
 }
 n_simulations <- as.integer(read_cli_value(args, "--n-simulations", "1000"))
 sd_multiplier <- as.numeric(read_cli_value(args, "--rank-sd-multiplier", "0.5"))
+qb_conditioning_strength <- as.numeric(read_cli_value(args, "--qb-conditioning-strength", "0"))
+output_tag <- read_cli_value(args, "--output-tag", NULL)
 if (is.na(n_simulations) || n_simulations < 20L) abort("--n-simulations must be at least 20.")
 if (!is.finite(sd_multiplier) || sd_multiplier < 0) abort("--rank-sd-multiplier must be non-negative.")
+if (!is.finite(qb_conditioning_strength) || qb_conditioning_strength < 0 || qb_conditioning_strength > 1) {
+  abort("--qb-conditioning-strength must be between 0 and 1.")
+}
+if (!is.null(output_tag) && !grepl("^[_A-Za-z0-9-]*$", output_tag)) {
+  abort("--output-tag can contain only letters, numbers, underscore, or hyphen.")
+}
+output_suffix <- if (is.null(output_tag)) {
+  if (qb_conditioning_strength > 0) "_qb_conditioned" else ""
+} else {
+  output_tag
+}
 
 panel <- read_parquet_local(path_in_project("data", "derived", "fbg_rank_summary.parquet"))
 check_columns(panel, c("season", "week", "fbg_id", "gsis_id", "position", "team", "ecr", "rank_sd", "n_projectors", "actual_score"), "FBG rank summary")
@@ -56,6 +73,11 @@ metric_parts <- list()
 
 for (target_season in BACKTEST_YEARS) {
   pool <- make_outcome_pool(scoring_history, target_season)
+  qb_skill_model <- if (qb_conditioning_strength > 0) {
+    fit_qb_skill_model(scoring_history, target_season)
+  } else {
+    NULL
+  }
   training_seasons <- attr(pool, "scoring_history_seasons")
   scoring_history_rows <- attr(pool, "scoring_history_rows")
   if (!length(pool)) abort("No outcome pool exists for target season ", target_season, ".")
@@ -74,11 +96,13 @@ for (target_season in BACKTEST_YEARS) {
     players[, player_id := as.character(gsis_id)]
     data.table::setorder(players, position, ecr, fbg_id)
     set.seed(100000L + target_season * 100L + target_week)
-    simulation <- simulate_player_week(
+    simulation <- simulate_player_week_conditioned(
       players,
       pool = pool,
       n_simulations = n_simulations,
-      sd_multiplier = sd_multiplier
+      sd_multiplier = sd_multiplier,
+      qb_skill_model = qb_skill_model,
+      qb_conditioning_strength = qb_conditioning_strength
     )
     predictions <- summarize_player_week(players, simulation)
     predictions[, `:=`(
@@ -95,7 +119,8 @@ for (target_season in BACKTEST_YEARS) {
       scoring_history_rows = scoring_history_rows,
       n_simulations = n_simulations,
       rank_sd_multiplier = sd_multiplier,
-      pool_mode = "walk_forward_prior_seasons"
+      pool_mode = "walk_forward_prior_seasons",
+      qb_conditioning_strength = qb_conditioning_strength
     )]
     prediction_parts[[length(prediction_parts) + 1L]] <- predictions
 
@@ -107,7 +132,8 @@ for (target_season in BACKTEST_YEARS) {
       rank_sd_multiplier = sd_multiplier,
       pool_max_training_season = max(training_seasons),
       scoring_history_max_season = max(training_seasons),
-      pool_mode = "walk_forward_prior_seasons"
+      pool_mode = "walk_forward_prior_seasons",
+      qb_conditioning_strength = qb_conditioning_strength
     )]
     team_draw_parts[[length(team_draw_parts) + 1L]] <- team_draws
     metric_parts[[length(metric_parts) + 1L]] <- data.table::data.table(
@@ -121,7 +147,8 @@ for (target_season in BACKTEST_YEARS) {
       scoring_history_max_season = max(training_seasons),
       scoring_history_rows = scoring_history_rows,
       pool_mode = "walk_forward_prior_seasons",
-      n_simulations = n_simulations
+      n_simulations = n_simulations,
+      qb_conditioning_strength = qb_conditioning_strength
     )
     message(sprintf("Simulated %d week %02d: %d players, %d teams", target_season, target_week, nrow(players), data.table::uniqueN(players$team)))
   }
@@ -132,12 +159,12 @@ predictions <- data.table::rbindlist(prediction_parts, fill = TRUE, use.names = 
 team_draws <- data.table::rbindlist(team_draw_parts, fill = TRUE, use.names = TRUE)
 run_metrics <- data.table::rbindlist(metric_parts, fill = TRUE, use.names = TRUE)
 
-write_parquet_local(predictions, path_in_project("outputs", "player_predictions.parquet"))
-write_parquet_local(team_draws, path_in_project("outputs", "team_draws.parquet"))
-write_csv_local(run_metrics, path_in_project("outputs", "player_run_metrics.csv"))
+write_parquet_local(predictions, path_in_project("outputs", paste0("player_predictions", output_suffix, ".parquet")))
+write_parquet_local(team_draws, path_in_project("outputs", paste0("team_draws", output_suffix, ".parquet")))
+write_csv_local(run_metrics, path_in_project("outputs", paste0("player_run_metrics", output_suffix, ".csv")))
 
 intervals <- player_interval_metrics(predictions, group_by = "position")
-write_csv_local(intervals, path_in_project("outputs", "player_interval_metrics.csv"))
+write_csv_local(intervals, path_in_project("outputs", paste0("player_interval_metrics", output_suffix, ".csv")))
 
 message("Player predictions: ", format(nrow(predictions), big.mark = ","))
 message("Team simulation draws: ", format(nrow(team_draws), big.mark = ","))

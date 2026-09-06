@@ -31,6 +31,12 @@ a shared team or game random effect is added and validated. FantasyLabs
 correlations are available for a later joint-outcome stage and are inactive in
 v0.
 
+The QB skill-position experiment is an optional backtest path. It fits QB
+points from same-team RB, WR, and TE totals with prior seasons only. Its
+conditioning strength is a hyperparameter. Do not set it from the regression
+R2. The current sweep showed that higher strength steadily reduced QB p85
+coverage. The independent baseline remains the production control.
+
 ## Footballguys Set Selection
 
 Footballguys files can repeat a set name across offensive, defensive, kicker,
@@ -43,5 +49,8 @@ then filters positions and free agents before deriving rank.
 - `R/01_rankings.R`
 - `R/03_summaries.R`
 - `R/06_correlations.R`
+- `backtest_fbg_2023_2025/R/simulation.R`
+- `backtest_fbg_2023_2025/scripts/07_calibrate_qb_conditioning.R`
+- `backtest_fbg_2023_2025/outputs/qb_conditioning_calibration.csv`
 - `tests/testthat/test-rankings.R`
 - `tests/testthat/test-outcomes.R`

@@ -5,6 +5,69 @@ safe_log_loss <- function(probability, outcome) {
   -mean(outcome * log(probability) + (1 - outcome) * log(1 - probability), na.rm = TRUE)
 }
 
+evaluate_qb_conditioning <- function(predictions, p85_increment = 1) {
+  check_columns(predictions, c("actual_score", "p15", "p50", "p85", "position", "season"), "player predictions")
+  if (length(p85_increment) != 1L || !is.finite(p85_increment) || p85_increment <= 0) {
+    abort("p85_increment must be one positive finite number.")
+  }
+  x <- data.table::as.data.table(data.table::copy(predictions))[
+    toupper(as.character(position)) == "QB" &
+    is.finite(actual_score) & is.finite(p15) & is.finite(p50) & is.finite(p85)
+  ]
+  if (!nrow(x)) abort("No complete QB predictions are available for evaluation.")
+  x[, `:=`(
+    p85_exceeded = actual_score > p85,
+    p85_bin = round_to_increment(p85, increment = p85_increment)
+  )]
+  boom_cutoffs <- x[, .(boom_cutoff = stats::quantile(actual_score, 0.85, names = FALSE, type = 7)), by = season]
+  x <- merge(x, boom_cutoffs, by = "season", all.x = TRUE, sort = FALSE)
+  x[, boom := actual_score >= boom_cutoff]
+  x[, p85_rank := data.table::frank(-p85, ties.method = "first"), by = season]
+  x[, top_p85_fifth := p85_rank <= ceiling(.N * 0.20), by = season]
+
+  pinball <- mean((0.85 - as.integer(x$actual_score < x$p85)) * (x$actual_score - x$p85))
+  top <- x[top_p85_fifth == TRUE]
+  detail <- x[
+    , .(
+      n = .N,
+      observed_p85 = stats::quantile(actual_score, 0.85, names = FALSE, type = 7),
+      predicted_p85 = mean(p85)
+    ),
+    by = p85_bin
+  ]
+  detail[, bias := observed_p85 - predicted_p85]
+  data.table::data.table(
+    n = nrow(x),
+    p85_coverage = mean(!x$p85_exceeded),
+    p85_coverage_error = mean(!x$p85_exceeded) - 0.85,
+    p85_pinball_loss = pinball,
+    p85_bin_bias = sum(detail$n * detail$bias) / sum(detail$n),
+    p85_bin_abs_bias = sum(detail$n * abs(detail$bias)) / sum(detail$n),
+    mean_p50 = mean(x$p50),
+    p50_mae = mean(abs(x$actual_score - x$p50)),
+    p50_bias = mean(x$p50 - x$actual_score),
+    interval_coverage = mean(x$actual_score >= x$p15 & x$actual_score <= x$p85),
+    top_p85_fifth_boom_rate = if (nrow(top)) mean(top$boom) else NA_real_,
+    top_p85_fifth_boom_capture = if (sum(x$boom)) sum(top$boom) / sum(x$boom) else NA_real_,
+    top_p85_fifth_boom_lift = if (mean(x$boom) > 0) mean(top$boom) / mean(x$boom) else NA_real_,
+    p85_rank_spearman = stats::cor(x$p85, x$actual_score, method = "spearman")
+  )
+}
+
+evaluate_qb_conditioning_by_season <- function(predictions, p85_increment = 1) {
+  check_columns(predictions, c("actual_score", "p15", "p50", "p85", "position", "season"), "player predictions")
+  x <- data.table::as.data.table(data.table::copy(predictions))[
+    toupper(as.character(position)) == "QB" &
+    is.finite(actual_score) & is.finite(p15) & is.finite(p50) & is.finite(p85)
+  ]
+  if (!nrow(x)) abort("No complete QB predictions are available for evaluation.")
+  data.table::rbindlist(lapply(sort(unique(x$season)), function(season_value) {
+    result <- evaluate_qb_conditioning(x[season == season_value], p85_increment)
+    result[, season := season_value]
+    result
+  }), fill = TRUE)
+}
+
 player_interval_metrics <- function(predictions, levels = 0.70, group_by = "position") {
   check_columns(predictions, c("actual_score", "p15", "p50", "p85", "position", "season", "week"), "player predictions")
   x <- data.table::as.data.table(data.table::copy(predictions))[

@@ -19,6 +19,7 @@ reproducible.
 - Linking FBG player rows to nflreadr weekly outcomes.
 - Adding player calibration metrics or position-faceted plots.
 - Comparing the player simulation output with team or game outcomes.
+- Testing a shared QB environment from RB, WR, and TE simulation draws.
 
 ## Preferred Shape
 
@@ -49,6 +50,11 @@ reproducible.
   starts the QB panel at `xfpts_p85 = 10` while retaining all summary bins.
   The p15 chart keeps its natural low-end range and adds axis padding so bins
   at zero remain visible.
+- For QB environment experiments, fit the QB model with seasons before the
+  target season. Sweep conditioning strength with the same seeds and write
+  each run to a separate tagged output file. Compare the independent baseline
+  with p85 coverage, p85 pinball loss, binned empirical p85 bias, interval
+  coverage, rank correlation, and top-fifth boom capture.
 
 ## Limits
 
@@ -62,12 +68,22 @@ season. The team stage aggregates independently drawn player outcomes, so team
 and game calibration remains experimental until shared team or game effects
 are validated.
 
+The QB conditioning experiment uses a standardized blend. The strength is a
+tuning parameter, not the regression R2 and not a fitted coefficient. The
+2026-09-04 six-point sweep used strengths 0 through 0.5. Coverage moved from
+85.39% at strength 0 to 83.03% at strength 0.5. A 10,000-simulation check
+found no broader ceiling improvement at strength 0.1. Do not enable the path
+in production from this experiment alone.
+
 ## Related Code or Enforcement
 
 - `backtest_fbg_2023_2025/R/common.R`
 - `backtest_fbg_2023_2025/scripts/03_build_panel.R`
 - `backtest_fbg_2023_2025/scripts/04_run_player_backtest.R`
 - `backtest_fbg_2023_2025/scripts/06_make_plots.R`
+- `backtest_fbg_2023_2025/scripts/07_calibrate_qb_conditioning.R`
 - `backtest_fbg_2023_2025/tests/testthat/test_helpers.R`
 - `backtest_fbg_2023_2025/outputs/position_xfpts_p15_calibration_summary.csv`
 - `backtest_fbg_2023_2025/outputs/position_xfpts_p85_calibration_summary.csv`
+- `backtest_fbg_2023_2025/outputs/qb_conditioning_calibration.csv`
+- `backtest_fbg_2023_2025/outputs/qb_conditioning_calibration_by_season.csv`

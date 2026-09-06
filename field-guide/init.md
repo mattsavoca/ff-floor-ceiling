@@ -20,7 +20,7 @@ then promote reusable lessons into this guide after review.
   - Read when downloading historical FBG data, reconciling player identities,
     defining calibration summaries, or changing position plots.
   - Keywords: backtest, FBG, nflreadr, identity, quantile, p15, p85,
-    rounding, calibration, ggplot
+    rounding, calibration, QB conditioning, boom capture, ggplot
 
 ## Conventions
 
@@ -48,4 +48,4 @@ then promote reusable lessons into this guide after review.
   - Read when a provider omits uncertainty, a simulation count changes, or
     team and game results are interpreted.
   - Keywords: missing sd, rank mapping, Monte Carlo noise, independent draws,
-    repeated set names, calibration
+    QB conditioning, repeated set names, calibration

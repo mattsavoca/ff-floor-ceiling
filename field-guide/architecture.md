@@ -36,6 +36,15 @@ incoherent player outcomes and require a separate calibration boundary.
   calibrated score model exists.
 - Keep the `nflseedR` path explicitly experimental while player outcomes are
   independently sampled.
+- Keep the QB skill-position conditioning path backtest-only until its
+  strength is selected with walk-forward validation and its ceiling metrics
+  improve against the independent baseline.
+
+The QB experiment fits a prior-season team-week model of QB points from RB,
+WR, and TE points. It uses a bounded conditioning strength to mix the
+independent QB draw with a standardized team environment. A strength of 0
+leaves the current sampler unchanged. Positive strengths write separate
+`_qb_conditioned` or tagged output files.
 
 ## Limits
 
@@ -47,9 +56,17 @@ The current Week 1 FBG snapshot uses a Week 1 ranking snapshot with the local
 season outcome pool. The available weekly pool does not cover TE, so this is a
 known calibration limitation.
 
+The 2026-09-04 QB conditioning sweep did not support production use. At
+strength 0.1, the 10,000-simulation run had 85.53% QB p85 coverage versus
+85.87% for the independent baseline. It had higher p85 pinball loss and lower
+top-fifth boom capture. The independent baseline remains the default.
+
 ## Related Code or Enforcement
 
 - `R/01_rankings.R`, `R/02_ffsimulator.R`, `R/03_summaries.R`
 - `R/04_team_signals.R`, `R/05_nflseedr.R`
 - `scripts/week1_2026.R`
 - `tests/testthat/test-team-and-nflseedr.R`
+- `backtest_fbg_2023_2025/R/simulation.R::fit_qb_skill_model()`
+- `backtest_fbg_2023_2025/R/simulation.R::condition_qb_scores()`
+- `backtest_fbg_2023_2025/scripts/07_calibrate_qb_conditioning.R`

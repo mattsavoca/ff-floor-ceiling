@@ -1,0 +1,90 @@
+{
+  "explainer": "shap.TreeExplainer",
+  "feature_perturbation": "tree_path_dependent",
+  "model_output": "raw p85 fantasy points",
+  "models_explained": 8,
+  "rows_explained": 9390,
+  "max_additivity_error": 4.57763671875e-05,
+  "target_seasons": [
+    2024,
+    2025
+  ],
+  "plot_sample_size": 1500,
+  "top_features": 10,
+  "shap_version": "0.52.0",
+  "xgboost_version": "3.4.1",
+  "model_checks": [
+    {
+      "target_season": 2024,
+      "position": "QB",
+      "rows": 483,
+      "features": 21,
+      "base_value": 22.970027923583984,
+      "mean_model_p85": 21.499235153198242,
+      "max_additivity_error": 2.6702880859375e-05
+    },
+    {
+      "target_season": 2024,
+      "position": "RB",
+      "rows": 1191,
+      "features": 19,
+      "base_value": 13.796475410461426,
+      "mean_model_p85": 11.623709678649902,
+      "max_additivity_error": 1.52587890625e-05
+    },
+    {
+      "target_season": 2024,
+      "position": "TE",
+      "rows": 1158,
+      "features": 19,
+      "base_value": 10.81453800201416,
+      "mean_model_p85": 8.97226333618164,
+      "max_additivity_error": 1.71661376953125e-05
+    },
+    {
+      "target_season": 2024,
+      "position": "WR",
+      "rows": 1748,
+      "features": 19,
+      "base_value": 14.454683303833008,
+      "mean_model_p85": 12.377069473266602,
+      "max_additivity_error": 1.9073486328125e-05
+    },
+    {
+      "target_season": 2025,
+      "position": "QB",
+      "rows": 504,
+      "features": 21,
+      "base_value": 23.574298858642578,
+      "mean_model_p85": 22.0506649017334,
+      "max_additivity_error": 2.6702880859375e-05
+    },
+    {
+      "target_season": 2025,
+      "position": "RB",
+      "rows": 1287,
+      "features": 19,
+      "base_value": 14.319623947143555,
+      "mean_model_p85": 12.92257022857666,
+      "max_additivity_error": 1.71661376953125e-05
+    },
+    {
+      "target_season": 2025,
+      "position": "TE",
+      "rows": 1124,
+      "features": 19,
+      "base_value": 10.594719886779785,
+      "mean_model_p85": 11.465316772460938,
+      "max_additivity_error": 2.86102294921875e-05
+    },
+    {
+      "target_season": 2025,
+      "position": "WR",
+      "rows": 1895,
+      "features": 19,
+      "base_value": 14.113930702209473,
+      "mean_model_p85": 12.902091979980469,
+      "max_additivity_error": 4.57763671875e-05
+    }
+  ]
+}

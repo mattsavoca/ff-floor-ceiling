@@ -4,10 +4,100 @@ make_scoring_history <- function(stats) {
   scored <- score_nflreadr_weekly(stats)
   scored[, .(
     gsis_id = as.character(player_id),
+    position = toupper(as.character(position)),
     week = as.integer(week),
     season = as.integer(season),
+    team = as.character(team),
     points = as.numeric(actual_score)
   )]
+}
+
+# Fit the historical team environment that links QB scoring to the projected
+# skill positions. The target season is excluded by construction.
+fit_qb_skill_model <- function(scoring_history, target_season) {
+  check_columns(scoring_history, c("gsis_id", "position", "week", "season", "team", "points"), "scoring history")
+  history <- scoring_history_before(scoring_history, target_season)
+  history <- history[toupper(as.character(position)) %in% BACKTEST_POSITIONS]
+  totals <- data.table::as.data.table(data.table::copy(history))
+  totals[, position := toupper(as.character(position))]
+  totals <- totals[position %in% c("QB", "RB", "WR", "TE") & !is.na(team)]
+  totals <- totals[, .(points = sum(points, na.rm = TRUE)), by = .(season, week, team, position)]
+  wide <- data.table::dcast(
+    totals,
+    season + week + team ~ position,
+    value.var = "points",
+    fill = 0
+  )
+  for (position in c("QB", "RB", "WR", "TE")) {
+    if (!position %in% names(wide)) wide[, (position) := 0]
+  }
+  if (nrow(wide) < 20L) abort("At least 20 historical team-weeks are required for QB conditioning.")
+  model <- stats::lm(QB ~ RB + WR + TE, data = wide)
+  structure(
+    list(
+      coefficients = stats::coef(model),
+      training_rows = nrow(wide),
+      training_seasons = sort(unique(wide$season)),
+      r_squared = unname(summary(model)$r.squared)
+    ),
+    class = "ff_qb_skill_model"
+  )
+}
+
+condition_qb_scores <- function(scores, players, model, strength = 0.35) {
+  if (!inherits(model, "ff_qb_skill_model")) abort("model must be an ff_qb_skill_model.")
+  if (!is.matrix(scores) || nrow(scores) < 2L) abort("scores must be a matrix with at least two simulations.")
+  check_columns(players, c("position", "team"), "week players")
+  if (ncol(scores) != nrow(players)) abort("scores and players have different player counts.")
+  if (length(strength) != 1L || !is.finite(strength) || strength < 0 || strength > 1) {
+    abort("strength must be between 0 and 1.")
+  }
+  if (strength == 0 || !any(toupper(players$position) == "QB")) return(scores)
+
+  skill_positions <- c("RB", "WR", "TE")
+  teams <- sort(unique(as.character(players$team)))
+  if (length(teams) < 2L) return(scores)
+  beta <- model$coefficients
+  # Build the prediction by position so missing coefficients cannot silently
+  # change the contract when a model is serialized or inspected.
+  predicted <- matrix(beta[["(Intercept)"]], nrow = nrow(scores), ncol = length(teams))
+  for (position in skill_positions) {
+    position_skill <- vapply(teams, function(team) {
+      indexes <- which(as.character(players$team) == team & toupper(players$position) == position)
+      if (!length(indexes)) return(rep(0, nrow(scores)))
+      rowSums(scores[, indexes, drop = FALSE])
+    }, numeric(nrow(scores)))
+    predicted <- predicted + beta[[position]] * position_skill
+  }
+  environment_z <- matrix(0, nrow = nrow(scores), ncol = length(teams))
+  for (simulation_id in seq_len(nrow(scores))) {
+    values <- predicted[simulation_id, ]
+    scale <- stats::sd(values)
+    if (is.finite(scale) && scale > 0) environment_z[simulation_id, ] <- (values - mean(values)) / scale
+  }
+  for (index in which(toupper(players$position) == "QB")) {
+    baseline <- scores[, index]
+    baseline_scale <- stats::sd(baseline)
+    team_index <- match(as.character(players$team[[index]]), teams)
+    if (!is.finite(baseline_scale) || baseline_scale == 0 || is.na(team_index)) next
+    baseline_z <- (baseline - mean(baseline)) / baseline_scale
+    combined_z <- sqrt(1 - strength^2) * baseline_z + strength * environment_z[, team_index]
+    scores[, index] <- mean(baseline) + baseline_scale * combined_z
+  }
+  scores
+}
+
+simulate_player_week_conditioned <- function(players, pool, n_simulations = 1000L,
+                                              sd_multiplier = 0.5,
+                                              qb_skill_model = NULL,
+                                              qb_conditioning_strength = 0.35) {
+  simulation <- simulate_player_week(players, pool, n_simulations, sd_multiplier)
+  if (!is.null(qb_skill_model)) {
+    simulation$scores <- condition_qb_scores(
+      simulation$scores, players, qb_skill_model, qb_conditioning_strength
+    )
+  }
+  simulation
 }
 
 assert_scoring_history_precedes_target <- function(scoring_history, target_season) {

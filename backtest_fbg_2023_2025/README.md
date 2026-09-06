@@ -43,6 +43,26 @@ Rscript scripts/05_run_team_backtest.R
 Rscript scripts/06_make_plots.R
 ```
 
+To test the optional quarterback environment experiment, pass a strength from
+0 to 1. The setting adds a shared, shrinkage-controlled signal to QB draws
+from the simulated RB, WR, and TE team totals. A value of 0 keeps the original
+independent-player output. Positive values write files with the
+`_qb_conditioned` suffix and do not replace the baseline files:
+
+```text
+Rscript scripts/04_run_player_backtest.R --n-simulations 1000 --qb-conditioning-strength 0.35
+```
+
+Run the full strength calibration with:
+
+```text
+Rscript scripts/07_calibrate_qb_conditioning.R --n-simulations 1000
+```
+
+The script tests strengths 0, 0.1, 0.2, 0.3, 0.4, and 0.5. It writes the
+comparison tables to `outputs/qb_conditioning_calibration.csv` and
+`outputs/qb_conditioning_calibration_by_season.csv`.
+
 ## Data choices
 
 The FBG URL returns many sets in one CSV file. The panel keeps offensive sets
@@ -154,3 +174,58 @@ The pipeline is exploratory. It measures whether the rank-conditioned player
 simulation is calibrated and whether its team aggregate contains signal for
 game outcomes. It does not prove that a forecast is profitable or that team
 fantasy totals alone explain game scores.
+
+## Direct XGBoost p85 projection experiment
+
+The separate `scripts/08_xgb_p85_projection_experiment.py` experiment fits a
+direct p85 quantile model from Footballguys projection stats. It trains one
+XGBoost model for each of QB, RB, WR, and TE. The model uses rank-summary
+features, raw consensus projection stats, and derived FFFL projection points.
+
+The experiment uses season-level walk-forward evaluation. The 2023 projection
+season is the warm-up season because no earlier Footballguys projection files
+are cached. It selects settings on weeks 14 through 17 of the latest training
+season, refits on all earlier rows, and scores the next season. It therefore
+reports clean out-of-sample results for 2024 and 2025 by default.
+
+Install the Python dependencies from `scripts/requirements-xgb.txt`, then run
+the experiment from this directory:
+
+```powershell
+& 'C:\Users\matts\AppData\Local\Programs\Python\Python312\python.exe' scripts/08_xgb_p85_projection_experiment.py
+```
+
+The default grid has 144 candidates per position and target season. It uses
+the XGBoost `reg:quantileerror` objective with `quantile_alpha = 0.85` and
+selects candidates by p85 pinball loss. The output is written under
+`outputs/xgb_p85_projection/`. It includes row-level predictions, grid scores,
+selected settings, model files, feature importance, p85 calibration, boom
+capture, metrics, and a run manifest.
+
+This model does not replace the rank-conditioned baseline. Compare
+`metrics.csv` and `p85_calibration.csv` before using it in a production path.
+
+Explain the saved models with Tree SHAP:
+
+```powershell
+& 'C:\Users\matts\AppData\Local\Programs\Python\Python312\python.exe' scripts/09_explain_xgb_p85_shap.py
+```
+
+The SHAP output is written under `outputs/xgb_p85_projection/shap/`. It
+contains global mean absolute importance, low and high feature directions,
+local waterfall data, model additivity checks, and PNG plots. SHAP values are
+in raw p85 fantasy-point units. They describe model association, not causation.
+
+## Quarterback environment experiment
+
+Historical team-week scoring shows a stable relationship between QB scoring
+and the same team's skill-position totals. The optional experiment fits a
+walk-forward regression of QB points on RB, WR, and TE points using only
+seasons before the target season. It then combines the independent QB draw with
+the simulated team environment. The strength parameter controls that blend.
+
+This is a dependency experiment, not a calibrated production model. It can
+improve QB ceiling ordering while changing marginal p85 coverage. Compare the
+conditioned and baseline files with the same simulation count and seed rules,
+then evaluate QB p85 coverage, empirical p85 calibration, boom capture, and
+interval width before selecting a strength.

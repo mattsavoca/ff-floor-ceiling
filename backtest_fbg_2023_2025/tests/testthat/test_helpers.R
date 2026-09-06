@@ -182,3 +182,63 @@ test_that("team calibration rejects target and future training seasons", {
     fixed = TRUE
   )
 })
+
+test_that("QB skill conditioning preserves the baseline QB mean and spread", {
+  history <- data.table::rbindlist(lapply(2020:2022, function(season) {
+    data.table::rbindlist(lapply(c("AAA", "BBB"), function(team) {
+      data.table::data.table(
+        gsis_id = paste0(team, 1:4),
+        position = c("QB", "RB", "WR", "TE"),
+        week = 1L,
+        season = season,
+        team = team,
+        points = if (team == "AAA") c(20, 10, 30, 10) else c(15, 5, 20, 5)
+      )
+    }))
+  }))
+  history <- history[rep(seq_len(nrow(history)), each = 10L)]
+  history[, week := rep(1:10, times = .N / 10L)]
+  history[, points := points + (week %% 3L - 1L)]
+  history[1L, points := points + 3]
+  model <- fit_qb_skill_model(history, target_season = 2023L)
+  players <- data.table::data.table(
+    player_id = c("qb1", "rb1", "wr1", "te1", "qb2", "rb2", "wr2", "te2"),
+    position = rep(c("QB", "RB", "WR", "TE"), 2),
+    team = rep(c("AAA", "BBB"), each = 4)
+  )
+  scores <- cbind(
+    seq(15, 114), seq(0, 99), seq(20, 119), seq(0, 99),
+    seq(10, 109), seq(10, 109), seq(15, 114), seq(0, 99)
+  )
+  scores[, 2] <- seq(0, 99)
+  unchanged <- condition_qb_scores(scores, players, model, strength = 0)
+  expect_identical(unchanged, scores)
+  conditioned <- condition_qb_scores(scores, players, model, strength = 0.5)
+  expect_equal(mean(conditioned[, 1]), mean(scores[, 1]), tolerance = 1e-10)
+  expect_true(cor(conditioned[, 1], conditioned[, 2] + conditioned[, 3] + conditioned[, 4]) > 0)
+})
+
+test_that("QB conditioning rejects invalid strength", {
+  model <- structure(list(coefficients = c(`(Intercept)` = 0, RB = 1, WR = 1, TE = 1)), class = "ff_qb_skill_model")
+  players <- data.frame(position = c("QB", "WR"), team = c("AAA", "AAA"))
+  scores <- matrix(c(10, 1, 12, 2), nrow = 2, byrow = TRUE)
+  expect_error(condition_qb_scores(scores, players, model, strength = 2), "between 0 and 1")
+})
+
+test_that("QB calibration reports p85 coverage and boom selection metrics", {
+  predictions <- data.table::data.table(
+    position = rep("QB", 20),
+    season = rep(2023:2024, each = 10),
+    actual_score = rep(c(5, 10, 15, 20, 25), 4),
+    p15 = rep(0, 20),
+    p50 = rep(15, 20),
+    p85 = rep(c(10, 10, 15, 15, 20), 4)
+  )
+  out <- evaluate_qb_conditioning(predictions)
+  expect_equal(out$n, 20)
+  expect_true(is.finite(out$p85_coverage))
+  expect_true(is.finite(out$p85_pinball_loss))
+  expect_true(is.finite(out$p85_rank_spearman))
+  by_season <- evaluate_qb_conditioning_by_season(predictions)
+  expect_equal(sort(by_season$season), c(2023L, 2024L))
+})
