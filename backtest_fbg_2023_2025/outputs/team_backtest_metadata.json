@@ -1,0 +1,9 @@
+{
+  "model": "ffsimulator_team_artifacts",
+  "scoring_format": "PPR",
+  "scoring_contract_version": "ppr_v1",
+  "target_seasons": [2023, 2024, 2025],
+  "maximum_historical_season_used": 2024,
+  "leakage_check": "passed",
+  "source_player_metadata": "outputs/player_backtest_metadata.json"
+}

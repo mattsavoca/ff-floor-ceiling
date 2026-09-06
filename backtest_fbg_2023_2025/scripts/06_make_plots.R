@@ -1,18 +1,21 @@
 #!/usr/bin/env Rscript
 
 source(file.path(dirname(dirname(normalizePath(sub("^--file=", "", grep("^--file=", commandArgs(FALSE), value = TRUE)[[1L]]), winslash = "/"))), "R", "common.R"), local = TRUE)
+source(path_in_project("R", "scoring.R"), local = TRUE)
 source(path_in_project("R", "evaluation.R"), local = TRUE)
 require_packages(c("data.table", "arrow", "ggplot2", "scales"))
 
 predictions <- read_parquet_local(path_in_project("outputs", "player_predictions.parquet"))
 games <- read_parquet_local(path_in_project("outputs", "game_predictions.parquet"))
+assert_ppr_artifact(predictions, "player predictions")
+assert_ppr_artifact(games, "game predictions")
 ensure_dir(path_in_project("outputs", "plots"))
 
 p1 <- ggplot2::ggplot(predictions, ggplot2::aes(x = p50, y = actual_score, colour = position)) +
   ggplot2::geom_point(alpha = 0.22, size = 0.8) +
   ggplot2::geom_abline(slope = 1, intercept = 0, linetype = 2) +
   ggplot2::facet_wrap(~position, scales = "free") +
-  ggplot2::labs(title = "FBG rank-conditioned player simulations", x = "Simulated p50", y = "Actual FFFL-style score") +
+  ggplot2::labs(title = "PPR rank-conditioned player simulations", x = "Simulated p50 PPR points", y = "Actual PPR points") +
   ggplot2::theme_minimal(base_size = 11) +
   ggplot2::theme(legend.position = "none")
 ggplot2::ggsave(path_in_project("outputs", "plots", "player_p50_vs_actual.png"), p1, width = 10, height = 7, dpi = 160)
@@ -24,9 +27,11 @@ predictions[, `:=`(
 
 position_calibration <- predictions[
   is.finite(ffpts_rounded) & is.finite(xfpts_rounded),
-  .(
+    .(
     avg_ffpts_rounded = mean(ffpts_rounded),
-    n = .N
+    n = .N,
+    scoring_format = SCORING_FORMAT,
+    scoring_contract_version = SCORING_CONTRACT_VERSION
   ),
   by = .(position, xfpts_rounded)
 ]
@@ -52,10 +57,10 @@ p_position <- ggplot2::ggplot(
   ggplot2::geom_point(colour = "#2C7FB8", size = 1.8) +
   ggplot2::facet_wrap(~position, scales = "free") +
   ggplot2::labs(
-    title = "Observed fantasy points by rounded simulation estimate",
+    title = "Observed PPR points by rounded simulation estimate",
     subtitle = "Each panel is a position. Each point averages rounded observed scores for one rounded p50 estimate.",
     x = "Simulation estimate, xfpts_rounded",
-    y = "Average observed score, avg_ffpts_rounded"
+    y = "Average observed PPR points"
   ) +
   ggplot2::theme_bw(base_size = 11) +
   ggplot2::theme(
@@ -93,7 +98,9 @@ position_calibration_integer <- predictions[
     avg_ffpts_rounded = mean(ffpts_rounded_total),
     avg_p15_rounded = mean(p15_rounded_total),
     avg_p85_rounded = mean(p85_rounded_total),
-    n = .N
+    n = .N,
+    scoring_format = SCORING_FORMAT,
+    scoring_contract_version = SCORING_CONTRACT_VERSION
   ),
   by = .(position, xfpts_rounded = xfpts_rounded_total)
 ]
@@ -141,7 +148,7 @@ p_position_integer <- ggplot2::ggplot(
     )
   ) +
   ggplot2::labs(
-    title = "Observed fantasy points by whole-point simulation estimate",
+    title = "Observed PPR points by whole-point simulation estimate",
     subtitle = "Small dots show the average rounded p15 and p85 values for each estimate bin.",
     x = "Simulation estimate, xfpts_rounded",
     y = "Average observed score, avg_ffpts_rounded"
@@ -167,7 +174,9 @@ position_calibration_p85 <- predictions[
     ffpts_p85 = as.numeric(stats::quantile(actual_score, probs = 0.85, names = FALSE, type = 7)),
     avg_p15_rounded = mean(round_to_increment(p15, increment = 1)),
     avg_p85_rounded = mean(round_to_increment(p85, increment = 1)),
-    n = .N
+    n = .N,
+    scoring_format = SCORING_FORMAT,
+    scoring_contract_version = SCORING_CONTRACT_VERSION
   ),
   by = .(position, xfpts_p85 = round_to_increment(p85, increment = 1))
 ]
@@ -177,11 +186,7 @@ data.table::fwrite(
   path_in_project("outputs", "position_xfpts_p85_calibration_summary.csv")
 )
 
-# facet_wrap applies coord_cartesian x limits to every panel. Keep all bins in
-# the summary, then restrict only the QB plotting data so its free scale starts at 10.
-p85_plot_data <- position_calibration_p85[
-  position != "QB" | xfpts_p85 >= 10
-]
+p85_plot_data <- position_calibration_p85
 
 p_position_p85 <- ggplot2::ggplot(
   p85_plot_data,
@@ -198,10 +203,10 @@ p_position_p85 <- ggplot2::ggplot(
   ggplot2::facet_wrap(~position, scales = "free") +
   ggplot2::coord_cartesian(expand = FALSE) +
   ggplot2::labs(
-    title = "Observed p85 fantasy points by p85 simulation estimate",
-    subtitle = "Each point is an estimate bin. The QB panel is zoomed to simulation p85 estimates from 10 upward.",
+    title = "Observed PPR p85 by simulated p85 estimate",
+    subtitle = "Each point is an estimate bin. All position bins are shown.",
     x = "Simulation p85 estimate, xfpts_p85",
-    y = "Observed p85 fantasy points, ffpts_p85"
+    y = "Observed PPR p85"
   ) +
   ggplot2::theme_bw(base_size = 11) +
   ggplot2::theme(
@@ -223,13 +228,17 @@ p85_tail_calibration <- player_p85_tail_calibration(
   group_by = c("season", "position"),
   p85_increment = 1
 )
+ p85_tail_calibration[, `:=`(
+  scoring_format = SCORING_FORMAT,
+  scoring_contract_version = SCORING_CONTRACT_VERSION
+)]
 data.table::fwrite(
   p85_tail_calibration,
   path_in_project("outputs", "position_xfpts_p85_tail_calibration_summary.csv")
 )
 
 p85_tail_plot_data <- p85_tail_calibration[
-  position %in% c("RB", "WR", "TE") & n_actual_above_p85 >= 10L &
+  position %in% BACKTEST_POSITIONS & n_actual_above_p85 >= 10L &
     is.finite(predicted_mean_above_p85) & is.finite(observed_tail_mean)
 ]
 p_position_p85_tail <- ggplot2::ggplot(
@@ -253,10 +262,10 @@ p_position_p85_tail <- ggplot2::ggplot(
   ggplot2::scale_colour_brewer(palette = "Dark2", name = "Season") +
   ggplot2::scale_size_continuous(name = "Observed tail rows", range = c(1.5, 4)) +
   ggplot2::labs(
-    title = "Observed upper-tail mean by predicted mean above p85",
+    title = "Observed upper-tail mean by predicted mean above PPR p85",
     subtitle = "Each point is a position-season p85 bin with at least 10 actual scores above that row's p85.",
     x = "Predicted mean score above p85, mean_above_p85",
-    y = "Observed mean score above row-level p85"
+    y = "Observed mean PPR score above row-level p85"
   ) +
   ggplot2::theme_bw(base_size = 11) +
   ggplot2::theme(
@@ -273,7 +282,11 @@ ggplot2::ggsave(
   bg = "white"
 )
 
-p85_tail_explanation <- player_p85_tail_explanation(predictions, positions = c("RB", "WR", "TE"))
+p85_tail_explanation <- player_p85_tail_explanation(predictions, positions = BACKTEST_POSITIONS)
+p85_tail_explanation[, `:=`(
+  scoring_format = SCORING_FORMAT,
+  scoring_contract_version = SCORING_CONTRACT_VERSION
+)]
 data.table::fwrite(
   p85_tail_explanation,
   path_in_project("outputs", "p85_tail_explanation_metrics.csv")
@@ -283,7 +296,9 @@ position_calibration_p15 <- predictions[
   is.finite(actual_score) & is.finite(p15),
   .(
     ffpts_p15 = as.numeric(stats::quantile(actual_score, probs = 0.15, names = FALSE, type = 7)),
-    n = .N
+    n = .N,
+    scoring_format = SCORING_FORMAT,
+    scoring_contract_version = SCORING_CONTRACT_VERSION
   ),
   by = .(position, xfpts_p15 = round_to_increment(p15, increment = 1))
 ]
@@ -313,10 +328,10 @@ p_position_p15 <- ggplot2::ggplot(
     expand = ggplot2::expansion(mult = 0.05, add = 0.5)
   ) +
   ggplot2::labs(
-    title = "Observed p15 fantasy points by p15 simulation estimate",
+    title = "Observed PPR p15 by simulated p15 estimate",
     subtitle = "Each point is an estimate bin.",
     x = "Simulation p15 estimate, xfpts_p15",
-    y = "Observed p15 fantasy points, ffpts_p15"
+    y = "Observed PPR p15"
   ) +
   ggplot2::theme_bw(base_size = 11) +
   ggplot2::theme(
@@ -336,13 +351,15 @@ ggplot2::ggsave(
 coverage <- predictions[, .(
   coverage = mean(actual_score >= p15 & actual_score <= p85),
   mean_width = mean(p85 - p15),
-  n = .N
+  n = .N,
+  scoring_format = SCORING_FORMAT,
+  scoring_contract_version = SCORING_CONTRACT_VERSION
 ), by = .(season, position)]
 p2 <- ggplot2::ggplot(coverage, ggplot2::aes(x = season, y = coverage, colour = position, group = position)) +
   ggplot2::geom_hline(yintercept = 0.70, linetype = 2) +
   ggplot2::geom_line() + ggplot2::geom_point() +
   ggplot2::scale_y_continuous(labels = scales::percent_format(accuracy = 1), limits = c(0, 1)) +
-  ggplot2::labs(title = "Observed coverage of the p15 to p85 interval", y = "Coverage", x = NULL) +
+  ggplot2::labs(title = "Observed coverage of the PPR p15 to p85 interval", y = "Coverage", x = NULL) +
   ggplot2::theme_minimal(base_size = 11)
 ggplot2::ggsave(path_in_project("outputs", "plots", "player_interval_coverage.png"), p2, width = 9, height = 6, dpi = 160)
 
@@ -361,5 +378,8 @@ p3 <- ggplot2::ggplot(game_long, ggplot2::aes(x = predicted_margin, y = actual_m
   ggplot2::labs(title = "Game margin predictions", x = "Predicted home margin", y = "Actual home margin") +
   ggplot2::theme_minimal(base_size = 11) + ggplot2::theme(legend.position = "none")
 ggplot2::ggsave(path_in_project("outputs", "plots", "game_margin_predictions.png"), p3, width = 10, height = 7, dpi = 160)
+
+scorecard <- player_scorecard_metrics(predictions, model_name = "ffsimulator")
+data.table::fwrite(scorecard, path_in_project("outputs", "player_scorecard_metrics.csv"))
 
 message("Plots written to outputs/plots.")

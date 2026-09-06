@@ -53,6 +53,14 @@ then promote reusable lessons into this guide after review.
   - Keywords: R 4.4.2, R CMD, sibling repository, output files, locale,
     nflreadpy, Python, XGBoost, DST cache
 
+## Web and deployment
+
+- [Web preview and Vercel deployment](web-and-deployment.md)
+  - Read when changing the Next.js preview, the worker boundary, or the
+    public Vercel deployment.
+  - Keywords: Next.js, TypeScript, ECharts, Vercel, deployment, alias,
+    rollback, historical calibration, preview, legacy labels
+
 ## Recurring Problems
 
 - [Recurring problems](recurring-problems.md)

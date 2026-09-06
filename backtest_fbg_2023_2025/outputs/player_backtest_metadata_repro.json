@@ -1,0 +1,51 @@
+{
+  "model": "ffsimulator",
+  "scoring_format": "PPR",
+  "scoring_contract_version": "ppr_v1",
+  "score_field": "fantasy_points_ppr",
+  "target_seasons": [2023, 2024, 2025],
+  "maximum_available_season": 2025,
+  "simulation_settings": {
+    "n_simulations": 1000,
+    "rank_sd_multiplier": 0.5,
+    "qb_conditioning_strength": 0,
+    "seed_formula": "100000 + target_season * 100 + target_week"
+  },
+  "target_history": [
+    {
+      "target_season": 2023,
+      "history_seasons": [2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022],
+      "max_historical_season": 2022,
+      "rows": 59572,
+      "contains_target_or_future": false
+    },
+    {
+      "target_season": 2024,
+      "history_seasons": [2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023],
+      "max_historical_season": 2023,
+      "rows": 65036,
+      "contains_target_or_future": false
+    },
+    {
+      "target_season": 2025,
+      "history_seasons": [2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024],
+      "max_historical_season": 2024,
+      "rows": 70557,
+      "contains_target_or_future": false
+    }
+  ],
+  "ppr_parity": {
+    "scoring_format": "PPR",
+    "scoring_contract_version": "ppr_v1",
+    "rows_checked": 76244,
+    "max_abs_difference": 3.552713678800501e-15,
+    "rows_with_receiving_first_downs": 38269,
+    "receiving_first_down_points_used": 0,
+    "tight_end_reception_bonus_used": 0
+  },
+  "validation": {
+    "leakage_check": "passed",
+    "scoring_contract_check": "passed",
+    "reproducibility_seed_policy": "passed"
+  }
+}

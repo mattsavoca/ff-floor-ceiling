@@ -1,8 +1,8 @@
-"""Explain the direct XGBoost p85 models with Tree SHAP.
+"""Explain the direct XGBoost PPR p85 models with Tree SHAP.
 
-The experiment models raw p85 fantasy points. This script explains those raw
-point predictions with exact tree attributions for each position and target
-season. It does not explain probabilities or make causal claims.
+The experiment models raw PPR p85 points. This script explains those point
+predictions with exact tree attributions for each position and target season.
+It does not explain probabilities or make causal claims.
 """
 
 from __future__ import annotations
@@ -21,6 +21,9 @@ import numpy as np
 import pandas as pd
 import shap
 import xgboost as xgb
+
+SCORING_FORMAT = "PPR"
+SCORING_CONTRACT_VERSION = "ppr_v1"
 
 
 def load_experiment_module(root: Path) -> Any:
@@ -122,6 +125,8 @@ def importance_rows(
             {
                 "target_season": target_season,
                 "position": position,
+                "scoring_format": SCORING_FORMAT,
+                "scoring_contract_version": SCORING_CONTRACT_VERSION,
                 "feature": feature,
                 "mean_abs_shap": float(np.mean(np.abs(values[:, index]))),
                 "mean_shap": float(np.mean(values[:, index])),
@@ -162,6 +167,8 @@ def local_rows(
                 "fbg_id": str(target.iloc[row_index]["fbg_id"]),
                 "player_name": str(target.iloc[row_index].get("player_name", "")),
                 "actual_score": float(target.iloc[row_index]["actual_score"]),
+                "scoring_format": SCORING_FORMAT,
+                "scoring_contract_version": SCORING_CONTRACT_VERSION,
                 "baseline_p85": float(target.iloc[row_index]["p85"]),
                 "model_p85": prediction,
                 "base_value": base_value,
@@ -182,7 +189,7 @@ def write_summary(
     lines = [
         "# SHAP explanation for direct XGBoost p85 models",
         "",
-        "The model output is raw p85 fantasy points. SHAP values use the same unit.",
+        "The model output is raw PPR p85 points. SHAP values use the same unit.",
         "Positive values increase the predicted p85. Negative values decrease it.",
         "SHAP shows model association. It does not show causation.",
         "",
@@ -224,6 +231,9 @@ def run(args: argparse.Namespace) -> None:
 
     experiment = load_experiment_module(root)
     data, _ = experiment.build_dataset(root)
+    if experiment.SCORING_FORMAT != SCORING_FORMAT or experiment.SCORING_CONTRACT_VERSION != SCORING_CONTRACT_VERSION:
+        raise ValueError("SHAP and XGBoost scoring contracts do not match.")
+    experiment.require_ppr_artifact(data, "XGBoost SHAP dataset")
     names = pd.read_parquet(
         root / "backtest_fbg_2023_2025" / "data" / "derived" / "fbg_rank_summary.parquet",
         columns=[*experiment.KEY_COLUMNS, "player_name"],
@@ -245,6 +255,7 @@ def run(args: argparse.Namespace) -> None:
             data["season"].eq(target_season) & data["position"].eq(position)
         ].sort_values(list(experiment.KEY_COLUMNS)).reset_index(drop=True)
         features = [value for value in str(model_row.features).split(",") if value]
+        experiment.assert_feature_columns(features)
         X = target[features].astype(float)
         model = xgb.Booster()
         model.load_model(str(model_path))
@@ -336,13 +347,17 @@ def run(args: argparse.Namespace) -> None:
     local = pd.concat(local_parts, ignore_index=True)
     checks = pd.DataFrame(model_checks)
     metadata = {
+        "scoring_format": SCORING_FORMAT,
+        "scoring_contract_version": SCORING_CONTRACT_VERSION,
         "explainer": "shap.TreeExplainer",
         "feature_perturbation": "tree_path_dependent",
-        "model_output": "raw p85 fantasy points",
+        "model_output": "raw PPR p85 points",
         "models_explained": int(len(checks)),
         "rows_explained": int(checks["rows"].sum()),
         "max_additivity_error": float(checks["max_additivity_error"].max()),
         "target_seasons": list(args.target_seasons),
+        "max_historical_season_used": int(max(args.target_seasons) - 1),
+        "feature_leakage_check": "passed",
         "plot_sample_size": args.sample_size,
         "top_features": args.top_features,
         "shap_version": shap.__version__,

@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://floor-ceiling.example/contracts/forecast-result.v1.json",
+  "title": "Floor and Ceiling forecast result",
+  "description": "Complete range output published only after the worker checks every row.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "runId", "state", "metadata", "rows"],
+  "properties": {
+    "schemaVersion": { "const": "forecast-result.v1" },
+    "runId": { "type": "string", "pattern": "^run_[a-zA-Z0-9_-]{8,128}$" },
+    "state": { "const": "Complete" },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["season", "week", "metricDefinitionVersion", "modelVersion", "simulationCount", "seed", "inputRevision", "createdAt", "completedAt"],
+      "properties": {
+        "season": { "type": "integer" },
+        "week": { "type": "integer" },
+        "metricDefinitionVersion": { "type": "string" },
+        "modelVersion": { "type": "string" },
+        "simulationCount": { "type": "integer" },
+        "seed": { "type": "integer" },
+        "inputRevision": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "completedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "rows": {
+      "type": "array",
+      "maxItems": 50000,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["stablePlayerId", "position", "team", "opponent", "sourceProjection", "p15", "p50", "p85"],
+        "properties": {
+          "stablePlayerId": { "type": "string", "minLength": 1, "maxLength": 128 },
+          "position": { "enum": ["QB", "RB", "WR", "TE", "DST"] },
+          "team": { "type": "string", "minLength": 2, "maxLength": 4 },
+          "opponent": { "type": "string", "minLength": 2, "maxLength": 4 },
+          "gameId": { "type": "string", "maxLength": 128 },
+          "sourceProjection": { "type": "number" },
+          "p15": { "type": "number" },
+          "p50": { "type": "number" },
+          "p85": { "type": "number" },
+          "drawsRef": { "type": ["string", "null"], "maxLength": 256 }
+        }
+      }
+    }
+  }
+}

@@ -16,13 +16,13 @@ test_that("calibration bins use half-up increment rounding", {
   expect_equal(round_to_half(c(0.24, 0.25, 0.26)), c(0, 0.5, 0.5))
 })
 
-test_that("projection scoring uses the configured FFFL additions", {
+test_that("projection scoring follows the PPR contract", {
   row <- data.table::data.table(
     pos = "te", `pass-yds` = 0, `pass-td` = 0, `pass-int` = 0, `pass-2pt` = 0,
     `rush-yds` = 0, `rush-td` = 0, `rush-2pt` = 0, `rec-yds` = 100,
     `rec-td` = 1, `rec-2pt` = 0, `rec-rec` = 5, `rec-1d` = 3, `fum-lost` = 0
   )
-  expect_equal(score_projection_rows(row), 10 + 6 + 2.5 + 2.5 + 1.5)
+  expect_equal(score_projection_rows(row), 10 + 6 + 5)
 })
 
 test_that("nflreadr scores aggregate multiple team rows for one player-week", {
@@ -30,12 +30,23 @@ test_that("nflreadr scores aggregate multiple team rows for one player-week", {
     player_id = c("p1", "p1"), player_name = c("A", "A"), position = c("TE", "TE"),
     season = c(2025L, 2025L), week = c(1L, 1L), season_type = c("REG", "REG"),
     team = c("LAR", "LA"), game_id = c("g1", "g1"), fantasy_points = c(10, 5),
+    fantasy_points_ppr = c(14, 6),
     receptions = c(4, 1), receiving_first_downs = c(2, 1)
   )
   out <- score_nflreadr_weekly(stats)
   expect_equal(nrow(out), 1)
   expect_equal(out$team, "LA")
-  expect_equal(out$actual_score, 15 + 2.5 + 2.5 + 1.5)
+  expect_equal(out$actual_score, 20)
+  expect_equal(out$ppr_points, 20)
+})
+
+test_that("raw PPR parity rejects a changed scoring field", {
+  stats <- data.table::data.table(
+    season = 2025L, season_type = "REG", week = 1L, position = "WR",
+    fantasy_points = 10, fantasy_points_ppr = 11, receptions = 2,
+    receiving_first_downs = 1
+  )
+  expect_error(validate_ppr_parity(stats), "PPR parity check failed", fixed = TRUE)
 })
 
 test_that("rank-conditioned sampling falls back to the nearest rank", {
@@ -51,7 +62,9 @@ test_that("ffsimulator receives only seasons before the target season", {
     gsis_id = paste0("p", 1:4),
     week = 1L,
     season = 2022:2025,
-    points = c(10, 20, 30, 40)
+    points = c(10, 20, 30, 40),
+    scoring_format = SCORING_FORMAT,
+    scoring_contract_version = SCORING_CONTRACT_VERSION
   )
   received_seasons <- integer()
   builder <- function(scoring_history, pos_filter) {
@@ -63,8 +76,9 @@ test_that("ffsimulator receives only seasons before the target season", {
     )
   }
 
+  prior_history <- scoring_history[season < 2024L]
   pool <- make_outcome_pool(
-    scoring_history,
+    prior_history,
     target_season = 2024L,
     outcome_builder = builder
   )
@@ -73,6 +87,12 @@ test_that("ffsimulator receives only seasons before the target season", {
   expect_true(all(received_seasons < 2024L))
   expect_equal(attr(pool, "scoring_history_seasons"), c(2022L, 2023L))
   expect_equal(attr(pool, "scoring_history_rows"), 2L)
+  expect_equal(attr(pool, "scoring_format"), SCORING_FORMAT)
+  expect_error(
+    make_outcome_pool(scoring_history, target_season = 2024L, outcome_builder = builder),
+    "contains target or future seasons: 2024,2025",
+    fixed = TRUE
+  )
 })
 
 test_that("the scoring-history guard rejects target and future seasons", {
@@ -95,14 +115,15 @@ test_that("the scoring-history builder keeps the score season", {
     player_id = "p1", player_name = "One", position = "RB",
     season = 2022L, week = 1L, season_type = "REG", team = "BUF",
     game_id = "g1", fantasy_points = 10, receptions = 2,
-    receiving_first_downs = 1
+    fantasy_points_ppr = 12, receiving_first_downs = 1
   )
 
   history <- make_scoring_history(stats)
 
   expect_equal(history$gsis_id, "p1")
   expect_equal(history$season, 2022L)
-  expect_equal(history$points, 11.5)
+  expect_equal(history$points, 12)
+  expect_equal(history$scoring_format, SCORING_FORMAT)
 })
 
 test_that("player summaries preserve p15, p50, and p85", {
@@ -116,6 +137,33 @@ test_that("player summaries preserve p15, p50, and p85", {
   expect_equal(out$mean_above_p85, 40)
   expect_equal(out$p85_tail_excess, 6)
   expect_true(out$p15 < out$p50 && out$p50 < out$p85)
+})
+
+test_that("PPR scorecard reports quantile, calibration, error, and tail metrics", {
+  predictions <- data.table::data.table(
+    season = rep(2024:2025, each = 4),
+    position = rep(c("QB", "RB", "WR", "TE"), 2),
+    actual_score = c(5, 10, 20, 30, 6, 11, 21, 31),
+    p15 = c(1, 2, 4, 6, 2, 3, 5, 7),
+    p50 = c(4, 9, 18, 28, 5, 10, 19, 29),
+    p85 = c(4, 9, 18, 28, 5, 10, 19, 29),
+    mean_above_p85 = c(12, 20, 32, 42, 13, 21, 33, 43),
+    p85_tail_excess = c(4, 6, 6, 6, 4, 6, 6, 6),
+    scoring_format = SCORING_FORMAT,
+    scoring_contract_version = SCORING_CONTRACT_VERSION
+  )
+  out <- player_scorecard_metrics(predictions)
+  overall <- out[is.na(season) & position == "ALL"]
+  expect_equal(overall$n, 8L)
+  expect_true(is.finite(overall$p85_pinball_loss))
+  expect_true(is.finite(overall$calibration_slope))
+  expect_true(is.finite(overall$calibration_intercept))
+  expect_true(is.finite(overall$p50_mae))
+  expect_true(is.finite(overall$p85_rmse))
+  expect_equal(overall$low_side_miss_rate, mean(predictions$actual_score < predictions$p15))
+  expect_equal(overall$high_side_miss_rate, mean(predictions$actual_score > predictions$p85))
+  expect_true(is.finite(overall$mean_score_above_p85))
+  expect_true(is.finite(overall$average_tail_excess))
 })
 
 test_that("mean above threshold returns NA when no draw exceeds threshold", {

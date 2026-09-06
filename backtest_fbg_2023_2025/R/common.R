@@ -125,6 +125,34 @@ write_csv_local <- function(data, path, overwrite = TRUE) {
   invisible(path)
 }
 
+write_json_local <- function(data, path, overwrite = TRUE) {
+  require_packages("jsonlite")
+  ensure_dir(dirname(path))
+  if (overwrite && file.exists(path)) unlink(path)
+  jsonlite::write_json(
+    data,
+    path,
+    auto_unbox = TRUE,
+    pretty = TRUE,
+    digits = 15,
+    na = "null"
+  )
+  invisible(path)
+}
+
+assert_ppr_artifact <- function(data, label = "artifact") {
+  check_columns(data, c("scoring_format", "scoring_contract_version"), label)
+  formats <- unique(as.character(data$scoring_format))
+  contracts <- unique(as.character(data$scoring_contract_version))
+  if (length(formats) != 1L || formats[[1L]] != SCORING_FORMAT) {
+    abort(label, " has a non-PPR scoring format.")
+  }
+  if (length(contracts) != 1L || contracts[[1L]] != SCORING_CONTRACT_VERSION) {
+    abort(label, " has an unknown scoring contract.")
+  }
+  invisible(data)
+}
+
 fbg_raw_path <- function(season, week) {
   path_in_project("data", "raw", "fbg", sprintf("season=%d", season), sprintf("week=%02d.csv", week))
 }

@@ -6,3 +6,8 @@ outputs/week1_2026_fbg_*_dst_draws.parquet
 outputs/week1_2026_fbg_dst_draws.*
 outputs/week1_2026_fbg_player_draws.csv
 outputs/week1_2026_fbg_schedule.csv
+web/node_modules/
+web/.next/
+web/.vercel/
+web/coverage/
+web/*.tsbuildinfo

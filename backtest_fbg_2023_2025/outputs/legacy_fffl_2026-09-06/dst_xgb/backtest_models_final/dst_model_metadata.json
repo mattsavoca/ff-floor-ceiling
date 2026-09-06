@@ -1,0 +1,329 @@
+{
+  "model_version": "dst-xgb-python-v1",
+  "target_season": 2025,
+  "validation_season": 2024,
+  "training_seasons": [
+    2023,
+    2024
+  ],
+  "validation_rows": 10240,
+  "validation_games": 256,
+  "training_rows": 20480,
+  "training_games": 512,
+  "feature_columns": [
+    "sim_off_total_fd_points",
+    "div_game",
+    "total_line",
+    "dst_home_game",
+    "dst_team_total",
+    "opponent_implied_team_total",
+    "opponent_team_total",
+    "dst_team_spread_prob",
+    "opponent_spread_prob",
+    "dst_team_moneyline_prob",
+    "opponent_moneyline_prob",
+    "dst_team_rest",
+    "opponent_rest",
+    "temp",
+    "rest_differential",
+    "opponent_qb_epa",
+    "opponent_qb_cpoe",
+    "game_type_reg",
+    "dist_from_onepm",
+    "sim_qb_fpts_share",
+    "sim_rb_fpts_share",
+    "sim_wr_fpts_share",
+    "sim_te_fpts_share",
+    "sim_k_fpts_share",
+    "high_wind",
+    "moderate_wind",
+    "location_neutral",
+    "roof_closed",
+    "roof_dome",
+    "roof_open",
+    "roof_outdoors"
+  ],
+  "feature_spec": [
+    {
+      "name": "sim_off_total_fd_points",
+      "source": "original FBG player draws",
+      "availability": "pregame simulation",
+      "dtype": "float",
+      "transform": "sum of simulated QB, RB, WR, TE, and K points"
+    },
+    {
+      "name": "div_game",
+      "source": "schedule",
+      "availability": "before kickoff",
+      "dtype": "float",
+      "transform": "binary division-game flag"
+    },
+    {
+      "name": "total_line",
+      "source": "schedule market",
+      "availability": "before kickoff",
+      "dtype": "float",
+      "transform": "raw total line"
+    },
+    {
+      "name": "dst_home_game",
+      "source": "schedule",
+      "availability": "before kickoff",
+      "dtype": "float",
+      "transform": "1 when defense is home"
+    },
+    {
+      "name": "dst_team_total",
+      "source": "schedule market",
+      "availability": "before kickoff",
+      "dtype": "float",
+      "transform": "defense implied team total"
+    },
+    {
+      "name": "opponent_implied_team_total",
+      "source": "schedule market",
+      "availability": "before kickoff",
+      "dtype": "float",
+      "transform": "opponent implied team total"
+    },
+    {
+      "name": "opponent_team_total",
+      "source": "schedule market",
+      "availability": "before kickoff",
+      "dtype": "float",
+      "transform": "legacy duplicate of opponent implied total"
+    },
+    {
+      "name": "dst_team_spread_prob",
+      "source": "schedule market",
+      "availability": "before kickoff",
+      "dtype": "float",
+      "transform": "American odds to implied probability"
+    },
+    {
+      "name": "opponent_spread_prob",
+      "source": "schedule market",
+      "availability": "before kickoff",
+      "dtype": "float",
+      "transform": "American odds to implied probability"
+    },
+    {
+      "name": "dst_team_moneyline_prob",
+      "source": "schedule market",
+      "availability": "before kickoff",
+      "dtype": "float",
+      "transform": "American odds to implied probability"
+    },
+    {
+      "name": "opponent_moneyline_prob",
+      "source": "schedule market",
+      "availability": "before kickoff",
+      "dtype": "float",
+      "transform": "American odds to implied probability"
+    },
+    {
+      "name": "dst_team_rest",
+      "source": "schedule",
+      "availability": "before kickoff",
+      "dtype": "float",
+      "transform": "defense rest days"
+    },
+    {
+      "name": "opponent_rest",
+      "source": "schedule",
+      "availability": "before kickoff",
+      "dtype": "float",
+      "transform": "opponent rest days"
+    },
+    {
+      "name": "temp",
+      "source": "schedule weather",
+      "availability": "before kickoff",
+      "dtype": "float",
+      "transform": "numeric temperature"
+    },
+    {
+      "name": "rest_differential",
+      "source": "schedule",
+      "availability": "before kickoff",
+      "dtype": "float",
+      "transform": "defense rest minus opponent rest"
+    },
+    {
+      "name": "opponent_qb_epa",
+      "source": "historical PBP",
+      "availability": "before target kickoff",
+      "dtype": "float",
+      "transform": "recency-weighted QB EPA from prior plays"
+    },
+    {
+      "name": "opponent_qb_cpoe",
+      "source": "historical PBP",
+      "availability": "before target kickoff",
+      "dtype": "float",
+      "transform": "recency-weighted QB CPOE from prior plays"
+    },
+    {
+      "name": "game_type_reg",
+      "source": "schedule",
+      "availability": "before kickoff",
+      "dtype": "float",
+      "transform": "1 for regular season"
+    },
+    {
+      "name": "dist_from_onepm",
+      "source": "schedule kickoff",
+      "availability": "before kickoff",
+      "dtype": "float",
+      "transform": "absolute kickoff-hour distance from 13:00"
+    },
+    {
+      "name": "sim_qb_fpts_share",
+      "source": "original FBG player draws",
+      "availability": "pregame simulation",
+      "dtype": "float",
+      "transform": "simulated QB points divided by simulated offense total"
+    },
+    {
+      "name": "sim_rb_fpts_share",
+      "source": "original FBG player draws",
+      "availability": "pregame simulation",
+      "dtype": "float",
+      "transform": "simulated RB points divided by simulated offense total"
+    },
+    {
+      "name": "sim_wr_fpts_share",
+      "source": "original FBG player draws",
+      "availability": "pregame simulation",
+      "dtype": "float",
+      "transform": "simulated WR points divided by simulated offense total"
+    },
+    {
+      "name": "sim_te_fpts_share",
+      "source": "original FBG player draws",
+      "availability": "pregame simulation",
+      "dtype": "float",
+      "transform": "simulated TE points divided by simulated offense total"
+    },
+    {
+      "name": "sim_k_fpts_share",
+      "source": "original FBG player draws",
+      "availability": "pregame simulation",
+      "dtype": "float",
+      "transform": "simulated K points divided by simulated offense total"
+    },
+    {
+      "name": "high_wind",
+      "source": "schedule weather",
+      "availability": "before kickoff",
+      "dtype": "float",
+      "transform": "1 when wind is at least 20"
+    },
+    {
+      "name": "moderate_wind",
+      "source": "schedule weather",
+      "availability": "before kickoff",
+      "dtype": "float",
+      "transform": "1 when wind is greater than 15 and less than 20"
+    },
+    {
+      "name": "location_neutral",
+      "source": "schedule",
+      "availability": "before kickoff",
+      "dtype": "float",
+      "transform": "1 for neutral site"
+    },
+    {
+      "name": "roof_closed",
+      "source": "schedule venue",
+      "availability": "before kickoff",
+      "dtype": "float",
+      "transform": "one-hot roof category"
+    },
+    {
+      "name": "roof_dome",
+      "source": "schedule venue",
+      "availability": "before kickoff",
+      "dtype": "float",
+      "transform": "one-hot roof category"
+    },
+    {
+      "name": "roof_open",
+      "source": "schedule venue",
+      "availability": "before kickoff",
+      "dtype": "float",
+      "transform": "one-hot roof category"
+    },
+    {
+      "name": "roof_outdoors",
+      "source": "schedule venue",
+      "availability": "before kickoff",
+      "dtype": "float",
+      "transform": "one-hot roof category"
+    }
+  ],
+  "excluded_upstream_features": [
+    "days_in_past"
+  ],
+  "target": "dst_fd_pts",
+  "scoring_profile": "UPSTREAM_FD_PROFILE",
+  "best_params": {
+    "objective": "reg:squarederror",
+    "tree_method": "hist",
+    "max_bin": 256,
+    "seed": 20260906,
+    "nthread": 0,
+    "verbosity": 0,
+    "max_depth": 5,
+    "min_child_weight": 5.0,
+    "eta": 0.03,
+    "subsample": 0.95,
+    "colsample_bytree": 1.0,
+    "reg_lambda": 1.0
+  },
+  "best_rounds": 13,
+  "quantile_rounds": {
+    "p15": 32,
+    "p50": 46,
+    "p85": 112
+  },
+  "point_validation_metrics": {
+    "rmse": 7.410796274640321,
+    "mae": 5.907842040900141,
+    "bias": 1.1118030522018671,
+    "r2": -0.0030988192432603867
+  },
+  "quantiles": [
+    0.15,
+    0.5,
+    0.85
+  ],
+  "quantile_validation_metrics": {
+    "p15": {
+      "pinball_loss": 1.5860191410888684
+    },
+    "p50": {
+      "pinball_loss": 2.8061003631097265
+    },
+    "p85": {
+      "pinball_loss": 1.8498548150528222
+    }
+  },
+  "artifacts": {
+    "point": "outputs\\dst_xgb\\backtest_models_final\\dst_point_target_2025.json",
+    "quantiles": {
+      "p15": "outputs\\dst_xgb\\backtest_models_final\\dst_p15_target_2025.json",
+      "p50": "outputs\\dst_xgb\\backtest_models_final\\dst_p50_target_2025.json",
+      "p85": "outputs\\dst_xgb\\backtest_models_final\\dst_p85_target_2025.json"
+    },
+    "tuning": "outputs\\dst_xgb\\backtest_models_final\\dst_tuning_target_2025.csv",
+    "feature_spec": "outputs\\dst_xgb\\backtest_models_final\\dst_feature_spec.csv"
+  },
+  "package_versions": {
+    "python": "Python 3.14.0",
+    "numpy": "2.4.1",
+    "pandas": "2.3.3",
+    "xgboost": "3.4.1",
+    "nflreadpy": "0.1.5"
+  }
+}

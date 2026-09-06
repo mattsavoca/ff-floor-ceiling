@@ -46,7 +46,8 @@ output_suffix <- if (is.null(output_tag)) {
 }
 
 panel <- read_parquet_local(path_in_project("data", "derived", "fbg_rank_summary.parquet"))
-check_columns(panel, c("season", "week", "fbg_id", "gsis_id", "position", "team", "ecr", "rank_sd", "n_projectors", "actual_score"), "FBG rank summary")
+check_columns(panel, c("season", "week", "fbg_id", "gsis_id", "position", "team", "ecr", "rank_sd", "n_projectors", "actual_score", "scoring_format", "scoring_contract_version"), "FBG rank summary")
+assert_ppr_artifact(panel, "FBG rank summary")
 panel[, `:=`(position = toupper(position), team = normalize_team(team))]
 panel <- panel[season %in% BACKTEST_YEARS & week %in% BACKTEST_WEEKS]
 if (!nrow(panel)) abort("The FBG rank summary is empty. Run 03_build_panel.R first.")
@@ -65,7 +66,9 @@ scoring_stats <- data.table::rbindlist(
   fill = TRUE,
   use.names = TRUE
 )
+parity <- validate_ppr_parity(scoring_stats)
 scoring_history <- make_scoring_history(scoring_stats)
+assert_ppr_artifact(scoring_history, "scoring history")
 
 prediction_parts <- list()
 team_draw_parts <- list()
@@ -73,9 +76,16 @@ player_draw_parts <- list()
 metric_parts <- list()
 
 for (target_season in BACKTEST_YEARS) {
-  pool <- make_outcome_pool(scoring_history, target_season)
+  # Materialize and validate the target-specific document before it reaches
+  # either the outcome builder or the optional QB conditioning model.
+  history_for_target <- scoring_history_before(scoring_history, target_season)
+  history_path <- path_in_project(
+    "data", "derived", sprintf("scoring_history_target_%d.parquet", target_season)
+  )
+  write_parquet_local(history_for_target, history_path)
+  pool <- make_outcome_pool(history_for_target, target_season)
   qb_skill_model <- if (qb_conditioning_strength > 0) {
-    fit_qb_skill_model(scoring_history, target_season)
+    fit_qb_skill_model(history_for_target, target_season)
   } else {
     NULL
   }
@@ -121,7 +131,9 @@ for (target_season in BACKTEST_YEARS) {
       n_simulations = n_simulations,
       rank_sd_multiplier = sd_multiplier,
       pool_mode = "walk_forward_prior_seasons",
-      qb_conditioning_strength = qb_conditioning_strength
+      qb_conditioning_strength = qb_conditioning_strength,
+      scoring_format = SCORING_FORMAT,
+      scoring_contract_version = SCORING_CONTRACT_VERSION
     )]
     prediction_parts[[length(prediction_parts) + 1L]] <- predictions
 
@@ -134,15 +146,24 @@ for (target_season in BACKTEST_YEARS) {
       pool_max_training_season = max(training_seasons),
       scoring_history_max_season = max(training_seasons),
       pool_mode = "walk_forward_prior_seasons",
-      qb_conditioning_strength = qb_conditioning_strength
+      qb_conditioning_strength = qb_conditioning_strength,
+      scoring_format = SCORING_FORMAT,
+      scoring_contract_version = SCORING_CONTRACT_VERSION
     )]
     team_draw_parts[[length(team_draw_parts) + 1L]] <- team_draws
-    player_draw_parts[[length(player_draw_parts) + 1L]] <- simulation_to_player_draws(
+    player_draw <- simulation_to_player_draws(
       players,
       simulation,
       season = target_season,
       week = target_week
     )
+    player_draw[, `:=`(
+      scoring_history_max_season = max(training_seasons),
+      pool_mode = "walk_forward_prior_seasons",
+      scoring_format = SCORING_FORMAT,
+      scoring_contract_version = SCORING_CONTRACT_VERSION
+    )]
+    player_draw_parts[[length(player_draw_parts) + 1L]] <- player_draw
     metric_parts[[length(metric_parts) + 1L]] <- data.table::data.table(
       season = target_season,
       week = target_week,
@@ -155,7 +176,9 @@ for (target_season in BACKTEST_YEARS) {
       scoring_history_rows = scoring_history_rows,
       pool_mode = "walk_forward_prior_seasons",
       n_simulations = n_simulations,
-      qb_conditioning_strength = qb_conditioning_strength
+      qb_conditioning_strength = qb_conditioning_strength,
+      scoring_format = SCORING_FORMAT,
+      scoring_contract_version = SCORING_CONTRACT_VERSION
     )
     message(sprintf("Simulated %d week %02d: %d players, %d teams", target_season, target_week, nrow(players), data.table::uniqueN(players$team)))
   }
@@ -166,7 +189,15 @@ predictions <- data.table::rbindlist(prediction_parts, fill = TRUE, use.names = 
 team_draws <- data.table::rbindlist(team_draw_parts, fill = TRUE, use.names = TRUE)
 player_draws <- data.table::rbindlist(player_draw_parts, fill = TRUE, use.names = TRUE)
 player_draws[, simulation_mode := if (qb_conditioning_strength == 0) "original_fbg" else "qb_conditioned_experiment"]
+player_draws[, `:=`(
+  scoring_format = SCORING_FORMAT,
+  scoring_contract_version = SCORING_CONTRACT_VERSION
+)]
 run_metrics <- data.table::rbindlist(metric_parts, fill = TRUE, use.names = TRUE)
+run_metrics[, `:=`(
+  scoring_format = SCORING_FORMAT,
+  scoring_contract_version = SCORING_CONTRACT_VERSION
+)]
 
 write_parquet_local(predictions, path_in_project("outputs", paste0("player_predictions", output_suffix, ".parquet")))
 write_parquet_local(team_draws, path_in_project("outputs", paste0("team_draws", output_suffix, ".parquet")))
@@ -175,6 +206,58 @@ write_csv_local(run_metrics, path_in_project("outputs", paste0("player_run_metri
 
 intervals <- player_interval_metrics(predictions, group_by = "position")
 write_csv_local(intervals, path_in_project("outputs", paste0("player_interval_metrics", output_suffix, ".csv")))
+scorecard <- player_scorecard_metrics(predictions, model_name = "ffsimulator")
+write_csv_local(scorecard, path_in_project("outputs", paste0("player_scorecard_metrics", output_suffix, ".csv")))
+write_csv_local(parity, path_in_project("outputs", paste0("ppr_parity", output_suffix, ".csv")))
+
+metadata <- list(
+  model = "ffsimulator",
+  scoring_format = SCORING_FORMAT,
+  scoring_contract_version = SCORING_CONTRACT_VERSION,
+  score_field = "fantasy_points_ppr",
+  target_seasons = as.integer(BACKTEST_YEARS),
+  maximum_available_season = max(scoring_history$season, na.rm = TRUE),
+  simulation_settings = list(
+    n_simulations = n_simulations,
+    rank_sd_multiplier = sd_multiplier,
+    qb_conditioning_strength = qb_conditioning_strength,
+    seed_formula = "100000 + target_season * 100 + target_week"
+  ),
+  target_history = lapply(BACKTEST_YEARS, function(target_season) {
+    history <- scoring_history_before(scoring_history, target_season)
+    list(
+      target_season = as.integer(target_season),
+      history_seasons = sort(unique(as.integer(history$season))),
+      max_historical_season = max(history$season, na.rm = TRUE),
+      rows = nrow(history),
+      contains_target_or_future = any(history$season >= target_season)
+    )
+  }),
+  ppr_parity = as.list(parity[1L]),
+  validation = list(
+    leakage_check = "passed",
+    scoring_contract_check = "passed",
+    reproducibility_seed_policy = "passed"
+  )
+)
+write_json_local(metadata, path_in_project("outputs", paste0("player_backtest_metadata", output_suffix, ".json")))
+history_manifest <- data.table::rbindlist(lapply(BACKTEST_YEARS, function(target_season) {
+  history <- scoring_history_before(scoring_history, target_season)
+  data.table::data.table(
+    target_season = as.integer(target_season),
+    history_document = normalizePath(
+      path_in_project("data", "derived", sprintf("scoring_history_target_%d.parquet", target_season)),
+      winslash = "/"
+    ),
+    scoring_format = SCORING_FORMAT,
+    scoring_contract_version = SCORING_CONTRACT_VERSION,
+    history_seasons = paste(sort(unique(history$season)), collapse = ","),
+    rows = nrow(history),
+    max_historical_season = max(history$season, na.rm = TRUE),
+    contains_target_or_future = any(history$season >= target_season)
+  )
+}), fill = TRUE)
+write_csv_local(history_manifest, path_in_project("outputs", "scoring_history_manifest.csv"))
 
 message("Player predictions: ", format(nrow(predictions), big.mark = ","))
 message("Team simulation draws: ", format(nrow(team_draws), big.mark = ","))

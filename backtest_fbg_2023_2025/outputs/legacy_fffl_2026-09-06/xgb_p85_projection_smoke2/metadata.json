@@ -1,0 +1,166 @@
+{
+  "experiment": "direct_xgboost_p85_with_fbg_projection_data",
+  "objective": "reg:quantileerror",
+  "quantile_alpha": 0.85,
+  "metric": "p85_pinball",
+  "positions": [
+    "QB",
+    "RB",
+    "WR",
+    "TE"
+  ],
+  "target_seasons_requested": [
+    2024
+  ],
+  "target_seasons_scored": [
+    2024
+  ],
+  "warmup_seasons": [
+    2023,
+    2024,
+    2025
+  ],
+  "grid_candidates_per_position_and_target": 1,
+  "grid_definition": {
+    "max_depth": [
+      2,
+      3,
+      4
+    ],
+    "min_child_weight": [
+      1,
+      5,
+      15
+    ],
+    "subsample": [
+      0.7,
+      0.9
+    ],
+    "colsample_bytree": [
+      0.7,
+      1.0
+    ],
+    "learning_rate": [
+      0.03,
+      0.06
+    ],
+    "reg_lambda": [
+      1.0,
+      5.0
+    ]
+  },
+  "max_rounds": 10,
+  "early_stopping_rounds": 3,
+  "validation_weeks": [
+    14,
+    15,
+    16,
+    17
+  ],
+  "nthread": 4,
+  "feature_families": {
+    "rank_summary": [
+      "week",
+      "ecr",
+      "rank_sd",
+      "n_projectors",
+      "rank_min",
+      "rank_max",
+      "consensus_rank",
+      "consensus_projected_score"
+    ],
+    "raw_projection_stats": [
+      "ssn-gms",
+      "ssn-ssn",
+      "pass-2pt",
+      "pass-att",
+      "pass-cmp",
+      "pass-1d",
+      "pass-int",
+      "pass-sck",
+      "pass-td",
+      "pass-yds",
+      "rush-2pt",
+      "rush-car",
+      "rush-1d",
+      "rush-td",
+      "rush-yds",
+      "rec-2pt",
+      "rec-1d",
+      "rec-rec",
+      "rec-tgt",
+      "rec-td",
+      "rec-yds",
+      "fum-lost"
+    ],
+    "derived_projection": [
+      "projection_fpts"
+    ]
+  },
+  "data_audit": {
+    "summary_rows": 14985,
+    "consensus_projection_rows": 20006,
+    "projection_join_counts": {
+      "both": 14985,
+      "left_only": 0,
+      "right_only": 0
+    },
+    "baseline_rows": 13378,
+    "eligible_rows": 13378,
+    "eligible_by_season_position": {
+      "2023_QB": 457,
+      "2023_RB": 984,
+      "2023_TE": 1059,
+      "2023_WR": 1488,
+      "2024_QB": 483,
+      "2024_RB": 1191,
+      "2024_TE": 1158,
+      "2024_WR": 1748,
+      "2025_QB": 504,
+      "2025_RB": 1287,
+      "2025_TE": 1124,
+      "2025_WR": 1895
+    }
+  },
+  "model_records": [
+    {
+      "target_season": 2024,
+      "position": "QB",
+      "model_path": "models\\xgb_p85_qb_through_2023.json",
+      "training_rows": 457,
+      "feature_count": 21,
+      "boosting_rounds": 10
+    },
+    {
+      "target_season": 2024,
+      "position": "RB",
+      "model_path": "models\\xgb_p85_rb_through_2023.json",
+      "training_rows": 984,
+      "feature_count": 19,
+      "boosting_rounds": 10
+    },
+    {
+      "target_season": 2024,
+      "position": "WR",
+      "model_path": "models\\xgb_p85_wr_through_2023.json",
+      "training_rows": 1488,
+      "feature_count": 19,
+      "boosting_rounds": 10
+    },
+    {
+      "target_season": 2024,
+      "position": "TE",
+      "model_path": "models\\xgb_p85_te_through_2023.json",
+      "training_rows": 1059,
+      "feature_count": 19,
+      "boosting_rounds": 10
+    }
+  ],
+  "runtime": {
+    "python": "3.12.8 (tags/v3.12.8:2dc476b, Dec  3 2024, 19:30:04) [MSC v.1942 64 bit (AMD64)]",
+    "xgboost": "3.4.1",
+    "pandas": "2.2.3",
+    "numpy": "2.2.2"
+  },
+  "elapsed_seconds": 1.5123638000004576
+}

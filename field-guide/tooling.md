@@ -74,6 +74,40 @@ The backtest writes summaries and plots under
 `backtest_fbg_2023_2025/outputs/`. Windows R may print `C.UTF-8` startup
 warnings while the scripts still complete successfully.
 
+## Web preview and Vercel
+
+Run the web checks from `web/`:
+
+```powershell
+npm ci
+npm run typecheck
+npm run lint
+npm run build
+```
+
+List Vercel deployments before you select a release:
+
+```powershell
+npx vercel ls
+npx vercel inspect <deployment-url>
+npx vercel curl / --deployment <deployment-url>
+```
+
+Promote only a known Ready deployment:
+
+```powershell
+npx vercel promote <deployment-url>
+```
+
+The stable alias can point to an older deployment than the current worktree.
+Read the deployed page after promotion and compare its calibration tab, data
+counts, seasons, and metrics with the intended release. Record the deployment
+ID and the visible data anchors in the matching `.agent-sessions/` file.
+
+A rollback can restore legacy FFFL labels or other old product text. Treat
+those labels as properties of the restored artifact. Do not copy them into the
+current product scope without an explicit request.
+
 ## Limits
 
 The repository is currently inside a parent tree with no commits. Do not record
@@ -87,3 +121,5 @@ a commit hash in a session log until a focused commit exists.
 - `scripts/week1_2026.R`
 - `backtest_fbg_2023_2025/scripts/run_all.R`
 - `backtest_fbg_2023_2025/README.md`
+- `web-and-deployment.md`
+- `.agent-sessions/2026-09-06-model-monitoring-site-deploy-and-rollback.md`

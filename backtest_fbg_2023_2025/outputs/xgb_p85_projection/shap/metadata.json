@@ -1,14 +1,18 @@
 {
+  "scoring_format": "PPR",
+  "scoring_contract_version": "ppr_v1",
   "explainer": "shap.TreeExplainer",
   "feature_perturbation": "tree_path_dependent",
-  "model_output": "raw p85 fantasy points",
+  "model_output": "raw PPR p85 points",
   "models_explained": 8,
   "rows_explained": 9390,
-  "max_additivity_error": 4.57763671875e-05,
+  "max_additivity_error": 3.0517578125e-05,
   "target_seasons": [
     2024,
     2025
   ],
+  "max_historical_season_used": 2024,
+  "feature_leakage_check": "passed",
   "plot_sample_size": 1500,
   "top_features": 10,
   "shap_version": "0.52.0",
@@ -19,72 +23,72 @@
       "position": "QB",
       "rows": 483,
       "features": 21,
-      "base_value": 22.970027923583984,
-      "mean_model_p85": 21.499235153198242,
-      "max_additivity_error": 2.6702880859375e-05
+      "base_value": 22.96385383605957,
+      "mean_model_p85": 21.445049285888672,
+      "max_additivity_error": 2.47955322265625e-05
     },
     {
       "target_season": 2024,
       "position": "RB",
       "rows": 1191,
-      "features": 19,
-      "base_value": 13.796475410461426,
-      "mean_model_p85": 11.623709678649902,
-      "max_additivity_error": 1.52587890625e-05
+      "features": 18,
+      "base_value": 15.009836196899414,
+      "mean_model_p85": 12.626803398132324,
+      "max_additivity_error": 1.621246337890625e-05
     },
     {
       "target_season": 2024,
       "position": "TE",
       "rows": 1158,
-      "features": 19,
-      "base_value": 10.81453800201416,
-      "mean_model_p85": 8.97226333618164,
-      "max_additivity_error": 1.71661376953125e-05
+      "features": 18,
+      "base_value": 9.695207595825195,
+      "mean_model_p85": 8.13608455657959,
+      "max_additivity_error": 9.5367431640625e-06
     },
     {
       "target_season": 2024,
       "position": "WR",
       "rows": 1748,
-      "features": 19,
-      "base_value": 14.454683303833008,
-      "mean_model_p85": 12.377069473266602,
-      "max_additivity_error": 1.9073486328125e-05
+      "features": 18,
+      "base_value": 15.403730392456055,
+      "mean_model_p85": 13.104754447937012,
+      "max_additivity_error": 2.47955322265625e-05
     },
     {
       "target_season": 2025,
       "position": "QB",
       "rows": 504,
       "features": 21,
-      "base_value": 23.574298858642578,
-      "mean_model_p85": 22.0506649017334,
-      "max_additivity_error": 2.6702880859375e-05
+      "base_value": 23.599685668945312,
+      "mean_model_p85": 22.103801727294922,
+      "max_additivity_error": 3.0517578125e-05
     },
     {
       "target_season": 2025,
       "position": "RB",
       "rows": 1287,
-      "features": 19,
-      "base_value": 14.319623947143555,
-      "mean_model_p85": 12.92257022857666,
-      "max_additivity_error": 1.71661376953125e-05
+      "features": 18,
+      "base_value": 14.968183517456055,
+      "mean_model_p85": 13.26508617401123,
+      "max_additivity_error": 2.6702880859375e-05
     },
     {
       "target_season": 2025,
       "position": "TE",
       "rows": 1124,
-      "features": 19,
-      "base_value": 10.594719886779785,
-      "mean_model_p85": 11.465316772460938,
+      "features": 18,
+      "base_value": 9.616979598999023,
+      "mean_model_p85": 10.149682998657227,
       "max_additivity_error": 2.86102294921875e-05
     },
     {
       "target_season": 2025,
       "position": "WR",
       "rows": 1895,
-      "features": 19,
-      "base_value": 14.113930702209473,
-      "mean_model_p85": 12.902091979980469,
-      "max_additivity_error": 4.57763671875e-05
+      "features": 18,
+      "base_value": 15.153989791870117,
+      "mean_model_p85": 14.058412551879883,
+      "max_additivity_error": 2.86102294921875e-05
     }
   ]
 }

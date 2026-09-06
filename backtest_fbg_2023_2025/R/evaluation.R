@@ -96,6 +96,84 @@ player_interval_metrics <- function(predictions, levels = 0.70, group_by = "posi
   output
 }
 
+player_scorecard_metrics <- function(predictions, model_name = "ffsimulator") {
+  check_columns(
+    predictions,
+    c(
+      "actual_score", "p15", "p50", "p85", "mean_above_p85", "p85_tail_excess",
+      "position", "season"
+    ),
+    "player predictions"
+  )
+  assert_ppr_artifact(predictions, "player predictions")
+  x <- data.table::as.data.table(data.table::copy(predictions))[
+    is.finite(actual_score) & is.finite(p15) & is.finite(p50) & is.finite(p85)
+  ]
+  if (!nrow(x)) abort("No complete player predictions are available for the PPR scorecard.")
+  x[, position := toupper(as.character(position))]
+
+  summarize_group <- function(group, season_value, position_value) {
+    actual <- as.numeric(group$actual_score)
+    p15 <- as.numeric(group$p15)
+    p50 <- as.numeric(group$p50)
+    p85 <- as.numeric(group$p85)
+    above <- actual > p85
+    calibration <- if (length(unique(p85)) > 1L) {
+      stats::coef(stats::lm(actual ~ p85))
+    } else {
+      c(`(Intercept)` = NA_real_, p85 = NA_real_)
+    }
+    data.table::data.table(
+      model = model_name,
+      scoring_format = SCORING_FORMAT,
+      scoring_contract_version = SCORING_CONTRACT_VERSION,
+      season = as.integer(season_value),
+      position = as.character(position_value),
+      n = nrow(group),
+      p15_coverage = mean(actual <= p15),
+      p50_coverage = mean(actual <= p50),
+      p85_coverage = mean(actual <= p85),
+      interval_coverage = mean(actual >= p15 & actual <= p85),
+      p15_pinball_loss = mean((0.15 - as.integer(actual < p15)) * (actual - p15)),
+      p50_pinball_loss = mean((0.50 - as.integer(actual < p50)) * (actual - p50)),
+      p85_pinball_loss = mean((0.85 - as.integer(actual < p85)) * (actual - p85)),
+      calibration_slope = unname(calibration[["p85"]]),
+      calibration_intercept = unname(calibration[["(Intercept)"]]),
+      p50_mae = mean(abs(actual - p50)),
+      p50_rmse = sqrt(mean((actual - p50)^2)),
+      p85_mae = mean(abs(actual - p85)),
+      p85_rmse = sqrt(mean((actual - p85)^2)),
+      low_side_miss_rate = mean(actual < p15),
+      high_side_miss_rate = mean(actual > p85),
+      mean_score_above_p85 = if (any(above)) mean(actual[above]) else NA_real_,
+      average_tail_excess = if (any(above)) mean(actual[above] - p85[above]) else NA_real_,
+      n_above_p85 = sum(above),
+      predicted_mean_above_p85 = mean(group$mean_above_p85, na.rm = TRUE),
+      predicted_average_tail_excess = mean(group$p85_tail_excess, na.rm = TRUE)
+    )
+  }
+
+  rows <- list()
+  row_index <- 0L
+  add_row <- function(group, season_value, position_value) {
+    row_index <<- row_index + 1L
+    rows[[row_index]] <<- summarize_group(group, season_value, position_value)
+  }
+
+  add_row(x, NA_integer_, "ALL")
+  for (season_value in sort(unique(x$season))) {
+    season_rows <- x[season == season_value]
+    add_row(season_rows, season_value, "ALL")
+    for (position_value in sort(unique(season_rows$position))) {
+      add_row(season_rows[position == position_value], season_value, position_value)
+    }
+  }
+  for (position_value in sort(unique(x$position))) {
+    add_row(x[position == position_value], NA_integer_, position_value)
+  }
+  data.table::rbindlist(rows, fill = TRUE)
+}
+
 player_p85_tail_calibration <- function(
     predictions,
     group_by = c("season", "position"),
@@ -155,7 +233,7 @@ player_p85_tail_calibration <- function(
   output[]
 }
 
-player_p85_tail_explanation <- function(predictions, positions = c("RB", "WR", "TE")) {
+player_p85_tail_explanation <- function(predictions, positions = BACKTEST_POSITIONS) {
   check_columns(
     predictions,
     c("actual_score", "p85", "mean_above_p85", "p85_tail_excess", "position", "season"),

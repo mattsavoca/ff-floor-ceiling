@@ -1,0 +1,147 @@
+{
+  "status": "passed",
+  "seed_policy": "100000 + target_season * 100 + target_week",
+  "repeat_output_tag": "_repro",
+  "comparisons": [
+    {
+      "canonical": "player_predictions.parquet",
+      "repeat": "player_predictions_repro.parquet",
+      "canonical_sha256": "251941f7dc54a47a96114eaf33d1d262f90284f53f1f44f8396f42e7f015c467",
+      "repeat_sha256": "251941f7dc54a47a96114eaf33d1d262f90284f53f1f44f8396f42e7f015c467",
+      "match": true
+    },
+    {
+      "row_scope": "shared scheduled team-draw rows",
+      "canonical_rows": 1536000,
+      "repeat_rows": 1548000,
+      "common_rows": 1536000,
+      "repeat_only_rows": 12000,
+      "match": true,
+      "canonical": "team_draws.parquet",
+      "repeat": "team_draws_repro.parquet",
+      "canonical_sha256": "b6fb4ed34656053dcadc04eb65f331eace6db3b8ae162702da5c49cc045bf3a5",
+      "repeat_sha256": "9e1b80761bb105b356c307f5760891e39833715c417501ec99a72051cf4b32fb"
+    },
+    {
+      "canonical": "fbg_player_draws.parquet",
+      "repeat": "fbg_player_draws_repro.parquet",
+      "canonical_sha256": "d71c5ee194841ea7f93b33682f3703872cbbde6476f210e9005d6e663fccdec1",
+      "repeat_sha256": "d71c5ee194841ea7f93b33682f3703872cbbde6476f210e9005d6e663fccdec1",
+      "match": true
+    },
+    {
+      "canonical": "player_run_metrics.csv",
+      "repeat": "player_run_metrics_repro.csv",
+      "canonical_sha256": "80af449462cfb1fa0f9ee49e5fd7fa9bdf6fb0ca2bd66ec8598bff48fd8c1014",
+      "repeat_sha256": "80af449462cfb1fa0f9ee49e5fd7fa9bdf6fb0ca2bd66ec8598bff48fd8c1014",
+      "match": true
+    }
+  ],
+  "xgb_smoke_comparisons": [
+    {
+      "canonical": "xgb_p85_repro_a\\predictions.parquet",
+      "repeat": "xgb_p85_repro_b\\predictions.parquet",
+      "canonical_sha256": "147961f6f2c3d5971ed1058335ffb477e96a2097493c4ea0e199d39521893027",
+      "repeat_sha256": "147961f6f2c3d5971ed1058335ffb477e96a2097493c4ea0e199d39521893027",
+      "match": true
+    },
+    {
+      "canonical": "xgb_p85_repro_a\\selected_models.csv",
+      "repeat": "xgb_p85_repro_b\\selected_models.csv",
+      "canonical_sha256": "8c03f1b2baa5aebb01f522e62fcf91e3c7a4fed7152350ee3f231f8b379dc018",
+      "repeat_sha256": "8c03f1b2baa5aebb01f522e62fcf91e3c7a4fed7152350ee3f231f8b379dc018",
+      "match": true
+    },
+    {
+      "canonical": "xgb_p85_repro_a\\grid_results.csv",
+      "repeat": "xgb_p85_repro_b\\grid_results.csv",
+      "canonical_sha256": "7d180ad03339f6b50303c1ecb69deb8b64473e9a3cc2a64ade20927f123e0f96",
+      "repeat_sha256": "7d180ad03339f6b50303c1ecb69deb8b64473e9a3cc2a64ade20927f123e0f96",
+      "match": true
+    },
+    {
+      "canonical": "xgb_p85_repro_a\\feature_importance.csv",
+      "repeat": "xgb_p85_repro_b\\feature_importance.csv",
+      "canonical_sha256": "79a80144e24a801698ae6378a16498e88cf3dee6610b1f0808e0943f1519f372",
+      "repeat_sha256": "79a80144e24a801698ae6378a16498e88cf3dee6610b1f0808e0943f1519f372",
+      "match": true
+    },
+    {
+      "canonical": "xgb_p85_repro_a\\metrics.csv",
+      "repeat": "xgb_p85_repro_b\\metrics.csv",
+      "canonical_sha256": "43068c66335fe3d281aec9d5f573a3891c9fd498e0644c8300afbbf5fe74c2b5",
+      "repeat_sha256": "43068c66335fe3d281aec9d5f573a3891c9fd498e0644c8300afbbf5fe74c2b5",
+      "match": true
+    },
+    {
+      "canonical": "xgb_p85_repro_a\\boom_capture.csv",
+      "repeat": "xgb_p85_repro_b\\boom_capture.csv",
+      "canonical_sha256": "2271bac2a3fcba238fa4eff12fe9ebe1596eab7cd8284d965ee85ffb340bc8b9",
+      "repeat_sha256": "2271bac2a3fcba238fa4eff12fe9ebe1596eab7cd8284d965ee85ffb340bc8b9",
+      "match": true
+    },
+    {
+      "canonical": "xgb_p85_repro_a\\p85_calibration.csv",
+      "repeat": "xgb_p85_repro_b\\p85_calibration.csv",
+      "canonical_sha256": "6ad6b1bd7e20607b654e3e1530d5f6d997db5b2aea8d193100bedefaff5e098c",
+      "repeat_sha256": "6ad6b1bd7e20607b654e3e1530d5f6d997db5b2aea8d193100bedefaff5e098c",
+      "match": true
+    },
+    {
+      "canonical": "xgb_p85_repro_a\\models\\xgb_p85_qb_through_2023.json",
+      "repeat": "xgb_p85_repro_b\\models\\xgb_p85_qb_through_2023.json",
+      "canonical_sha256": "ecaf9507e1fb5ca736fcbd5472060830b83e496be2f05f84cb03082aa29b954d",
+      "repeat_sha256": "ecaf9507e1fb5ca736fcbd5472060830b83e496be2f05f84cb03082aa29b954d",
+      "match": true
+    },
+    {
+      "canonical": "xgb_p85_repro_a\\models\\xgb_p85_qb_through_2024.json",
+      "repeat": "xgb_p85_repro_b\\models\\xgb_p85_qb_through_2024.json",
+      "canonical_sha256": "5964cea13aeb72d3c760db20fe3cdc7a355b0d291eebf1ff9d4ccbcd927a369d",
+      "repeat_sha256": "5964cea13aeb72d3c760db20fe3cdc7a355b0d291eebf1ff9d4ccbcd927a369d",
+      "match": true
+    },
+    {
+      "canonical": "xgb_p85_repro_a\\models\\xgb_p85_rb_through_2023.json",
+      "repeat": "xgb_p85_repro_b\\models\\xgb_p85_rb_through_2023.json",
+      "canonical_sha256": "944f3314141bd331dd22d5ae15fcd0c73e93869ab580d38e81ef8307b9e10904",
+      "repeat_sha256": "944f3314141bd331dd22d5ae15fcd0c73e93869ab580d38e81ef8307b9e10904",
+      "match": true
+    },
+    {
+      "canonical": "xgb_p85_repro_a\\models\\xgb_p85_rb_through_2024.json",
+      "repeat": "xgb_p85_repro_b\\models\\xgb_p85_rb_through_2024.json",
+      "canonical_sha256": "5e0ab9dd2ccd1077e3755204ad31f796cded841d3dc20cf83fdcd1ca2828e72d",
+      "repeat_sha256": "5e0ab9dd2ccd1077e3755204ad31f796cded841d3dc20cf83fdcd1ca2828e72d",
+      "match": true
+    },
+    {
+      "canonical": "xgb_p85_repro_a\\models\\xgb_p85_te_through_2023.json",
+      "repeat": "xgb_p85_repro_b\\models\\xgb_p85_te_through_2023.json",
+      "canonical_sha256": "a5ee13fe7e862bbba8aa9c8bf0eb0adbfb1a9b45575b9d9fb75addf55a0f37db",
+      "repeat_sha256": "a5ee13fe7e862bbba8aa9c8bf0eb0adbfb1a9b45575b9d9fb75addf55a0f37db",
+      "match": true
+    },
+    {
+      "canonical": "xgb_p85_repro_a\\models\\xgb_p85_te_through_2024.json",
+      "repeat": "xgb_p85_repro_b\\models\\xgb_p85_te_through_2024.json",
+      "canonical_sha256": "512cf9d4a25b20fc36912ec7f65340a55526a4c1d7a944ab2a77f6bed01df3c2",
+      "repeat_sha256": "512cf9d4a25b20fc36912ec7f65340a55526a4c1d7a944ab2a77f6bed01df3c2",
+      "match": true
+    },
+    {
+      "canonical": "xgb_p85_repro_a\\models\\xgb_p85_wr_through_2023.json",
+      "repeat": "xgb_p85_repro_b\\models\\xgb_p85_wr_through_2023.json",
+      "canonical_sha256": "3638f716deb45ef4f7b0886e9211ede28513058a41e0e0c843f9951272632b06",
+      "repeat_sha256": "3638f716deb45ef4f7b0886e9211ede28513058a41e0e0c843f9951272632b06",
+      "match": true
+    },
+    {
+      "canonical": "xgb_p85_repro_a\\models\\xgb_p85_wr_through_2024.json",
+      "repeat": "xgb_p85_repro_b\\models\\xgb_p85_wr_through_2024.json",
+      "canonical_sha256": "eb68b1a49456f049af99c51f8d604fcf74456540c98af45e2e46b75a6071d951",
+      "repeat_sha256": "eb68b1a49456f049af99c51f8d604fcf74456540c98af45e2e46b75a6071d951",
+      "match": true
+    }
+  ]
+}

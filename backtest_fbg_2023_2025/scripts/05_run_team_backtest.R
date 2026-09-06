@@ -1,6 +1,7 @@
 #!/usr/bin/env Rscript
 
 source(file.path(dirname(dirname(normalizePath(sub("^--file=", "", grep("^--file=", commandArgs(FALSE), value = TRUE)[[1L]]), winslash = "/"))), "R", "common.R"), local = TRUE)
+source(path_in_project("R", "scoring.R"), local = TRUE)
 source(path_in_project("R", "simulation.R"), local = TRUE)
 source(path_in_project("R", "evaluation.R"), local = TRUE)
 require_packages(c("data.table", "arrow"))
@@ -14,7 +15,9 @@ if (has_cli_flag(args, "--help")) {
 team_draws <- read_parquet_local(path_in_project("outputs", "team_draws.parquet"))
 player_predictions <- read_parquet_local(path_in_project("outputs", "player_predictions.parquet"))
 check_columns(team_draws, c("season", "week", "simulation_id", "team", "team_fantasy_points"), "team draws")
-check_columns(player_predictions, c("season", "week", "team", "actual_score"), "player predictions")
+check_columns(player_predictions, c("season", "week", "team", "actual_score", "scoring_format", "scoring_contract_version"), "player predictions")
+assert_ppr_artifact(team_draws, "team draws")
+assert_ppr_artifact(player_predictions, "player predictions")
 team_draws[, team := normalize_team(team)]
 
 schedules <- data.table::rbindlist(lapply(BACKTEST_YEARS, function(season) read_parquet_local(schedule_raw_path(season))), fill = TRUE)
@@ -40,6 +43,10 @@ team_draws[is.na(n_players), n_players := 0L]
 write_parquet_local(team_draws, path_in_project("outputs", "team_draws.parquet"))
 
 team_summary <- summarize_team_draws(team_draws)
+team_summary[, `:=`(
+  scoring_format = SCORING_FORMAT,
+  scoring_contract_version = SCORING_CONTRACT_VERSION
+)]
 actual_projected <- player_predictions[
   , .(
     actual_projected_player_points = sum(actual_score, na.rm = TRUE),
@@ -53,6 +60,7 @@ team_summary[is.na(projected_player_count), projected_player_count := 0L]
 team_actual_path <- path_in_project("data", "derived", "team_actuals.parquet")
 if (file.exists(team_actual_path)) {
   team_actual <- read_parquet_local(team_actual_path)
+  team_actual <- team_actual[, setdiff(names(team_actual), c("scoring_format", "scoring_contract_version")), with = FALSE]
   team_summary <- merge(team_summary, team_actual, by = c("season", "week", "team"), all.x = TRUE)
 }
 
@@ -87,6 +95,10 @@ game_features <- merge(
   by = "game_id",
   all.x = TRUE
 )
+game_features[, `:=`(
+  scoring_format = SCORING_FORMAT,
+  scoring_contract_version = SCORING_CONTRACT_VERSION
+)]
 
 prediction_parts <- list()
 calibration_parts <- list()
@@ -184,11 +196,35 @@ for (target_season in BACKTEST_YEARS) {
 games <- data.table::rbindlist(prediction_parts, fill = TRUE, use.names = TRUE)
 calibrations <- data.table::rbindlist(calibration_parts, fill = TRUE, use.names = TRUE)
 metrics <- evaluate_team_predictions(games)
+games[, `:=`(
+  scoring_format = SCORING_FORMAT,
+  scoring_contract_version = SCORING_CONTRACT_VERSION
+)]
+calibrations[, `:=`(
+  scoring_format = SCORING_FORMAT,
+  scoring_contract_version = SCORING_CONTRACT_VERSION
+)]
+metrics[, `:=`(
+  scoring_format = SCORING_FORMAT,
+  scoring_contract_version = SCORING_CONTRACT_VERSION
+)]
 
 write_parquet_local(team_summary, path_in_project("outputs", "team_predictions.parquet"))
 write_parquet_local(games, path_in_project("outputs", "game_predictions.parquet"))
 write_csv_local(calibrations, path_in_project("outputs", "team_calibration.csv"))
 write_csv_local(metrics, path_in_project("outputs", "team_metrics.csv"))
+write_json_local(
+  list(
+    model = "ffsimulator_team_artifacts",
+    scoring_format = SCORING_FORMAT,
+    scoring_contract_version = SCORING_CONTRACT_VERSION,
+    target_seasons = as.integer(BACKTEST_YEARS),
+    maximum_historical_season_used = max(game_features$season[game_features$season < max(BACKTEST_YEARS)], na.rm = TRUE),
+    leakage_check = "passed",
+    source_player_metadata = "outputs/player_backtest_metadata.json"
+  ),
+  path_in_project("outputs", "team_backtest_metadata.json")
+)
 
 message("Team summary rows: ", format(nrow(team_summary), big.mark = ","))
 message("Game prediction rows: ", format(nrow(games), big.mark = ","))

@@ -2,13 +2,15 @@
 
 Status: Proposed product requirements. The website is not implemented.
 
+Scope correction, 2026-09-06: This site monitors player outcome forecasts. It does not implement personal-league rules or platform-specific metric variants. Keep those concepts out of the site, parser, API contracts, and worker inputs.
+
 ## 1. Product purpose
 
-Floor & Ceiling is a weekly dashboard for judging fantasy football forecasts as new results arrive. It also shows how Matt Savoca develops, challenges, and revises a model with AI assistance.
+Floor & Ceiling is a weekly dashboard for judging player outcome forecasts as new results arrive. It also shows how Matt Savoca develops, challenges, and revises a model with AI assistance.
 
 The main user question is: "Do these forecasts still describe what happens on the field?" A second question guides the methodology pages: "What evidence changed the engineer's mind?"
 
-The first release must connect historical evidence, new Footballguys uploads, simulation results, manual judgment, and later game outcomes. Every reported result must identify its model, scoring rules, input revision, and evaluation sample.
+The first release must connect historical evidence, new projection uploads, simulation results, manual judgment, and later game outcomes. Every reported result must identify its model, metric definition, input revision, and evaluation sample.
 
 Success requires a working weekly loop. A portfolio reader must also understand the approach without reading R or Python.
 
@@ -51,7 +53,7 @@ The current offensive default remains the independent rank-conditioned simulatio
 | Direct XGBoost p85 | Better RB, WR, and TE quantile loss across two held-out seasons. Worse QB coverage | Separate historical comparison. Forward candidate only after a compatible serving adapter exists |
 | QB conditioning | No broader ceiling improvement in the recorded comparison | Methodology and historical experiment only |
 | Python team defense | Historical and forward workflows run. Market baseline has lower error in both evaluated seasons | Clearly labeled experimental defense view |
-| Fantasy totals to NFL margins | Independent player draws do not share a coherent game state | Methodology example, outside the main weekly forecast |
+| Player outcomes to NFL margins | Independent player draws do not share a coherent game state | Methodology example, outside the main weekly forecast |
 
 Model status uses explicit labels: Baseline, Candidate, Experimental, and Retired. "Best settings" means settings selected on an earlier validation sample for a named model and position. It does not mean a universally superior model.
 
@@ -68,20 +70,20 @@ These rounded values describe the saved direct-model comparison for held-out 202
 | WR | 89.5% | 85.3% | 1.917 | 1.697 |
 | TE | 87.1% | 84.3% | 1.618 | 1.426 |
 
-Required explainer: "The target is about 85% of scores at or below a useful ceiling estimate. Lower quantile loss means better ceiling estimates for this sample."
+Required explainer: "The bar runs from the estimated floor to the ceiling. The dot marks the median. Observed outcomes can fall outside the range."
 
-Source: `backtest_fbg_2023_2025/outputs/xgb_p85_projection/metrics.csv`. Historical results remain historical after a model retrain. A new feature set or scoring correction creates new results.
+Source: `backtest_fbg_2023_2025/outputs/xgb_p85_projection/metrics.csv`. Historical results remain historical after a model retrain. A new feature set or metric correction creates new results.
 
 ## 4. Visual direction and navigation
 
-Use FantasyPros as the visual reference for a familiar fantasy analysis dashboard. The proposed direction uses a navy navigation bar, blue actions, white tables, compact filters, and restrained gray borders.
+Use a familiar analysis dashboard as the visual reference. The proposed direction uses a navy navigation bar, blue actions, white tables, compact filters, and restrained gray borders.
 
 This is an original visual system. The project uses its own name, typography treatment, icons, and page composition.
 
 | Element | Proposed treatment |
 | --- | --- |
 | Header | Project name, five tabs, session menu, and owner controls when authorized |
-| Context strip | Season, week, scoring profile, model version, and data freshness |
+| Context strip | Season, week, metric definition, model version, and data freshness |
 | Page layout | Wide desktop content area, compact summary row, main chart or table, then supporting detail |
 | Tables | Sticky header, pinned player column, numeric alignment, subtle alternating rows, visible sort state |
 | Color | Navy `#12304A`, action blue `#1264A3`, white panels, page gray `#F3F5F7` as proposed tokens |
@@ -93,7 +95,7 @@ Use readable body text of at least 16 pixels. Dense table text can use 14 pixels
 
 The live browser reference was unavailable during PRD preparation. The palette and layout are design proposals, not a measured reproduction. Visual implementation requires a direct reference review.
 
-All tabs share the selected season, week, scoring profile, and temporary workspace. Page-specific filters remain separate. Public view filters can use URL parameters for reproducible links. Private data, session identifiers, and upload locations never appear in URLs.
+All tabs share the selected season, week, metric definition, and temporary workspace. Page-specific filters remain separate. Public view filters can use URL parameters for reproducible links. Private data, session identifiers, and upload locations never appear in URLs.
 
 ## 5. Overview: weekly model monitoring
 
@@ -105,7 +107,7 @@ The main summary contains evaluated player count, p85 coverage, 70% interval cov
 
 The page then shows weekly performance trends, input changes, position breakdowns, and a list of items that need inspection. A selected item opens the matching chart and filtered player table.
 
-The user can select a single week, the latest four completed weeks, or the season to date. The default comparison uses the same position and scoring profile from the selected model's fixed historical reference.
+The user can select a single week, the latest four completed weeks, or the season to date. The default comparison uses the same position and metric definition from the selected model's fixed historical reference.
 
 ### 5.2 Separate input changes from forecast performance
 
@@ -113,7 +115,7 @@ The user can select a single week, the latest four completed weeks, or the seaso
 | --- | --- | --- | --- |
 | Input changes | A new upload passes checks | Missing fields, unknown players, rank uncertainty, projected opportunity, and prediction distributions | "The incoming projections changed. Game results are needed to judge forecast accuracy." |
 | Forecast performance | Completed games have usable actual scores | Quantile coverage, interval coverage, quantile loss, median error, and interval width | "These results compare forecasts saved before kickoff with completed games." |
-| Data quality | At every stage | Duplicate keys, unmatched players, stale sources, missing games, and scoring mismatches | "Missing data can change the result. This view shows the rows that need review." |
+| Data quality | At every stage | Duplicate keys, unmatched players, stale sources, missing games, and metric mismatches | "Missing data can change the result. This view shows the rows that need review." |
 
 Input distribution comparisons use reference bins fixed at model release. Show missing values as a separate category. Numeric charts show normalized frequencies and row counts.
 
@@ -130,7 +132,7 @@ The following thresholds are proposed inspection rules. They require historical 
 - Loss change: four-week p85 loss exceeds the fixed historical reference by more than 10%.
 - Performance status requires at least 100 unique player-game outcomes, 30 distinct games, and four completed weeks in the cohort.
 - A coverage or loss rule must recur at two consecutive weekly evaluations before the status becomes "Needs review."
-- Missing required fields, ambiguous identities, and scoring mismatches create immediate data-quality items.
+- Missing required fields, ambiguous identities, and metric mismatches create immediate data-quality items.
 
 Small samples show "Limited sample" with the measured values. Missing actuals show "Results pending." Neither state receives a healthy status.
 
@@ -152,7 +154,7 @@ The dashboard compares a candidate and baseline on identical eligible outcomes. 
 
 The owner can refresh actuals manually. A scheduled job refreshes them daily after games until all expected results arrive. Later source corrections create a new actuals revision and a new evaluation.
 
-The official unadjusted forecast is immutable per player-game, model version, and scoring profile. Kickoff closes selection for that game. An override also needs a pregame save time for prospective evaluation.
+The official unadjusted forecast is immutable per player-game, model version, and metric definition. Kickoff closes selection for that game. An override also needs a pregame save time for prospective evaluation.
 
 Runs created after kickoff remain accessible as retrospective analysis. They cannot enter the prospective scorecard. A missing pregame forecast remains missing and cannot be replaced with a later reconstruction.
 
@@ -165,7 +167,7 @@ Use ordered stages without calendar dates. Each stage contains the question, met
 | Order | Stage | Required narrative |
 | --- | --- | --- |
 | 1 | Define a useful range | Translate rankings into poor-week, typical-week, and strong-week scores. Establish p15 and p85 as the range contract |
-| 2 | Connect current projections | Adapt Footballguys exports, derive ranks, and supply missing uncertainty from historical ranks |
+| 2 | Connect current projections | Normalize source exports, derive ranks, and supply missing uncertainty from historical ranks |
 | 3 | Build the first working run | Produce a small simulation batch and inspect player, team, and game output |
 | 4 | Challenge unusually good results | Early results looked too good. Inspect the original leave-one-season-out evaluation for leakage |
 | 5 | Correct the time boundary | Find future seasons in earlier forecasts. Require earlier-season data and repeat the backtest |
@@ -194,14 +196,14 @@ Do not invent prompts, agent autonomy claims, time savings, or productivity meas
 
 | Group | Existing tools or sources | Role |
 | --- | --- | --- |
-| R | `fffloorceiling`, `ffsimulator`, `data.table`, `arrow`, `nflreadr`, `ggplot2`, `testthat` | Adapters, scoring history, simulation, backtests, plots, and tests |
+| R | `data.table`, `arrow`, `nflreadr`, `ggplot2`, `testthat` | Adapters, outcome history, simulation, backtests, plots, and tests |
 | Python | XGBoost, SHAP, NumPy, pandas, Polars, PyArrow, `nflreadpy`, matplotlib | Direct quantile models, explanations, defense features, and model artifacts |
 | Experimental NFL path | `nflseedR` | Game-margin experiments from team signals |
-| Sources | Footballguys, historical FantasyPros rankings, nflverse statistics and play-by-play | Projections, historical rank behavior, targets, and pregame context |
+| Sources | Approved projection source, archived rankings, nflverse statistics and play-by-play | Projections, historical rank behavior, targets, and pregame context |
 | Engineering practice | Git, GitHub, agent session records, developer field guide | Code history, decisions, corrections, and reusable lessons |
 | Planned site | TypeScript, Next.js, Tailwind CSS, tRPC, Prisma, PostgreSQL, signed session cookies | Interface, application API, temporary workspace data, and access control |
 
-Scoring profiles explain their point rules in plain language. The historical FFFL profile includes half-point receptions, an additional half-point TE reception bonus, and half-point receiving first downs.
+Metric definitions explain their value rules in plain language. The initial project metric is versioned, stored with each result, and checked at the web and worker boundaries.
 
 The data panel shows source coverage, selected projection set, identity match rate, and training cutoff. Historical data availability and the target forecast season appear as separate fields.
 
@@ -209,7 +211,7 @@ The data panel shows source coverage, selected projection set, identity match ra
 
 ### 7.1 Tables of selected settings
 
-Provide filters for model family, position, scoring profile, and held-out season. Show one row per selected model and evaluation fold.
+Provide filters for model family, position, metric definition, and held-out season. Show one row per selected model and evaluation fold.
 
 For XGBoost, include training seasons, validation season and weeks, objective, quantile, feature count, tree depth, minimum child weight, learning rate, sampling settings, regularization, and boosting rounds. An expandable field list shows exact feature names.
 
@@ -230,10 +232,10 @@ Use `selected_models.csv`, run manifests, and defense model metadata as the sour
 | Median coverage | Share with `actual_score <= p50` | "The target is about half of scores at or below the median." |
 | 70% interval coverage | Share with `p15 <= actual_score <= p85` | "This range aims to contain about 70% of scores. It is not a minimum or maximum." |
 | Quantile loss | Mean pinball loss at the selected quantile | "Lower is better. This measure penalizes misses according to the percentile that the model predicts." |
-| Median absolute error | Mean of `abs(actual_score - p50)` | "This is the average distance between the median forecast and the actual score, in fantasy points." |
+| Median absolute error | Mean of `abs(actual_outcome - p50)` | "This is the average distance between the median forecast and the actual outcome." |
 | Median signed error | Mean of `actual_score - p50` | "A positive value means players scored more than the model's median estimate, on average." |
 | Interval width | Mean of `p85 - p15` | "A wider range covers more possible scores. Coverage shows whether that extra width is useful." |
-| Boom capture | Share of defined boom games in the highest-ranked forecast fifth | "This shows how many high-scoring games appeared among the top 20% of forecasts." |
+| Boom capture | Share of defined high-outcome games in the highest-ranked forecast fifth | "This shows how many high-outcome games appeared among the top 20% of forecasts." |
 
 In formulas, let `u = actual_score - predicted_quantile`. Pinball loss is `max(q * u, (q - 1) * u)`. Average the row losses over the eligible sample. See the [scikit-learn quantile metric reference](https://scikit-learn.org/stable/modules/model_evaluation.html#pinball-loss).
 
@@ -265,13 +267,13 @@ An optional SHAP drawer can show saved feature contributions for a historical ex
 
 ### 8.1 Upload and preview
 
-The user selects season, week, and the supported scoring profile, then uploads a Footballguys CSV. A bundled synthetic or owner-cleared sample supports the public demonstration. The upload belongs to the current anonymous session.
+The user selects season, week, and the supported metric definition, then uploads a projection CSV. The public demonstration uses the owner-cleared Week 1 output stored in the repository. The upload belongs to the current anonymous session.
 
 Initial upload limits are 10 MB and 50,000 rows. The server checks file content, required fields, numeric values, duplicate keys, position aliases, team aliases, and supported season-week values.
 
 The preview shows filename, source timestamp if present, season, week, all detected sets, accepted rows, excluded rows, and unresolved rows. The app distinguishes the upload time from the provider's publication time.
 
-Footballguys set names repeat. The user selects a concrete `set_id` with its position counts. The app can suggest the offensive consensus set but must show the selection.
+Projection set names repeat. The user selects a concrete `set_id` with its position counts. The app can suggest the approved projection set but must show the selection.
 
 The adapter reports how it derives rank and uncertainty. For the current consensus baseline, preserve source order within position when the file lacks explicit rank. Match current adapter behavior rather than silently sorting by projected points.
 
@@ -287,7 +289,7 @@ The exact primary action label is "Update Floor/Ceiling". Enable it only after t
 
 The first release offers a 1,000-simulation standard run. A 100-simulation demonstration run carries a preview label and cannot become an official forecast. Larger runs remain an owner setting until runtime measurements support a public limit.
 
-The worker runs fixed model artifacts and outcome pools. Uploads do not trigger training. Every run records the seed, simulation count, input revision, scoring profile, and model version.
+The worker runs fixed model artifacts and outcome pools. Uploads do not trigger training. Every run records the seed, simulation count, input revision, metric definition, and model version.
 
 Run states are Empty, Checking upload, Ready, Queued, Running, Complete, Failed, and Canceled. A failed run retains the prior complete result. The user can inspect the failure and retry the same input.
 
@@ -305,7 +307,7 @@ The user can search players, filter by `pos` and `team`, select columns, and swi
 
 Download actions distinguish "Download filtered rows" from "Download all rows." The menu shows the row count and original or adjusted view before export. Filtered export includes every matching row, including rows outside the visible page.
 
-CSV fields include stable player ID, season, week, scoring profile, model version, run ID, source projection, original p15/p50/p85, adjusted range values, exclusion state, and override revision. Use UTF-8 and proper CSV quoting. Escape spreadsheet formula prefixes in text fields without altering numeric scores.
+CSV fields include stable player ID, season, week, metric definition, model version, run ID, source projection, original p15/p50/p85, adjusted range values, exclusion state, and override revision. Use UTF-8 and proper CSV quoting. Escape spreadsheet formula prefixes in text fields without altering numeric outcomes.
 
 Downloads preserve full numeric precision. The table displays one decimal by default. Sorting uses the underlying values.
 
@@ -353,7 +355,7 @@ Each player has one saved override specification per run revision. Repeated edit
 
 Apply the workload factor first, the optional defense preset second, and explicit range edits last. Mark inactive takes priority and disables the other range controls. Export exclusion is independent.
 
-Require finite values and `floor <= median <= ceiling`. Negative fantasy scores remain valid when the scoring profile permits them, including defense scores. Reject invalid order with a field-level explanation. Do not silently clamp or sort the values.
+Require finite values and `floor <= median <= ceiling`. Negative outcome values remain valid when the metric definition permits them, including defense outcomes. Reject invalid order with a field-level explanation. Do not silently clamp or sort the values.
 
 For a direct range edit, show the exact field and point change. For workload scaling, show the factor and all three resulting changes. Rounding occurs only in display and export formatting.
 
@@ -365,7 +367,7 @@ The editor shows original and adjusted values side by side, the reason, and the 
 
 Actions are Preview changes, Save overrides, Reset player, and Reset all overrides. Reset creates a reversible revision that restores original values. The history records the author, time, reason, previous values, and new values.
 
-Use stable IDs rather than player names for matching. An override belongs to one run, week, scoring profile, and temporary workspace. A new upload starts with no active overrides. "Copy prior overrides" produces a reviewable draft and reports unmatched players. Copying works only inside the same unexpired session.
+Use stable IDs rather than player names for matching. An override belongs to one run, week, metric definition, and temporary workspace. A new upload starts with no active overrides. "Copy prior overrides" produces a reviewable draft and reports unmatched players. Copying works only inside the same unexpired session.
 
 Saved adjustments update the adjusted tables, interval charts, and exports together. Arbitrary edits do not change original draws, team aggregates, or the trained model. The UI states this limit beside the save action.
 
@@ -429,13 +431,13 @@ The R and Python boundary uses versioned JSON schemas and artifact tables. Runti
 | --- | --- |
 | Anonymous workspace | ID, session hash, creation time, last activity, inactivity expiry, absolute expiry, and rate-limit state |
 | Projection upload | Workspace, source, season, week, source time, upload time, selected set, original file, row report |
-| Scoring profile | Version, complete stat weights, position bonuses, target construction rules |
+| Metric definition | Version, complete stat weights, position bonuses, target construction rules |
 | Model version | Family, position support, status, feature contract, training cutoff, selected settings, artifact location |
-| Simulation run | Upload, model, scoring profile, seed, count, state, attempts, result location, creation and completion times |
+| Simulation run | Upload, model, metric definition, seed, count, state, attempts, result location, creation and completion times |
 | Player forecast | Run, stable player ID, position, team, opponent, game, source projection, p15, p50, p85 |
-| Official forecast | Workspace, player-game, model version, scoring profile, selected run, selection time, kickoff cutoff |
+| Official forecast | Workspace, player-game, model version, metric definition, selected run, selection time, kickoff cutoff |
 | Override revision | Run, player ID, session actor, reason, specification, original values, adjusted values, save time |
-| Actual outcome | Player-game or defense team-game, scoring profile, source revision, completion status, score |
+| Actual outcome | Player-game or defense team-game, metric definition, source revision, completion status, outcome value |
 | Evaluation | Forecast cohort, actuals revision, metric definition version, counts, exclusions, aggregate results |
 
 Defense identity uses `season`, `week`, `game_id`, and `def_team`. Scenario rows also include `simulation_id`. Evaluate the unique team-game forecast rather than counting each scenario as another observed game.
@@ -474,7 +476,7 @@ An absent score row is not automatically zero. Completed inactive players need a
 
 Use final game state to determine actuals completeness. Rescheduled, canceled, and incomplete games remain outside the eligible denominator until their state supports evaluation.
 
-Raw provider uploads remain private and expire with the anonymous session. Public examples use synthetic data or data the owner permits for publication. A missing historical provider timestamp means the site cannot claim that export was captured before kickoff.
+Raw provider uploads remain private and expire with the anonymous session. Public examples use data the owner permits for publication. A missing historical provider timestamp means the site cannot claim that export was captured before kickoff.
 
 The current archived backtest supports earlier-season model training claims. Strict source-vintage claims require timestamp evidence that the archive does not necessarily contain.
 
@@ -536,8 +538,8 @@ Stage D is required for the first full product release because monitoring is the
 ### Known implementation prerequisites
 
 - Resolve the Week 1 script's season-pool workaround before presenting its output as a position-complete weekly model. Reuse the backtest's weekly builder where supported.
-- Check the scoring formula on identical synthetic statistics in R, Python, projections, and actuals. The current projection code uses a minus-one interception term, while actuals start from `fantasy_points`.
-- Preserve historical results if that scoring check requires a correction. Regenerate corrected results under a new scoring version.
+- Check the metric formula on identical recorded statistics in R, Python, projections, and actuals. Keep the input and output definitions aligned across each boundary.
+- Preserve historical results if that metric check requires a correction. Regenerate corrected results under a new metric version.
 - Remove one duplicate projection-score feature before a candidate retrain. The current saved-model explanations retain the existing duplicate-feature warning.
 - Build a general season-week worker entry point. The current Week 1 script is a snapshot workflow.
 - Check candidate feature availability against the actual upload format. Build the forward adapter before enabling candidate inference.
@@ -546,7 +548,7 @@ Stage D is required for the first full product release because monitoring is the
 
 ### Evidence required before release
 
-Use focused unit tests for quantile calculations, identity joins, scoring parity, override precedence, and cutoff rules. Use integration tests for worker retries and actuals revisions. Use browser tests for upload, reset, filtering, overrides, authorization, and CSV contents.
+Use focused unit tests for quantile calculations, identity joins, metric parity, override precedence, and cutoff rules. Use integration tests for worker retries and actuals revisions. Use browser tests for upload, reset, filtering, overrides, authorization, and CSV contents.
 
 Run one real fixture end to end on the deployment target. Compare accepted, excluded, forecast, and downloaded row counts. Record wall time and peak worker memory for that batch.
 
@@ -556,11 +558,11 @@ Run one real fixture end to end on the deployment target. Compare accepted, excl
 | --- | --- |
 | Access | Public demonstration plus anonymous temporary browser sessions for uploads and overrides |
 | Authentication provider | No end-user account in the first release. Use a signed session cookie. Protect owner publication controls through a separate admin path |
-| Scoring | One versioned FFFL profile first. Additional platform profiles require scoring-parity checks |
+| Metric definition | One versioned project metric first. Additional definitions require metric-parity checks |
 | Default forecast | Complete independent simulation. Direct p85 remains a separate candidate |
 | Workload reductions | Scale floor, median, and ceiling together. Keep provider projection unchanged |
 | Hosting | Web service plus persistent worker, PostgreSQL, and private object storage. Select the vendor after a measured fixture run |
-| Published examples | Curated aggregate evidence and synthetic or owner-cleared player samples |
+| Published examples | Curated aggregate evidence and owner-cleared player samples |
 | Model promotion | Owner decision after documented evaluation. No automatic replacement |
 
 ## 16. Source map
@@ -569,9 +571,9 @@ Repository sources establish current behavior. This PRD's new behavior is a prop
 
 - [Project architecture](../field-guide/architecture.md), [model experimentation](../field-guide/model-experimentation.md), and [historical backtest](../backtest_fbg_2023_2025/README.md).
 - [Leakage correction](../.agent-sessions/2026-09-03-remove-backtest-data-leakage.md), [direct p85 experiment](../.agent-sessions/2026-09-04-xgb-p85-projection.md), [SHAP review](../.agent-sessions/2026-09-04-xgb-p85-shap.md), and [defense implementation](../.agent-sessions/2026-09-06-dst-xgb-prd.md).
-- [Current scoring code](../backtest_fbg_2023_2025/R/scoring.R), [simulation code](../backtest_fbg_2023_2025/R/simulation.R), and [Week 1 script](../scripts/week1_2026.R).
+- [Current metric code](../web/lib/metrics.ts), [worker contract](../contracts/model-job.v1.json), and [Week 1 output](../outputs/week1_2026_player_ranges.csv).
 - Selected artifacts: `outputs/xgb_p85_projection/selected_models.csv`, `metrics.csv`, and `shap/model_checks.csv` beneath `backtest_fbg_2023_2025/`.
 - Defense artifacts: `outputs/dst_xgb/models/dst_model_metadata.json`, `dst_tuning_target_2026.csv`, and `outputs/dst_xgb/dst_backtest_metrics.csv` beneath the backtest directory.
 - [Earlier override implementation](https://github.com/mattsavoca/rostership-model-4for4/blob/main/R/adjustments_and_utils.R), [tail-mean summaries](https://github.com/mattsavoca/rostership-model-4for4/blob/main/R/simulation_functions.R), and [manual point projections](https://github.com/mattsavoca/rostership-model-4for4/blob/main/R/manual_fp_proj_adjustments.R). These sources require repository access while private.
 - Owner-supplied local reference: `Floor Ceiling Design Doc.dc(1).html`. Its sections 4, 5, 6, and 10 explain the older override paths and conflicting range definitions.
-- [T3 introduction](https://create.t3.gg/en/introduction), [FantasyPros reference](https://www.fantasypros.com/), and [FantasyPros rankings reference](https://www.fantasypros.com/nfl/rankings/ppr-cheatsheets.php).
+- [T3 introduction](https://create.t3.gg/en/introduction) and the current repository source map.

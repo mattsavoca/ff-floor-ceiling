@@ -1,0 +1,20 @@
+{
+  "schemaVersion": "model-job.v1",
+  "jobId": "run_2026_w1_demo1234",
+  "workspaceId": "ws_7f3a1c2d4e5f",
+  "season": 2026,
+  "week": 1,
+  "metricDefinition": {
+    "version": "outcome-metric-1.0",
+    "name": "Outcome metric v1.0"
+  },
+  "modelVersion": "sim-2026.1",
+  "simulationCount": 1000,
+  "seed": 20260901,
+  "inputRevision": "upload_2026_w1_consensus_r1",
+  "upload": {
+    "uploadId": "upload_2026_w1_consensus",
+    "acceptedRows": 400,
+    "selectedSetId": "offensive_consensus"
+  }
+}

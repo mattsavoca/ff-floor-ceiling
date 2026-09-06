@@ -1,5 +1,9 @@
 {
-  "experiment": "direct_xgboost_p85_with_fbg_projection_data",
+  "experiment": "direct_xgboost_p85_ppr_with_fbg_projection_data",
+  "scoring_format": "PPR",
+  "scoring_contract_version": "ppr_v1",
+  "target_column": "actual_score",
+  "projection_score_field": "projection_fpts",
   "objective": "reg:quantileerror",
   "quantile_alpha": 0.85,
   "metric": "p85_pinball",
@@ -17,6 +21,11 @@
     2024,
     2025
   ],
+  "max_historical_season_used": 2024,
+  "max_historical_season_used_by_target": {
+    "2024": 2023,
+    "2025": 2024
+  },
   "projection_seasons_available": [
     2023,
     2024,
@@ -61,6 +70,7 @@
     17
   ],
   "nthread": 8,
+  "seed_policy": "20260904 + target_season * 100 + position_index",
   "feature_families": {
     "rank_summary": [
       "week",
@@ -89,7 +99,6 @@
       "rush-td",
       "rush-yds",
       "rec-2pt",
-      "rec-1d",
       "rec-rec",
       "rec-tgt",
       "rec-td",
@@ -123,7 +132,17 @@
       "2025_RB": 1287,
       "2025_TE": 1124,
       "2025_WR": 1895
-    }
+    },
+    "scoring_format": "PPR",
+    "scoring_contract_version": "ppr_v1",
+    "outcome_column": "actual_score",
+    "feature_outcome_columns": [],
+    "projection_score_max_abs_difference": 0.0
+  },
+  "leakage_checks": {
+    "training_rows_before_target_season": true,
+    "features_contain_target_or_future_outcomes": false,
+    "calibration_uses_target_season_outcomes_only_after_prediction": true
   },
   "model_records": [
     {
@@ -132,31 +151,55 @@
       "model_path": "models\\xgb_p85_qb_through_2023.json",
       "training_rows": 457,
       "feature_count": 21,
-      "boosting_rounds": 401
+      "features": "week,ecr,rank_sd,n_projectors,rank_min,rank_max,consensus_rank,consensus_projected_score,pass-att,pass-cmp,pass-1d,pass-int,pass-sck,pass-td,pass-yds,rush-car,rush-1d,rush-td,rush-yds,fum-lost,projection_fpts",
+      "boosting_rounds": 414,
+      "training_seasons": "2023",
+      "max_historical_season_used": 2023,
+      "scoring_format": "PPR",
+      "scoring_contract_version": "ppr_v1",
+      "features_contain_outcomes": false
     },
     {
       "target_season": 2024,
       "position": "RB",
       "model_path": "models\\xgb_p85_rb_through_2023.json",
       "training_rows": 984,
-      "feature_count": 19,
-      "boosting_rounds": 208
+      "feature_count": 18,
+      "features": "week,ecr,rank_sd,n_projectors,rank_min,rank_max,consensus_rank,consensus_projected_score,rush-car,rush-1d,rush-td,rush-yds,rec-rec,rec-tgt,rec-td,rec-yds,fum-lost,projection_fpts",
+      "boosting_rounds": 325,
+      "training_seasons": "2023",
+      "max_historical_season_used": 2023,
+      "scoring_format": "PPR",
+      "scoring_contract_version": "ppr_v1",
+      "features_contain_outcomes": false
     },
     {
       "target_season": 2024,
       "position": "WR",
       "model_path": "models\\xgb_p85_wr_through_2023.json",
       "training_rows": 1488,
-      "feature_count": 19,
-      "boosting_rounds": 255
+      "feature_count": 18,
+      "features": "week,ecr,rank_sd,n_projectors,rank_min,rank_max,consensus_rank,consensus_projected_score,rush-car,rush-1d,rush-td,rush-yds,rec-rec,rec-tgt,rec-td,rec-yds,fum-lost,projection_fpts",
+      "boosting_rounds": 575,
+      "training_seasons": "2023",
+      "max_historical_season_used": 2023,
+      "scoring_format": "PPR",
+      "scoring_contract_version": "ppr_v1",
+      "features_contain_outcomes": false
     },
     {
       "target_season": 2024,
       "position": "TE",
       "model_path": "models\\xgb_p85_te_through_2023.json",
       "training_rows": 1059,
-      "feature_count": 19,
-      "boosting_rounds": 305
+      "feature_count": 18,
+      "features": "week,ecr,rank_sd,n_projectors,rank_min,rank_max,consensus_rank,consensus_projected_score,rush-car,rush-1d,rush-td,rush-yds,rec-rec,rec-tgt,rec-td,rec-yds,fum-lost,projection_fpts",
+      "boosting_rounds": 159,
+      "training_seasons": "2023",
+      "max_historical_season_used": 2023,
+      "scoring_format": "PPR",
+      "scoring_contract_version": "ppr_v1",
+      "features_contain_outcomes": false
     },
     {
       "target_season": 2025,
@@ -164,31 +207,55 @@
       "model_path": "models\\xgb_p85_qb_through_2024.json",
       "training_rows": 940,
       "feature_count": 21,
-      "boosting_rounds": 284
+      "features": "week,ecr,rank_sd,n_projectors,rank_min,rank_max,consensus_rank,consensus_projected_score,pass-att,pass-cmp,pass-1d,pass-int,pass-sck,pass-td,pass-yds,rush-car,rush-1d,rush-td,rush-yds,fum-lost,projection_fpts",
+      "boosting_rounds": 271,
+      "training_seasons": "2023,2024",
+      "max_historical_season_used": 2024,
+      "scoring_format": "PPR",
+      "scoring_contract_version": "ppr_v1",
+      "features_contain_outcomes": false
     },
     {
       "target_season": 2025,
       "position": "RB",
       "model_path": "models\\xgb_p85_rb_through_2024.json",
       "training_rows": 2175,
-      "feature_count": 19,
-      "boosting_rounds": 209
+      "feature_count": 18,
+      "features": "week,ecr,rank_sd,n_projectors,rank_min,rank_max,consensus_rank,consensus_projected_score,rush-car,rush-1d,rush-td,rush-yds,rec-rec,rec-tgt,rec-td,rec-yds,fum-lost,projection_fpts",
+      "boosting_rounds": 380,
+      "training_seasons": "2023,2024",
+      "max_historical_season_used": 2024,
+      "scoring_format": "PPR",
+      "scoring_contract_version": "ppr_v1",
+      "features_contain_outcomes": false
     },
     {
       "target_season": 2025,
       "position": "WR",
       "model_path": "models\\xgb_p85_wr_through_2024.json",
       "training_rows": 3236,
-      "feature_count": 19,
-      "boosting_rounds": 487
+      "feature_count": 18,
+      "features": "week,ecr,rank_sd,n_projectors,rank_min,rank_max,consensus_rank,consensus_projected_score,rush-car,rush-1d,rush-td,rush-yds,rec-rec,rec-tgt,rec-td,rec-yds,fum-lost,projection_fpts",
+      "boosting_rounds": 485,
+      "training_seasons": "2023,2024",
+      "max_historical_season_used": 2024,
+      "scoring_format": "PPR",
+      "scoring_contract_version": "ppr_v1",
+      "features_contain_outcomes": false
     },
     {
       "target_season": 2025,
       "position": "TE",
       "model_path": "models\\xgb_p85_te_through_2024.json",
       "training_rows": 2217,
-      "feature_count": 19,
-      "boosting_rounds": 436
+      "feature_count": 18,
+      "features": "week,ecr,rank_sd,n_projectors,rank_min,rank_max,consensus_rank,consensus_projected_score,rush-car,rush-1d,rush-td,rush-yds,rec-rec,rec-tgt,rec-td,rec-yds,fum-lost,projection_fpts",
+      "boosting_rounds": 467,
+      "training_seasons": "2023,2024",
+      "max_historical_season_used": 2024,
+      "scoring_format": "PPR",
+      "scoring_contract_version": "ppr_v1",
+      "features_contain_outcomes": false
     }
   ],
   "runtime": {
@@ -197,5 +264,5 @@
     "pandas": "2.2.3",
     "numpy": "2.2.2"
   },
-  "elapsed_seconds": 433.8268023000019
+  "elapsed_seconds": 500.8490638000003
 }

@@ -22,6 +22,11 @@ original FBG draws -> simulated offense features
 `ffsimulator` package remains the rank-conditioned fantasy outcome engine.
 `nflseedR` is a downstream consumer of experimental team signals.
 
+The Next.js app in `web/` presents saved artifacts and validates uploaded
+inputs. The browser does not train a model or run a simulation. The worker
+contract in `services/model-worker/` defines the separate boundary for model
+execution.
+
 ## Why
 
 The rank-conditioned sampler gives useful marginal player ranges. Separate
@@ -34,6 +39,7 @@ incoherent player outcomes and require a separate calibration boundary.
 - Adding FantasyPros, ETR, Footballguys, or another ranking provider.
 - Changing player-to-team aggregation or the `nflseedR` adapter.
 - Interpreting a team or game table as an NFL prediction.
+- Changing a web tab, the upload boundary, or the model worker interface.
 
 ## Preferred Shape
 
@@ -87,6 +93,9 @@ feature contract and zero-fill it until the source simulator emits K outcomes.
 - `R/04_team_signals.R`, `R/05_nflseedr.R`
 - `scripts/week1_2026.R`
 - `tests/testthat/test-team-and-nflseedr.R`
+- `web-and-deployment.md`
+- `web/README.md`
+- `services/model-worker/README.md`
 - `backtest_fbg_2023_2025/R/simulation.R::fit_qb_skill_model()`
 - `backtest_fbg_2023_2025/R/simulation.R::condition_qb_scores()`
 - `backtest_fbg_2023_2025/scripts/07_calibrate_qb_conditioning.R`

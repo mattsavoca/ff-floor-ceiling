@@ -2,7 +2,7 @@
 
 make_scoring_history <- function(stats) {
   scored <- score_nflreadr_weekly(stats)
-  scored[, .(
+  output <- scored[, .(
     gsis_id = as.character(player_id),
     position = toupper(as.character(position)),
     week = as.integer(week),
@@ -10,6 +10,9 @@ make_scoring_history <- function(stats) {
     team = as.character(team),
     points = as.numeric(actual_score)
   )]
+  output[, scoring_format := SCORING_FORMAT]
+  output[, scoring_contract_version := SCORING_CONTRACT_VERSION]
+  output
 }
 
 # Fit the historical team environment that links QB scoring to the projected
@@ -166,7 +169,17 @@ make_outcome_pool <- function(
     target_season,
     positions = BACKTEST_POSITIONS,
     outcome_builder = NULL) {
-  target_history <- scoring_history_before(scoring_history, target_season)
+  check_columns(
+    scoring_history,
+    c("gsis_id", "week", "season", "points", "scoring_format", "scoring_contract_version"),
+    "scoring history"
+  )
+  assert_ppr_artifact(scoring_history, "scoring history")
+  # The caller must provide a target-specific history document. This check is
+  # intentionally before any filtering so a leaked target or future season
+  # cannot be hidden by a later subset operation.
+  assert_scoring_history_precedes_target(scoring_history, target_season)
+  target_history <- data.table::as.data.table(data.table::copy(scoring_history))
   if (is.null(outcome_builder)) {
     if (!requireNamespace("ffsimulator", quietly = TRUE)) {
       abort("Install ffsimulator to build the historical outcome pool.")
@@ -183,6 +196,9 @@ make_outcome_pool <- function(
   pool <- ffsimulator_outcomes_to_pool(adp_outcomes, positions = positions)
   attr(pool, "scoring_history_seasons") <- sort(unique(target_history$season))
   attr(pool, "scoring_history_rows") <- nrow(target_history)
+  attr(pool, "scoring_format") <- SCORING_FORMAT
+  attr(pool, "scoring_contract_version") <- SCORING_CONTRACT_VERSION
+  attr(pool, "max_historical_season") <- max(target_history$season, na.rm = TRUE)
   pool
 }
 

@@ -61,16 +61,20 @@ data.table::setorder(rank_rows, season, week, set_id, position, raw_row)
 rank_rows[, projector_rank := seq_len(.N), by = .(season, week, set_id, position)]
 rank_rows[, `:=`(
   is_consensus = tolower(set_name) == "projections consensus",
-  consensus_projected_score = score_projection_rows(rank_rows)
+  consensus_projected_score = score_projection_rows(rank_rows),
+  scoring_format = SCORING_FORMAT,
+  scoring_contract_version = SCORING_CONTRACT_VERSION
 )]
 rank_rows <- rank_rows[, .(
   season, week, fbg_id, player_name, position, team, set_id, set_name, set_userid,
-  projector_rank, is_consensus, consensus_projected_score
+  projector_rank, is_consensus, consensus_projected_score,
+  scoring_format, scoring_contract_version
 )]
 
 rosters <- data.table::rbindlist(lapply(BACKTEST_YEARS, function(season) read_parquet_local(roster_raw_path(season))), fill = TRUE)
 stats <- data.table::rbindlist(lapply(BACKTEST_YEARS, function(season) read_parquet_local(stats_raw_path(season))), fill = TRUE)
 players <- read_parquet_local(players_raw_path())
+parity <- validate_ppr_parity(stats)
 
 identity_input <- unique(rank_rows[, .(season, week, fbg_id, player_name, position, team)])
 identity_map <- map_fbg_to_gsis(identity_input, rosters = rosters, stats = stats, players = players)
@@ -124,6 +128,10 @@ rank_summary <- rank_rows[
 ]
 rank_summary[, actual_score := NA_real_]
 rank_summary[, actual_record := 0L]
+rank_summary[, `:=`(
+  scoring_format = SCORING_FORMAT,
+  scoring_contract_version = SCORING_CONTRACT_VERSION
+)]
 rank_summary[actual, on = .(season, week, gsis_id = player_id), `:=`(
   actual_score = i.actual_score,
   actual_record = i.actual_record
@@ -137,6 +145,10 @@ team_actual <- rank_summary[!is.na(gsis_id), .(
 ), by = .(season, week, team)]
 full_team_actual <- actual[, .(actual_full_skill_points = sum(actual_score, na.rm = TRUE)), by = .(season, week, team)]
 team_actual <- merge(team_actual, full_team_actual, by = c("season", "week", "team"), all = TRUE)
+team_actual[, `:=`(
+  scoring_format = SCORING_FORMAT,
+  scoring_contract_version = SCORING_CONTRACT_VERSION
+)]
 
 identity_audit <- unique(rank_rows[, .(
   season, week, fbg_id, player_name, position, fbg_team,
@@ -152,6 +164,7 @@ write_csv_local(identity_audit, identity_path)
 write_parquet_local(rank_rows, panel_rows_path)
 write_parquet_local(rank_summary, panel_path)
 write_parquet_local(team_actual, team_actual_path)
+write_csv_local(parity, path_in_project("outputs", "ppr_parity_panel.csv"))
 
 diagnostics <- identity_audit[
   , .(

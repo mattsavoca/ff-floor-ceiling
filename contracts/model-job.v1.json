@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://floor-ceiling.example/contracts/model-job.v1.json",
+  "title": "Floor and Ceiling model job",
+  "description": "Validated input for a bounded simulation job. User text is data, not a shell argument.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "jobId", "workspaceId", "season", "week", "metricDefinition", "modelVersion", "simulationCount", "seed", "inputRevision"],
+  "properties": {
+    "schemaVersion": { "const": "model-job.v1" },
+    "jobId": { "type": "string", "pattern": "^run_[a-zA-Z0-9_-]{8,128}$" },
+    "workspaceId": { "type": "string", "pattern": "^ws_[a-z0-9]{12}$" },
+    "season": { "type": "integer", "minimum": 2020, "maximum": 2100 },
+    "week": { "type": "integer", "minimum": 1, "maximum": 18 },
+    "metricDefinition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "name"],
+      "properties": {
+        "version": { "type": "string", "pattern": "^[a-zA-Z0-9._-]{1,40}$" },
+        "name": { "type": "string", "maxLength": 80 }
+      }
+    },
+    "modelVersion": { "type": "string", "pattern": "^[a-zA-Z0-9._-]{1,80}$" },
+    "simulationCount": { "type": "integer", "enum": [100, 1000] },
+    "seed": { "type": "integer", "minimum": 0, "maximum": 2147483647 },
+    "inputRevision": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "upload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["uploadId", "acceptedRows"],
+      "properties": {
+        "uploadId": { "type": "string", "pattern": "^[a-zA-Z0-9._-]{1,128}$" },
+        "acceptedRows": { "type": "integer", "minimum": 1, "maximum": 50000 },
+        "selectedSetId": { "type": "string", "maxLength": 128 }
+      }
+    }
+  }
+}

@@ -27,6 +27,7 @@ history_years <- parse_int_list(read_cli_value(args, "--history-years", "2012:20
 force <- has_cli_flag(args, "--force")
 
 manifest <- list()
+parity_manifest <- list()
 
 for (season in sort(unique(c(years, history_years)))) {
   stats_path <- stats_raw_path(season)
@@ -40,14 +41,24 @@ for (season in sort(unique(c(years, history_years)))) {
       error = function(error) abort("nflreadr player stats failed for ", season, ": ", conditionMessage(error))
     )
     raw <- data.table::as.data.table(raw)
-    check_columns(raw, c("player_id", "player_name", "position", "season", "week", "season_type", "team", "game_id", "fantasy_points", "receptions", "receiving_first_downs"), "nflreadr player stats")
+    check_columns(raw, c("player_id", "player_name", "position", "season", "week", "season_type", "team", "game_id", "fantasy_points", "fantasy_points_ppr", "receptions", "receiving_first_downs"), "nflreadr player stats")
     keep <- c("player_id", "player_name", "player_display_name", "position", "position_group", "season", "week", "season_type", "game_id", "team", "opponent_team", "fantasy_points", "fantasy_points_ppr", "receptions", "receiving_first_downs")
     keep <- intersect(keep, names(raw))
     stats <- raw[, ..keep]
     stats <- stats[season_type == "REG" & week %in% BACKTEST_WEEKS & position %in% BACKTEST_POSITIONS]
     write_parquet_local(stats, stats_path)
   }
-  manifest[[length(manifest) + 1L]] <- data.table::data.table(source = "player_stats", season = season, rows = nrow(stats), path = normalizePath(stats_path, winslash = "/"))
+  parity <- validate_ppr_parity(stats)
+  parity[, season := season]
+  parity_manifest[[length(parity_manifest) + 1L]] <- parity
+  manifest[[length(manifest) + 1L]] <- data.table::data.table(
+    source = "player_stats",
+    season = season,
+    rows = nrow(stats),
+    path = normalizePath(stats_path, winslash = "/"),
+    scoring_format = SCORING_FORMAT,
+    scoring_contract_version = SCORING_CONTRACT_VERSION
+  )
 
   if (!season %in% years) next
 
@@ -109,4 +120,8 @@ if (file.exists(players_path) && !force) {
 manifest[[length(manifest) + 1L]] <- data.table::data.table(source = "players", season = NA_integer_, rows = nrow(players), path = normalizePath(players_path, winslash = "/"))
 
 write_csv_local(data.table::rbindlist(manifest, fill = TRUE), path_in_project("data", "raw", "nflreadr", "manifest.csv"))
+write_csv_local(
+  data.table::rbindlist(parity_manifest, fill = TRUE),
+  path_in_project("data", "raw", "nflreadr", "ppr_parity.csv")
+)
 message("nflreadr cache is ready.")

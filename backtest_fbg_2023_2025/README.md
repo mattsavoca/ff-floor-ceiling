@@ -25,11 +25,15 @@ Install the required packages once:
 install.packages(c("arrow", "curl", "data.table", "ggplot2", "nflreadr", "scales"))
 ```
 
-Run the complete pipeline from this directory:
+Run the complete PPR workflow from this directory:
 
 ```text
-Rscript scripts/run_all.R
+PowerShell -ExecutionPolicy Bypass -File scripts/run_ppr_all.ps1
 ```
+
+`run_all.R` still runs the R-only player, team, and chart stages. The PPR
+workflow also runs XGBoost, SHAP, page-data generation, and reproducibility
+checks.
 
 The FBG downloader waits a random 2 to 5 seconds after each new download.
 Use smaller ranges while you test the code:
@@ -41,6 +45,11 @@ Rscript scripts/03_build_panel.R
 Rscript scripts/04_run_player_backtest.R --n-simulations 1000
 Rscript scripts/05_run_team_backtest.R
 Rscript scripts/06_make_plots.R
+python scripts/08_xgb_p85_projection_experiment.py
+python scripts/09_explain_xgb_p85_shap.py
+python scripts/10_build_calibration_page_data.py
+python scripts/12_check_reproducibility.py
+python scripts/11_validate_ppr_run.py
 ```
 
 To test the optional quarterback environment experiment, pass a strength from
@@ -75,17 +84,24 @@ The `ecr` field is the mean of the selected projector ranks. The `rank_sd`
 field is the sample standard deviation across those ranks. The output also
 keeps `consensus_rank`, `rank_min`, `rank_max`, and `n_projectors`.
 
-The default actual score is the FFFL-style score used by the sibling projects:
-standard nflreadr fantasy points, 0.5 points per reception, a 0.5 TE reception
-bonus, and 0.5 points per receiving first down. The scoring code is in
-`R/scoring.R`.
+The active score is standard PPR. It uses the nflreadr
+`fantasy_points_ppr` field and follows these rules:
 
-The player stage scores nflreadr history with the same FFFL rules and sends it to
-`ffsimulator::ffs_adp_outcomes_week()`. It filters this table before each call.
-Every row must satisfy `season < target_season`. The initial cache covers 2012
-through 2022. The current `ffsimulator` weekly ranking history also ends in
-2022, so each target uses those 11 seasons. A later ranking-history update can
-add recent prior seasons without changing the cutoff rule.
+* 1 point per reception
+* no tight-end reception bonus
+* no receiving first-down points
+
+The scoring code is in `R/scoring.R`. `02_download_nflreadr.R` checks the raw
+field against standard fantasy points plus receptions before it writes the
+cache. It also writes `data/raw/nflreadr/ppr_parity.csv`.
+
+The player stage scores nflreadr history with the PPR contract and sends it to
+`ffsimulator::ffs_adp_outcomes_week()`. It builds a separate history document
+for each target season. Every row in that document must satisfy
+`season < target_season`. The initial cache covers 2012 through 2022. The
+current `ffsimulator` weekly ranking history also ends in 2022, so each target
+uses those 11 seasons. A later ranking-history update can add recent prior
+seasons without changing the cutoff rule.
 
 The simulation draws an integer rank from a normal distribution with mean
 `ecr` and standard deviation `rank_sd * 0.5`. It then samples a score from the
@@ -103,7 +119,7 @@ difference between `mean_above_p85` and `p85`. These fields describe the shape
 of the simulated upper tail. They do not change the p85 definition.
 
 The player output stores `ffpts_rounded` and `xfpts_rounded`, which round the
-observed score and simulated p50 estimate to 0.5 FPTS. It also stores
+observed PPR score and simulated p50 estimate to 0.5 points. It also stores
 whole-point versions with the `_total` suffix and `xfpts_p85`, which rounds
 the simulated p85 estimate to one FPTS. The position calibration outputs
 group by `position` and the rounded simulation estimate, then calculate
@@ -151,10 +167,15 @@ needs a manual link. The override key is the FBG ID and position.
 | File | Use |
 | --- | --- |
 | `data/derived/fbg_rank_rows.parquet` | One row per FBG projector, player, and week |
-| `data/derived/fbg_rank_summary.parquet` | ECR, rank SD, consensus rank, identity, and actual score |
-| `outputs/player_predictions.parquet` | Player p15, p50, p85, rounded FPTS metrics, point error, and zero probability |
+| `data/derived/fbg_rank_summary.parquet` | ECR, rank SD, consensus rank, identity, actual PPR score, and PPR metadata |
+| `outputs/player_predictions.parquet` | Player p15, p50, p85, rounded PPR metrics, tail metrics, and PPR metadata |
+| `outputs/player_scorecard_metrics.csv` | P15, P50, P85, interval, calibration, error, tail, and sample-count metrics by season and position |
+| `outputs/player_backtest_metadata.json` | PPR contract, simulation settings, history cutoffs, and leakage checks |
+| `outputs/scoring_history_manifest.csv` | One target-specific, prior-only scoring-history document per target season |
+| `outputs/reproducibility_check.json` | Seeded ffsimulator and XGBoost smoke-run hash checks |
+| `outputs/ppr_parity.csv` | Raw PPR parity evidence for the player backtest inputs |
 | `outputs/player_interval_metrics.csv` | p15 to p85 coverage by position |
-| `outputs/position_xfpts_calibration_summary.csv` | Average rounded observed FPTS grouped by rounded simulation estimate and position |
+| `outputs/position_xfpts_calibration_summary.csv` | Average rounded observed PPR points grouped by rounded simulation estimate and position |
 | `outputs/position_xfpts_calibration_integer_summary.csv` | Whole-point estimate bins with average observed, p15, and p85 values by position |
 | `outputs/position_xfpts_p85_calibration_summary.csv` | Empirical observed p85 grouped by whole-point p85 simulation estimate and position |
 | `outputs/position_xfpts_p85_tail_calibration_summary.csv` | Observed and predicted conditional means above p85 by season, position, and p85 bin |
@@ -169,7 +190,8 @@ needs a manual link. The override key is the FBG ID and position.
 | `outputs/dst_xgb/dst_backtest_metrics.csv` | Historical mean and market-baseline scorecard |
 | `outputs/dst_xgb/dst_backtest_breakdowns.csv` | Error by opponent total, home status, roof, and wind |
 | `outputs/game_predictions.parquet` | Team-derived game margins and win probabilities |
-| `outputs/team_metrics.csv` | Margin, win, and spread metrics |
+| `outputs/team_metrics.csv` | Margin, win, and spread metrics with PPR metadata |
+| `outputs/team_backtest_metadata.json` | Team-artifact scoring format and calibration leakage checks |
 | `outputs/plots/position_xfpts_calibration.png` | White-background calibration plots by position |
 | `outputs/plots/position_xfpts_calibration_integer.png` | Whole-point calibration plots with average p15 and p85 dots |
 | `outputs/plots/position_xfpts_p85_calibration.png` | Whole-point p85 calibration plots by position |
@@ -185,9 +207,9 @@ fantasy totals alone explain game scores.
 ## Direct XGBoost p85 projection experiment
 
 The separate `scripts/08_xgb_p85_projection_experiment.py` experiment fits a
-direct p85 quantile model from Footballguys projection stats. It trains one
+direct PPR p85 quantile model from Footballguys projection stats. It trains one
 XGBoost model for each of QB, RB, WR, and TE. The model uses rank-summary
-features, raw consensus projection stats, and derived FFFL projection points.
+features, raw consensus projection stats, and derived PPR projection points.
 
 The experiment uses season-level walk-forward evaluation. The 2023 projection
 season is the warm-up season because no earlier Footballguys projection files
@@ -205,12 +227,16 @@ the experiment from this directory:
 The default grid has 144 candidates per position and target season. It uses
 the XGBoost `reg:quantileerror` objective with `quantile_alpha = 0.85` and
 selects candidates by p85 pinball loss. The output is written under
-`outputs/xgb_p85_projection/`. It includes row-level predictions, grid scores,
-selected settings, model files, feature importance, p85 calibration, boom
-capture, metrics, and a run manifest.
+`outputs/xgb_p85_projection/`. It includes row-level PPR predictions, grid
+scores, selected settings, model files, feature importance, p85 calibration,
+season-wide boom capture, metrics, and a run manifest. The XGBoost model
+reports p85 directly. It does not borrow the simulation model's p15 or p50 to
+claim a full interval.
 
-This model does not replace the rank-conditioned baseline. Compare
-`metrics.csv` and `p85_calibration.csv` before using it in a production path.
+This model does not replace the rank-conditioned simulation. The calibration
+page compares both outputs under PPR scoring. The reference choice by position
+is a reporting choice based on held-out p85 loss and coverage. Keep both model
+outputs available.
 
 Explain the saved models with Tree SHAP:
 
@@ -221,7 +247,12 @@ Explain the saved models with Tree SHAP:
 The SHAP output is written under `outputs/xgb_p85_projection/shap/`. It
 contains global mean absolute importance, low and high feature directions,
 local waterfall data, model additivity checks, and PNG plots. SHAP values are
-in raw p85 fantasy-point units. They describe model association, not causation.
+in raw PPR p85-point units. They describe model association, not causation.
+
+Before this PPR run, the prior FFFL artifacts are copied to
+`outputs/legacy_fffl_2026-09-06/`. Those files are retained only for a labeled
+scoring-format comparison. They are not active model inputs or calibration
+page data.
 
 ## Quarterback environment experiment
 
