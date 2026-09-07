@@ -181,6 +181,9 @@ needs a manual link. The override key is the FBG ID and position.
 | `outputs/position_xfpts_p85_tail_calibration_summary.csv` | Observed and predicted conditional means above p85 by season, position, and p85 bin |
 | `outputs/p85_tail_explanation_metrics.csv` | Walk-forward upper-tail regression comparison for p85 and mean_above_p85 |
 | `outputs/position_xfpts_p15_calibration_summary.csv` | Empirical observed p15 grouped by whole-point p15 simulation estimate and position |
+| `outputs/position_xfpts_p15_tail_calibration_summary.csv` | Observed and predicted conditional means below p15 by season, position, and p15 bin |
+| `outputs/xgb_p85_projection/` | Validated direct XGBoost PPR p85 models, predictions, metrics, calibration, and SHAP artifacts |
+| `outputs/xgb_p15_projection/` | Independently tuned direct XGBoost PPR p15 models, predictions, lower-tail metrics, calibration, and SHAP artifacts |
 | `outputs/team_draws.parquet` | Team fantasy score for each simulation, team, and week |
 | `outputs/fbg_player_draws.parquet` | Original FBG player draw rows used by the DST scenario bridge |
 | `data/derived/dst_targets.parquet` | One PBP-backed DST target row per completed team-game |
@@ -197,6 +200,7 @@ needs a manual link. The override key is the FBG ID and position.
 | `outputs/plots/position_xfpts_p85_calibration.png` | Whole-point p85 calibration plots by position |
 | `outputs/plots/position_xfpts_p85_tail_mean_calibration.png` | Observed upper-tail means compared with predicted mean_above_p85 |
 | `outputs/plots/position_xfpts_p15_calibration.png` | Whole-point p15 calibration plots by position |
+| `outputs/plots/position_xfpts_p15_tail_mean_calibration.png` | Observed lower-tail means compared with predicted mean_below_p15 |
 | `outputs/plots/` | Other ggplot player and game diagnostics |
 
 The pipeline is exploratory. It measures whether the rank-conditioned player
@@ -204,12 +208,13 @@ simulation is calibrated and whether its team aggregate contains signal for
 game outcomes. It does not prove that a forecast is profitable or that team
 fantasy totals alone explain game scores.
 
-## Direct XGBoost p85 projection experiment
+## Direct XGBoost PPR quantile experiments
 
-The separate `scripts/08_xgb_p85_projection_experiment.py` experiment fits a
-direct PPR p85 quantile model from Footballguys projection stats. It trains one
-XGBoost model for each of QB, RB, WR, and TE. The model uses rank-summary
-features, raw consensus projection stats, and derived PPR projection points.
+The `scripts/08_xgb_p85_projection_experiment.py` and
+`scripts/08_xgb_p15_projection_experiment.py` experiments fit direct PPR
+quantile models from Footballguys projection stats. Each experiment trains one
+XGBoost model for each of QB, RB, WR, and TE. Both use rank-summary features,
+raw consensus projection stats, and derived PPR projection points.
 
 The experiment uses season-level walk-forward evaluation. The 2023 projection
 season is the warm-up season because no earlier Footballguys projection files
@@ -222,16 +227,23 @@ the experiment from this directory:
 
 ```powershell
 & 'C:\Users\matts\AppData\Local\Programs\Python\Python312\python.exe' scripts/08_xgb_p85_projection_experiment.py
+& 'C:\Users\matts\AppData\Local\Programs\Python\Python312\python.exe' scripts/08_xgb_p15_projection_experiment.py
 ```
 
-The default grid has 144 candidates per position and target season. It uses
-the XGBoost `reg:quantileerror` objective with `quantile_alpha = 0.85` and
-selects candidates by p85 pinball loss. The output is written under
-`outputs/xgb_p85_projection/`. It includes row-level PPR predictions, grid
-scores, selected settings, model files, feature importance, p85 calibration,
-season-wide boom capture, metrics, and a run manifest. The XGBoost model
-reports p85 directly. It does not borrow the simulation model's p15 or p50 to
-claim a full interval.
+The default grid has 144 candidates per position and target season. Each
+experiment uses the XGBoost `reg:quantileerror` objective with its own
+quantile alpha and selects candidates by its own quantile pinball loss. The p85
+run writes to `outputs/xgb_p85_projection/`. The p15 run writes to
+`outputs/xgb_p15_projection/`. Each output includes row-level PPR predictions,
+grid scores, selected settings, model files, feature importance, calibration,
+season-wide tail capture, metrics, metadata, and a run manifest. The p85 model
+reports p85 directly. The p15 model reports p15 directly. Neither model
+borrows another model's target outcome.
+
+The lower-tail fields mirror the validated upper-tail fields. `mean_below_p15`
+is the mean of actual scores strictly below the row's p15 estimate, and
+`p15_tail_excess` is p15 minus that mean. Bust capture uses a season-wide
+empirical p15 cutoff. It has no position-specific bust threshold.
 
 This model does not replace the rank-conditioned simulation. The calibration
 page compares both outputs under PPR scoring. The reference choice by position
@@ -242,12 +254,13 @@ Explain the saved models with Tree SHAP:
 
 ```powershell
 & 'C:\Users\matts\AppData\Local\Programs\Python\Python312\python.exe' scripts/09_explain_xgb_p85_shap.py
+& 'C:\Users\matts\AppData\Local\Programs\Python\Python312\python.exe' scripts/09_explain_xgb_p15_shap.py
 ```
 
-The SHAP output is written under `outputs/xgb_p85_projection/shap/`. It
-contains global mean absolute importance, low and high feature directions,
-local waterfall data, model additivity checks, and PNG plots. SHAP values are
-in raw PPR p85-point units. They describe model association, not causation.
+The SHAP outputs are written under the matching p85 and p15 directories. They
+contain global mean absolute importance, low and high feature directions,
+local waterfall data, model additivity checks, and PNG plots. SHAP values use
+raw PPR quantile-point units. They describe model association, not causation.
 
 Before this PPR run, the prior FFFL artifacts are copied to
 `outputs/legacy_fffl_2026-09-06/`. Those files are retained only for a labeled

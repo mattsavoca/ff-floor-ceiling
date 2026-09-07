@@ -1148,7 +1148,7 @@ function FloorCalibrationPage() {
 
   return (
     <>
-      <SectionIntro eyebrow="Calibration" title="Do the low estimates match past scores?" status={<StatusPill label="Near target" tone="good" />} action={<StatusPill label="PPR scoring" tone="blue" />}>We compare each low estimate with the final score from past weeks. The target is for about 15 of 100 scores to stay at or below the estimate.</SectionIntro>
+      <SectionIntro eyebrow="Calibration" title="Do the low estimates match past scores?" status={<StatusPill label="Review target" tone="warn" />} action={<StatusPill label="PPR scoring" tone="blue" />}>We compare each low estimate with the final score from past weeks. The target is for about 15 of 100 scores to stay at or below the estimate.</SectionIntro>
 
       <section className="calibration-model-card">
         <div className="calibration-model-main">
@@ -1156,7 +1156,7 @@ function FloorCalibrationPage() {
             <div className="model-symbol"><Activity size={21} /></div>
             <div>
               <div className="panel-eyebrow">The short answer</div>
-              <h2>The low estimate is close to its target</h2>
+              <h2>The low estimate needs calibration review</h2>
               <p>We choose the method separately for each position. The result below combines those choices.</p>
             </div>
             <StatusPill label="Past results" tone="blue" />
@@ -1231,7 +1231,7 @@ function FloorCalibrationPage() {
         <Panel eyebrow="Use this result" title="What should you take away?">
           <ul className="calibration-list">
             <li>The low estimate is a floor for a group of players. It is an estimate of the lower end, not an exact-score prediction.</li>
-            <li>The combined result is close to the 15% target. One player can still fall below or above it.</li>
+            <li>The combined result is above the 15% target in this backtest. Treat the floor as a conservative estimate until more seasons are tested.</li>
             <li>The 70% full-range check is separate because the projection model supplies only the low estimate.</li>
           </ul>
         </Panel>
