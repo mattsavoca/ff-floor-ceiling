@@ -49,6 +49,8 @@ import {
   oosSeasonPositionMetrics,
   oosWeeklyPositionMetrics,
   oosWeeklySummaries,
+  floorOosWeeklyPositionMetrics,
+  floorOosWeeklySummaries,
   positionModelSelections,
   scoringContract,
   selectedCalibrationBins,
@@ -505,9 +507,13 @@ function OverviewPage({ navigate, season, week, onWeekChange }: { navigate: (tab
   const selectedSeason = Number(season);
   const selectedWeek = Number(week);
   const selectedSummary = oosWeeklySummaries.find((row) => row.season === selectedSeason && row.week === selectedWeek);
+  const selectedFloorSummary = floorOosWeeklySummaries.find((row) => row.season === selectedSeason && row.week === selectedWeek);
   const selectedPositionRows = monitoringPositionOrder
     .map((position) => oosWeeklyPositionMetrics.find((row) => row.season === selectedSeason && row.week === selectedWeek && row.position === position))
     .filter((row): row is (typeof oosWeeklyPositionMetrics)[number] => Boolean(row));
+  const selectedFloorPositionRows = monitoringPositionOrder
+    .map((position) => floorOosWeeklyPositionMetrics.find((row) => row.season === selectedSeason && row.week === selectedWeek && row.position === position))
+    .filter((row): row is (typeof floorOosWeeklyPositionMetrics)[number] => Boolean(row));
 
   const coverageOption = useMemo<EChartsOption>(() => ({
     animation: false,
@@ -607,34 +613,143 @@ function OverviewPage({ navigate, season, week, onWeekChange }: { navigate: (tab
     };
   }, [selectedSeason, selectedWeek]);
 
+  const floorCoverageOption = useMemo<EChartsOption>(() => ({
+    animation: false,
+    grid: { left: 46, right: 16, top: 40, bottom: 48, containLabel: true },
+    legend: { top: 0, textStyle: { color: "#50687A", fontSize: 10 } },
+    tooltip: { trigger: "axis" },
+    xAxis: {
+      type: "category",
+      boundaryGap: false,
+      data: floorOosWeeklySummaries.filter((row) => row.season === selectedSeason).map((row) => `Week ${row.week}`),
+      axisLabel: { color: "#73889A", fontSize: 10 },
+      axisLine: { lineStyle: { color: "#CBD7DE" } },
+    },
+    yAxis: {
+      type: "value",
+      name: "Coverage",
+      nameLocation: "middle",
+      nameGap: 34,
+      min: 0,
+      max: 0.5,
+      interval: 0.1,
+      axisLabel: { color: "#73889A", fontSize: 9, formatter: (value: number) => Math.round(value * 100) + "%" },
+      splitLine: { lineStyle: { color: "#E8EEF2" } },
+    },
+    series: [
+      {
+        name: "Selected model mix",
+        type: "line",
+        symbol: "circle",
+        symbolSize: 7,
+        smooth: false,
+        emphasis: { focus: "series" },
+        lineStyle: { color: "#7C5BAA", width: 2.5 },
+        itemStyle: { color: "#7C5BAA" },
+        data: floorOosWeeklySummaries.filter((row) => row.season === selectedSeason).map((row) => ({
+          value: row.coverage,
+          symbolSize: row.week === selectedWeek ? 10 : 7,
+          itemStyle: { color: row.week === selectedWeek ? "#7C5BAA" : "#B5A2D0", borderColor: "#fff", borderWidth: 2 },
+        })),
+      },
+      {
+        name: "15% target",
+        type: "line",
+        data: floorOosWeeklySummaries.filter((row) => row.season === selectedSeason).map(() => 0.15),
+        symbol: "none",
+        lineStyle: { color: "#D87945", type: "dashed", width: 2 },
+      },
+    ],
+  }), [selectedSeason, selectedWeek]);
+
+  const floorPositionCoverageOption = useMemo<EChartsOption>(() => {
+    const weeks = floorOosWeeklySummaries.filter((row) => row.season === selectedSeason);
+    return {
+      animation: false,
+      grid: { left: 52, right: 16, top: 40, bottom: 48, containLabel: true },
+      legend: { top: 0, data: [...monitoringPositionOrder], selectedMode: "multiple", textStyle: { color: "#50687A", fontSize: 10 } },
+      tooltip: { trigger: "axis" },
+      xAxis: {
+        type: "category",
+        boundaryGap: false,
+        data: weeks.map((row) => `Week ${row.week}`),
+        axisLabel: { color: "#73889A", fontSize: 10 },
+        axisLine: { lineStyle: { color: "#CBD7DE" } },
+      },
+      yAxis: {
+        type: "value",
+        name: "Coverage",
+        nameLocation: "middle",
+        nameGap: 40,
+        min: 0,
+        max: 0.5,
+        interval: 0.1,
+        axisLabel: { color: "#73889A", fontSize: 9, formatter: (value: number) => Math.round(value * 100) + "%" },
+        splitLine: { lineStyle: { color: "#E8EEF2" } },
+      },
+      series: monitoringPositionOrder.map((position) => {
+        const color = monitoringPositionColors[position];
+        return {
+          name: position,
+          type: "line",
+          symbol: "circle",
+          symbolSize: 6,
+          smooth: false,
+          emphasis: { focus: "series" },
+          lineStyle: { color, width: 2 },
+          itemStyle: { color },
+          data: weeks.map((weekRow) => {
+            const row = floorOosWeeklyPositionMetrics.find((metric) => metric.season === selectedSeason && metric.week === weekRow.week && metric.position === position);
+            return {
+              value: row?.coverage ?? null,
+              symbolSize: weekRow.week === selectedWeek ? 9 : 6,
+              itemStyle: { color, borderColor: "#fff", borderWidth: weekRow.week === selectedWeek ? 2 : 1 },
+            };
+          }),
+        };
+      }),
+    };
+  }, [selectedSeason, selectedWeek]);
+
   const handlePositionCoverageClick = useMemo(() => ({ dataIndex }: { dataIndex?: number }) => {
     if (dataIndex === undefined) return;
     const clickedWeek = oosWeeklySummaries.filter((row) => row.season === selectedSeason)[dataIndex]?.week;
     if (clickedWeek !== undefined) onWeekChange(String(clickedWeek));
   }, [onWeekChange, selectedSeason]);
 
-  if (!selectedSummary || selectedPositionRows.length !== monitoringPositionOrder.length) {
+  if (!selectedSummary || !selectedFloorSummary || selectedPositionRows.length !== monitoringPositionOrder.length || selectedFloorPositionRows.length !== monitoringPositionOrder.length) {
     return <EmptyState icon={<Database size={22} />} title="No OOS results for this filter" body="Choose one of the available 2025 weeks from the context strip." />;
   }
 
   const selectedCoverage = formatCalibrationPercent(selectedSummary.coverage);
+  const selectedFloorCoverage = formatCalibrationPercent(selectedFloorSummary.coverage);
   const selectedCoverageError = `${selectedSummary.coverage - 0.85 >= 0 ? "+" : ""}${((selectedSummary.coverage - 0.85) * 100).toFixed(1)}%`;
-  const floorCoverageError = `${floorSelectedPortfolioOverall.coverage - 0.15 >= 0 ? "+" : ""}${((floorSelectedPortfolioOverall.coverage - 0.15) * 100).toFixed(1)}%`;
+  const floorCoverageError = `${selectedFloorSummary.coverage - 0.15 >= 0 ? "+" : ""}${((selectedFloorSummary.coverage - 0.15) * 100).toFixed(1)}%`;
   const selectedMissRate = formatCalibrationPercent(selectedSummary.highSideMissRate);
+  const selectedFloorMissRate = formatCalibrationPercent(selectedFloorSummary.lowSideMissRate);
+  const bestCeilingPosition = selectedPositionRows.reduce((best, row) => row.coverage > best.coverage ? row : best);
+  const closestFloorPosition = selectedFloorPositionRows.reduce((closest, row) => Math.abs(row.coverage - 0.15) < Math.abs(closest.coverage - 0.15) ? row : closest);
 
   return (
     <>
       <SectionIntro eyebrow="Weekly monitoring" title={`${season} · Week ${week} model performance`} status={<StatusPill label="OOS results" tone="good" />} action={<Button variant="secondary" onClick={() => navigate("calibration")} icon={<Target size={15} />}>Review model selection</Button>}>This view uses completed out-of-sample scores. Change the week above to compare the fixed best model for each position.</SectionIntro>
       <div className="overview-hero-grid">
-        <Panel className="next-forecast-panel" eyebrow="Best model mix" title="Fixed by position"><div className="weekly-model-list">{selectedPositionRows.map((row) => <div className="weekly-model-row" key={row.position}><div className="weekly-model-position"><span className="position-chip">{row.position}</span><span>{positionDisplayNames[row.position]}</span></div><span className={cx("methodology-model-badge", row.model === "ffsimulator" ? "methodology-model-badge-simulation" : "methodology-model-badge-xgboost")}>{row.model}</span></div>)}</div><Explainer>QB uses ffsimulator. RB, WR, and TE use XGBoost.</Explainer></Panel>
+        <Panel className="next-forecast-panel" eyebrow="Ceiling model mix" title="Fixed by position"><div className="weekly-model-list">{selectedPositionRows.map((row) => <div className="weekly-model-row" key={row.position}><div className="weekly-model-position"><span className="position-chip">{row.position}</span><span>{positionDisplayNames[row.position]}</span></div><span className={cx("methodology-model-badge", row.model === "ffsimulator" ? "methodology-model-badge-simulation" : "methodology-model-badge-xgboost")}>{row.model}</span></div>)}</div><Explainer>QB uses ffsimulator. RB, WR, and TE use XGBoost.</Explainer></Panel>
+        <Panel className="next-forecast-panel" eyebrow="Floor model mix" title="Fixed by position"><div className="weekly-model-list">{selectedFloorPositionRows.map((row) => <div className="weekly-model-row" key={row.position}><div className="weekly-model-position"><span className="position-chip">{row.position}</span><span>{positionDisplayNames[row.position]}</span></div><span className={cx("methodology-model-badge", row.model === "ffsimulator" ? "methodology-model-badge-simulation" : "methodology-model-badge-xgboost")}>{row.model}</span></div>)}</div><Explainer>QB and RB use XGBoost. TE uses ffsimulator.</Explainer></Panel>
       </div>
       <div className="metric-grid"><MetricCard label="Scores at or below ceiling" value={selectedCoverage} detail="Target: about 85 of 100 scores" tone="good" icon={<Target size={17} />} /><MetricCard label="Scores above ceiling" value={selectedMissRate} detail="The final score beat p85" tone="warn" icon={<ArrowUpRight size={17} />} /><MetricCard label="Ceiling model pinball loss" value={formatCalibrationMetric(selectedSummary.pinballLoss)} detail="Lower is better" tone="good" icon={<Gauge size={17} />} /><MetricCard label="Ceiling model mean absolute error" value={formatCalibrationMetric(selectedSummary.p85Mae)} detail="Average distance from the final score" tone="neutral" icon={<Activity size={17} />} /><MetricCard label="Rank correlation" value={selectedSummary.rankSpearman.toFixed(2)} detail="Forecast order versus final score order" tone="neutral" icon={<Link2 size={17} />} /></div>
+       <div className="metric-grid"><MetricCard label="Scores at or below floor" value={selectedFloorCoverage} detail="Target: about 15 of 100 scores" tone="good" icon={<Target size={17} />} /><MetricCard label="Scores below floor" value={selectedFloorMissRate} detail="The final score fell below p15" tone="warn" icon={<ArrowDownRight size={17} />} /><MetricCard label="Floor model pinball loss" value={formatCalibrationMetric(selectedFloorSummary.pinballLoss)} detail="Lower is better" tone="good" icon={<Gauge size={17} />} /><MetricCard label="Floor model mean absolute error" value={formatCalibrationMetric(selectedFloorSummary.p15Mae)} detail="Average distance from the final score" tone="neutral" icon={<Activity size={17} />} /><MetricCard label="Rank correlation" value={selectedFloorSummary.rankSpearman.toFixed(2)} detail="Forecast order versus final score order" tone="neutral" icon={<Link2 size={17} />} /></div>
       <div className="two-column-grid overview-main-grid">
         <Panel className="chart-panel" eyebrow="Last 4 Weeks" title="Ceiling Model Calibration, Last 4 Weeks"><EChart option={coverageOption} height={300} ariaLabel="Ceiling model calibration coverage across the last four 2025 out-of-sample weeks" /><Explainer>The line tracks the selected best-model mix. The dashed line marks the 85% ceiling target.</Explainer></Panel>
         <Panel className="chart-panel position-chart-panel" eyebrow="Position coverage" title="Best model P85 coverage"><EChart option={positionCoverageOption} height={300} ariaLabel="Best model P85 coverage by position across the last four 2025 out-of-sample weeks" onClick={handlePositionCoverageClick} /><Explainer>Each line shows one position. Hover for the weekly value, use the legend to focus the chart, or click a point to select that week.</Explainer></Panel>
       </div>
+      <div className="two-column-grid overview-main-grid">
+        <Panel className="chart-panel" eyebrow="Last 4 Weeks" title="Floor Model Calibration, Last 4 Weeks"><EChart option={floorCoverageOption} height={300} ariaLabel="Floor model calibration coverage across the last four 2025 out-of-sample weeks" /><Explainer>The line tracks the selected best-model mix. The dashed line marks the 15% floor target.</Explainer></Panel>
+        <Panel className="chart-panel position-chart-panel" eyebrow="Position coverage" title="Best model P15 coverage"><EChart option={floorPositionCoverageOption} height={300} ariaLabel="Best model P15 coverage by position across the last four 2025 out-of-sample weeks" onClick={handlePositionCoverageClick} /><Explainer>Each line shows one position. Hover for the weekly value, use the legend to focus the chart, or click a point to select that week.</Explainer></Panel>
+      </div>
       <Panel className="input-change-panel" eyebrow="Ceiling Model Calibration by Position" title={`Best model results for ${season} · Week ${week}`} action={<span className="calibration-panel-note">Weekly Observations: {selectedSummary.n.toLocaleString()}</span>}><div className="table-scroll"><table className="weekly-metrics-table"><thead><tr><th scope="col">Position</th><th scope="col">Selected model</th><th scope="col">P85 coverage</th><th scope="col">P85 loss</th><th scope="col">P85 MAE</th><th scope="col">Scores</th></tr></thead><tbody>{selectedPositionRows.map((row) => <tr key={row.position}><th scope="row"><span className="position-chip">{row.position}</span><span>{positionDisplayNames[row.position]}</span></th><td><span className={cx("methodology-model-badge", row.model === "ffsimulator" ? "methodology-model-badge-simulation" : "methodology-model-badge-xgboost")}>{row.model}</span></td><td>{formatCalibrationPercent(row.coverage)}</td><td>{formatCalibrationMetric(row.pinballLoss)}</td><td>{formatCalibrationMetric(row.p85Mae)}</td><td>{row.n.toLocaleString()}</td></tr>)}</tbody></table></div><Explainer>P85 Coverage: percentage of position who scored at or below the predicted 85th percentile outcome. A perfectly calibrated model would hit exactly 85% (the model target).</Explainer></Panel>
-      <div className="two-column-grid lower-overview-grid"><Panel eyebrow="Weekly Results at a Glance" title={`Week ${week}`}><div className="weekly-readout-grid"><div><span>Best position coverage</span><strong>{formatCalibrationPercent(Math.max(...selectedPositionRows.map((row) => row.coverage)))}</strong><small>{selectedPositionRows.find((row) => row.coverage === Math.max(...selectedPositionRows.map((item) => item.coverage)))?.position} had the highest coverage.</small></div><div><span>Ceiling coverage error</span><strong>{selectedCoverageError}</strong><small>Difference from the 85% model target.</small></div><div><span>Floor coverage error</span><strong>{floorCoverageError}</strong><small>Difference from the 15% target across held-out rows.</small></div></div><Explainer>Model Drift</Explainer></Panel></div>
+      <Panel className="input-change-panel" eyebrow="Floor Model Calibration by Position" title={`Best model results for ${season} · Week ${week}`} action={<span className="calibration-panel-note">Weekly Observations: {selectedFloorSummary.n.toLocaleString()}</span>}><div className="table-scroll"><table className="weekly-metrics-table"><thead><tr><th scope="col">Position</th><th scope="col">Selected model</th><th scope="col">P15 coverage</th><th scope="col">P15 loss</th><th scope="col">P15 MAE</th><th scope="col">Scores</th></tr></thead><tbody>{selectedFloorPositionRows.map((row) => <tr key={row.position}><th scope="row"><span className="position-chip">{row.position}</span><span>{positionDisplayNames[row.position]}</span></th><td><span className={cx("methodology-model-badge", row.model === "ffsimulator" ? "methodology-model-badge-simulation" : "methodology-model-badge-xgboost")}>{row.model}</span></td><td>{formatCalibrationPercent(row.coverage)}</td><td>{formatCalibrationMetric(row.pinballLoss)}</td><td>{formatCalibrationMetric(row.p15Mae)}</td><td>{row.n.toLocaleString()}</td></tr>)}</tbody></table></div><Explainer>P15 Coverage: percentage of position who scored at or below the predicted 15th percentile outcome. A perfectly calibrated model would hit exactly 15% (the model target).</Explainer></Panel>
+      <div className="two-column-grid lower-overview-grid"><Panel eyebrow="Weekly Results at a Glance" title={`Week ${week}`}><div className="weekly-readout-grid"><div><span>Best ceiling position</span><strong>{formatCalibrationPercent(bestCeilingPosition.coverage)}</strong><small>{bestCeilingPosition.position} had the highest P85 coverage.</small></div><div><span>Closest floor position</span><strong>{formatCalibrationPercent(closestFloorPosition.coverage)}</strong><small>{closestFloorPosition.position} was closest to the 15% P15 target.</small></div><div><span>Ceiling coverage error</span><strong>{selectedCoverageError}</strong><small>Difference from the 85% model target.</small></div><div><span>Floor coverage error</span><strong>{floorCoverageError}</strong><small>Difference from the 15% model target.</small></div></div><Explainer>Model drift is the distance between weekly coverage and each model target.</Explainer></Panel></div>
     </>
   );
 }

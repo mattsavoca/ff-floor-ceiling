@@ -27,14 +27,9 @@ The supplied file is the acceptance fixture:
 
 `projection-set-weekly-all-2026-1-qb-rb-wr-te.csv`
 
-The fixture contains 402 rows:
-
-| Position | Rows |
-| --- | ---: |
-| QB | 32 |
-| RB | 105 |
-| WR | 167 |
-| TE | 98 |
+The fixture contains QB, RB, WR, and TE rows. Its current total and position mix
+are sample metadata. They are not part of the input contract. The adapter and
+tests must derive counts from each upload.
 
 The fixture has one set, `set-id = 68371`, and includes the raw passing, rushing, receiving, and fumble projection fields. It has no explicit positional rank or XGBoost rank-summary columns.
 
@@ -322,22 +317,22 @@ An older run must not replace a newer upload. A session must access only its own
 
 ## 10. Tests and release checks
 
-Use the supplied 402-row fixture for the first end-to-end test.
+Use the supplied CSV as the first end-to-end fixture. Record accepted, excluded,
+per-position, and output counts in the run report. Do not assert fixed totals.
 
 The fixture test must show:
 
-- 402 accepted rows
-- 32 QB rows
-- 105 RB rows
-- 167 WR rows
-- 98 TE rows
+- accepted row count equals the parser's accepted row count
+- output row count equals accepted row count
+- output stable ID set equals the accepted input stable ID set
 - no duplicate IDs
 - no free-agent rows
-- one derived ECR sequence per position
+- only `QB`, `RB`, `WR`, and `TE` rows remain
+- one derived ECR sequence per position, with no gaps or duplicates
 - one `ffsimulator` row per accepted player
 - one XGBoost ceiling result per RB, WR, and TE player
 - one implemented XGBoost p15 floor result per RB, WR, and TE player
-- 402 final rows for a complete run
+- complete ranges for every final row
 
 Add tests for:
 

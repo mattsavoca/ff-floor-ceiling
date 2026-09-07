@@ -40,14 +40,14 @@ test_that("ETR rankings accept format and positional filters", {
   expect_equal(out$rank_uncertainty, 0)
 })
 
-test_that("Footballguys rankings select the offensive set and remove free agents", {
+test_that("Footballguys rankings select the offensive set, remove free agents, and keep unique IDs", {
   skip_if_not_installed("ffsimulator")
   path <- file.path("..", "test-data", "wk1-26-fbg-08-31-26.csv")
   rankings <- read.csv(path, stringsAsFactors = FALSE, check.names = FALSE)
   out <- byor_fbg(rankings, as_of = "2026-08-31")
-  expect_equal(nrow(out), 400)
   expect_equal(sort(unique(out$position)), c("QB", "RB", "TE", "WR"))
   expect_false(any(out$team == "FA"))
+  expect_true(!anyDuplicated(out$player_id))
   expect_true(all(is.finite(out$rank_uncertainty)))
   expect_true(all(out$rank_uncertainty >= 0.5))
   expect_equal(out$rank[out$position == "QB"][1], 1)

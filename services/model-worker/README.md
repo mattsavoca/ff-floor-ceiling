@@ -6,7 +6,7 @@ The web service must create a `model-job.v1` document. A persistent worker must 
 
 1. Validate the document against `contracts/model-job.v1.json`.
 2. Load fixed R and Python artifacts by the version in the job.
-3. Check the upload row count, stable IDs, numeric fields, metric definition version, and model feature contract.
+3. Check the accepted-row count against the upload manifest, stable IDs, numeric fields, metric definition version, and model feature contract.
 4. Run the requested simulation with the recorded seed.
 5. Write temporary output and validate it against `contracts/forecast-result.v1.json`.
 6. Publish the complete result in one atomic write.

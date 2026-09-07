@@ -156,7 +156,7 @@ a { color: inherit; }
 .text-button:hover { color: var(--action-dark); text-decoration: underline; }
 .explainer { display: flex; align-items: flex-start; gap: 7px; color: var(--muted); font-size: 11px; line-height: 1.45; }
 .explainer svg { flex: 0 0 auto; margin-top: 1px; color: #8aa4b5; }
-.overview-hero-grid { display: grid; grid-template-columns: minmax(0, 1.56fr) minmax(300px, 0.84fr); gap: 14px; margin-bottom: 14px; }
+.overview-hero-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-bottom: 14px; }
 .latest-panel, .next-forecast-panel { min-height: 247px; }
 .latest-status { display: flex; align-items: center; gap: 9px; padding: 0 19px; color: var(--muted); font-size: 11px; }
 .latest-big-number { padding: 13px 19px 16px; color: var(--navy); font-size: 31px; font-weight: 790; letter-spacing: -0.045em; }
