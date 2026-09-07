@@ -124,6 +124,432 @@ def row_from_metrics(row: pd.Series) -> dict[str, Any]:
     return clean(names)
 
 
+def p15_metrics(actual: np.ndarray, prediction: np.ndarray) -> dict[str, float | int | None]:
+    """Calculate the lower-tail metrics used by the Floor / P15 page."""
+    actual = np.asarray(actual, dtype=float)
+    prediction = np.asarray(prediction, dtype=float)
+    below = actual < prediction
+    residual = actual - prediction
+    losses = np.where(residual >= 0.0, 0.15 * residual, -0.85 * residual)
+    if len(prediction) > 1 and np.std(prediction) > 0.0:
+        slope, intercept = np.polyfit(prediction, actual, 1)
+    else:
+        slope, intercept = np.nan, np.nan
+    rank_spearman = pd.Series(actual).corr(pd.Series(prediction), method="spearman")
+    mean_below = float(np.mean(actual[below])) if below.any() else np.nan
+    tail_excess = float(np.mean(prediction[below] - actual[below])) if below.any() else np.nan
+    return {
+        "n": int(len(actual)),
+        "p15_coverage": float(np.mean(actual <= prediction)),
+        "p15_pinball_loss": float(np.mean(losses)),
+        "calibration_slope": float(slope),
+        "calibration_intercept": float(intercept),
+        "p15_bias": float(np.mean(prediction - actual)),
+        "p15_mae": float(np.mean(np.abs(residual))),
+        "p15_rmse": float(np.sqrt(np.mean(residual**2))),
+        "low_side_miss_rate": float(np.mean(actual < prediction)),
+        "high_side_miss_rate": np.nan,
+        "mean_below_p15": mean_below,
+        "mean_score_below_p15": mean_below,
+        "p15_tail_excess": tail_excess,
+        "average_tail_excess": tail_excess,
+        "n_below_p15": int(below.sum()),
+        "p15_rank_spearman": float(rank_spearman),
+    }
+
+
+def choose_floor_reference(group: pd.DataFrame) -> str:
+    """Choose the P15 reference model with a transparent coverage guard."""
+    near = group[(group["p15_coverage"] - 0.15).abs() <= 0.05]
+    candidates = near if not near.empty else group.assign(coverage_distance=(group["p15_coverage"] - 0.15).abs())
+    if near.empty:
+        return str(candidates.sort_values(["coverage_distance", "p15_pinball_loss", "model"]).iloc[0]["model"])
+    return str(candidates.sort_values(["p15_pinball_loss", "model"]).iloc[0]["model"])
+
+
+def row_from_p15_metrics(row: pd.Series) -> dict[str, Any]:
+    """Map one P15 metric row to the lower-tail page schema."""
+    names = {
+        "model": MODEL_LABELS[str(row["model"])],
+        "season": int(row["season"]) if pd.notna(row["season"]) else None,
+        "position": str(row["position"]) if pd.notna(row["position"]) else "ALL",
+        "sampleCount": int(row["n"]),
+        "p15Coverage": row.get("p15_coverage"),
+        "p15CoverageError": row.get("p15_coverage_error"),
+        "p15PinballLoss": row.get("p15_pinball_loss"),
+        "p15Bias": row.get("p15_bias"),
+        "p15Mae": row.get("p15_mae"),
+        "p15Rmse": row.get("p15_rmse"),
+        "p50Coverage": row.get("p50_coverage"),
+        "p50PinballLoss": row.get("p50_pinball_loss"),
+        "p50Mae": row.get("p50_mae"),
+        "p50Rmse": row.get("p50_rmse"),
+        "p85Coverage": row.get("p85_coverage"),
+        "p85PinballLoss": row.get("p85_pinball_loss"),
+        "p85Mae": row.get("p85_mae"),
+        "p85Rmse": row.get("p85_rmse"),
+        "intervalCoverage": row.get("interval_coverage"),
+        "p15ToP85IntervalCoverage": row.get("p15_to_p85_interval_coverage"),
+        "calibrationSlope": row.get("calibration_slope"),
+        "calibrationIntercept": row.get("calibration_intercept"),
+        "lowSideMissRate": row.get("low_side_miss_rate"),
+        "highSideMissRate": row.get("high_side_miss_rate"),
+        "meanBelowP15": row.get("mean_below_p15"),
+        "meanScoreBelowP15": row.get("mean_score_below_p15"),
+        "p15TailExcess": row.get("p15_tail_excess"),
+        "averageTailExcess": row.get("average_tail_excess"),
+        "sampleCountBelowP15": row.get("n_below_p15"),
+        "predictedMeanBelowP15": row.get("predicted_mean_below_p15"),
+        "predictedP15TailExcess": row.get("predicted_p15_tail_excess"),
+        "predictedAverageTailExcess": row.get("predicted_average_tail_excess"),
+        "rankSpearman": row.get("p15_rank_spearman"),
+        "scoringFormat": SCORING_FORMAT,
+    }
+    return clean(names)
+
+
+def build_floor_data(backtest: Path, output: Path, player: pd.DataFrame) -> dict[str, Any]:
+    """Build the Floor / P15 data while leaving the existing P85 data intact."""
+    p15_output = output / "xgb_p15_projection"
+    p15_metadata = json.loads((p15_output / "metadata.json").read_text(encoding="utf-8"))
+    if (
+        p15_metadata.get("scoring_format") != SCORING_FORMAT
+        or p15_metadata.get("scoring_contract_version") != SCORING_CONTRACT_VERSION
+        or float(p15_metadata.get("target_quantile", np.nan)) != 0.15
+        or p15_metadata.get("quantile_label") != "p15"
+    ):
+        raise ValueError("The Floor / P15 page requires validated PPR p15 metadata.")
+
+    predictions = pd.read_parquet(p15_output / "predictions.parquet")
+    require_ppr(predictions, "P15 XGBoost predictions")
+    predictions = predictions[predictions["season"].isin(SEASONS)].copy()
+    if set(predictions["season"].unique()) != set(SEASONS):
+        raise ValueError("The Floor / P15 page requires held-out rows for 2024 and 2025.")
+    expected_keys = ["season", "week", "fbg_id", "position"]
+    check = player.merge(
+        predictions[expected_keys + ["baseline_p15"]],
+        on=expected_keys,
+        how="inner",
+        validate="one_to_one",
+    )
+    difference = (check["p15"] - check["baseline_p15"]).abs().max()
+    if not np.isfinite(difference) or difference > 1e-8:
+        raise ValueError("The Floor / P15 page join does not match ffsimulator p15 values.")
+
+    all_metrics = pd.read_csv(p15_output / "metrics.csv")
+    require_ppr(all_metrics, "P15 XGBoost metrics")
+    expected_models = {"simulation_baseline", "xgb_projection"}
+    if set(all_metrics["model"].unique()) != expected_models:
+        raise ValueError("The Floor / P15 page must contain both PPR models.")
+    metrics = all_metrics[
+        all_metrics["group"].eq("season_position")
+        & all_metrics["season"].isin(SEASONS)
+        & all_metrics["position"].isin(POSITIONS)
+    ].copy()
+    position_metrics = all_metrics[
+        all_metrics["group"].eq("position") & all_metrics["position"].isin(POSITIONS)
+    ].copy()
+    selected_by_position = {
+        position: MODEL_LABELS[choose_floor_reference(group)]
+        for position, group in position_metrics.groupby("position", sort=True)
+    }
+    if set(selected_by_position) != set(POSITIONS):
+        raise ValueError("The Floor / P15 page requires one model choice for every position.")
+
+    selection_rows = []
+    for position in POSITIONS:
+        group = position_metrics[position_metrics["position"].eq(position)].set_index("model")
+        selected_model = selected_by_position[position]
+        selected_key = next(key for key, label in MODEL_LABELS.items() if label == selected_model)
+        selected = group.loc[selected_key]
+        row = {
+            "position": position,
+            "n": int(selected["n"]),
+            "selectedModel": selected_model,
+            "selectedVersion": "ppr_v1",
+            "selectedCoverage": selected["p15_coverage"],
+            "selectedPinballLoss": selected["p15_pinball_loss"],
+            "selectedP15Mae": selected["p15_mae"],
+            "selectedP15Rmse": selected["p15_rmse"],
+            "selectedLowSideMissRate": selected["low_side_miss_rate"],
+            "selectedMeanBelowP15": selected["mean_below_p15"],
+            "selectedP15TailExcess": selected["p15_tail_excess"],
+            "selectedRankSpearman": selected["p15_rank_spearman"],
+        }
+        for key, label in MODEL_LABELS.items():
+            source = group.loc[key]
+            prefix = "ffsimulator" if label == "ffsimulator" else "xgb"
+            row[f"{prefix}Coverage"] = source["p15_coverage"]
+            row[f"{prefix}PinballLoss"] = source["p15_pinball_loss"]
+            row[f"{prefix}RankSpearman"] = source["p15_rank_spearman"]
+        selection_rows.append(clean(row))
+
+    selected_row_parts = []
+    for position, model in selected_by_position.items():
+        subset = predictions[predictions["position"].eq(position)]
+        prediction_column = "baseline_p15" if model == "ffsimulator" else "xgb_p15"
+        selected_row_parts.append(
+            subset[["actual_score", prediction_column]].rename(columns={prediction_column: "prediction"})
+        )
+    selected_rows = pd.concat(selected_row_parts, ignore_index=True)
+    selected_overall = p15_metrics(
+        selected_rows["actual_score"].to_numpy(), selected_rows["prediction"].to_numpy()
+    )
+
+    weekly = predictions[
+        predictions["season"].eq(2025) & predictions["week"].isin(OOS_WEEKS)
+    ].copy()
+    if set(weekly["week"].unique()) != set(OOS_WEEKS):
+        raise ValueError("The Floor / P15 page requires 2025 OOS rows for Weeks 14 through 17.")
+    weekly_position_metrics = []
+    for (week, position), group in weekly.groupby(["week", "position"], sort=True):
+        position_name = str(position)
+        selected_model = selected_by_position[position_name]
+        prediction_column = "baseline_p15" if selected_model == "ffsimulator" else "xgb_p15"
+        values = p15_metrics(group["actual_score"].to_numpy(), group[prediction_column].to_numpy())
+        weekly_position_metrics.append(
+            clean(
+                {
+                    "season": 2025,
+                    "week": int(week),
+                    "position": position_name,
+                    "model": selected_model,
+                    "n": values["n"],
+                    "coverage": values["p15_coverage"],
+                    "pinballLoss": values["p15_pinball_loss"],
+                    "p15Mae": values["p15_mae"],
+                    "p15Rmse": values["p15_rmse"],
+                    "lowSideMissRate": values["low_side_miss_rate"],
+                    "meanBelowP15": values["mean_below_p15"],
+                    "p15TailExcess": values["p15_tail_excess"],
+                    "nBelowP15": values["n_below_p15"],
+                    "rankSpearman": values["p15_rank_spearman"],
+                    "scoringFormat": SCORING_FORMAT,
+                }
+            )
+        )
+    if len(weekly_position_metrics) != len(OOS_WEEKS) * len(POSITIONS):
+        raise ValueError("The Floor / P15 page requires one selected model row for every OOS week and position.")
+
+    weekly_summaries = []
+    for week, group in weekly.groupby("week", sort=True):
+        selected_parts = []
+        for position, selected_model in selected_by_position.items():
+            prediction_column = "baseline_p15" if selected_model == "ffsimulator" else "xgb_p15"
+            selected_parts.append(
+                group[group["position"].eq(position)][["actual_score", prediction_column]].rename(
+                    columns={prediction_column: "prediction"}
+                )
+            )
+        selected_week = pd.concat(selected_parts, ignore_index=True)
+        values = p15_metrics(
+            selected_week["actual_score"].to_numpy(), selected_week["prediction"].to_numpy()
+        )
+        weekly_summaries.append(
+            clean(
+                {
+                    "season": 2025,
+                    "week": int(week),
+                    "n": values["n"],
+                    "coverage": values["p15_coverage"],
+                    "pinballLoss": values["p15_pinball_loss"],
+                    "p15Mae": values["p15_mae"],
+                    "p15Rmse": values["p15_rmse"],
+                    "lowSideMissRate": values["low_side_miss_rate"],
+                    "meanBelowP15": values["mean_below_p15"],
+                    "p15TailExcess": values["p15_tail_excess"],
+                    "nBelowP15": values["n_below_p15"],
+                    "rankSpearman": values["p15_rank_spearman"],
+                    "scoringFormat": SCORING_FORMAT,
+                }
+            )
+        )
+
+    bins = pd.read_csv(p15_output / "p15_calibration.csv")
+    require_ppr(bins, "XGBoost p15 calibration")
+    bins = bins[bins["n"].ge(30)].copy()
+    bins["model"] = bins["model"].map(MODEL_LABELS)
+    calibration_bins = [
+        clean(
+            {
+                "season": int(row.season),
+                "position": str(row.position),
+                "model": str(row.model),
+                "bin": int(row.p15_bin),
+                "n": int(row.n),
+                "predicted": row.predicted_p15,
+                "observed": row.observed_p15,
+                "scoringFormat": SCORING_FORMAT,
+            }
+        )
+        for row in bins.itertuples(index=False)
+    ]
+    selected_bins = [
+        row for row in calibration_bins if selected_by_position[row["position"]] == row["model"]
+    ]
+
+    fits = pd.read_csv(p15_output / "selected_models.csv")
+    if set(fits["position"].unique()) != set(POSITIONS) or len(fits) != 8:
+        raise ValueError("The Floor / P15 page requires eight PPR XGBoost fits.")
+    training_rows_by_model = {
+        (int(record["target_season"]), str(record["position"])): int(record["training_rows"])
+        for record in p15_metadata["model_records"]
+    }
+    model_fits = []
+    for row in fits.sort_values(["target_season", "position"]).itertuples(index=False):
+        training = [part for part in str(row.training_seasons).split(",") if part]
+        model_fits.append(
+            clean(
+                {
+                    "targetSeason": int(row.target_season),
+                    "position": str(row.position),
+                    "trainingSeasons": " and ".join(training),
+                    "trainingRows": training_rows_by_model[(int(row.target_season), str(row.position))],
+                    "featureCount": int(row.feature_count),
+                    "maxDepth": int(row.max_depth),
+                    "minChildWeight": float(row.min_child_weight),
+                    "subsample": float(row.subsample),
+                    "learningRate": float(row.learning_rate),
+                    "rounds": int(row.boosting_rounds),
+                    "targetQuantile": float(row.target_quantile),
+                    "scoringFormat": SCORING_FORMAT,
+                }
+            )
+        )
+
+    scorecard = [row_from_p15_metrics(row) for _, row in all_metrics.iterrows()]
+    overall = all_metrics[all_metrics["group"].eq("all") & all_metrics["model"].isin(expected_models)]
+    overall_rows = [row_from_p15_metrics(row) for _, row in overall.iterrows()]
+    season_summaries = []
+    for season, group in metrics.groupby("season", sort=True):
+        selected_group = group[
+            group.apply(
+                lambda row: MODEL_LABELS[row["model"]] == selected_by_position[row["position"]],
+                axis=1,
+            )
+        ]
+        season_summaries.append(
+            clean(
+                {
+                    "season": int(season),
+                    "n": int(selected_group["n"].sum()),
+                    "coverage": np.average(selected_group["p15_coverage"], weights=selected_group["n"]),
+                    "pinballLoss": np.average(
+                        selected_group["p15_pinball_loss"], weights=selected_group["n"]
+                    ),
+                }
+            )
+        )
+
+    ffsim_metadata = json.loads((output / "player_backtest_metadata.json").read_text(encoding="utf-8"))
+    if ffsim_metadata.get("scoring_format") != SCORING_FORMAT:
+        raise ValueError("ffsimulator metadata is not PPR.")
+    run_date = date.today().strftime("%b %d, %Y").replace(" 0", " ")
+    floor_model = {
+        "displayName": "Validated PPR offensive models",
+        "shortName": "PPR floor calibration",
+        "version": "ppr_v1 · sim-2026.1 · xgb_p15_projection",
+        "status": "Validated PPR outputs",
+        "owner": "Matt Savoca",
+        "runDate": run_date,
+        "algorithm": "ffsimulator + XGBoost",
+        "objective": "Estimate weekly PPR scores and the p15 floor",
+        "target": "15th percentile of weekly PPR points",
+        "targetQuantile": 0.15,
+        "metric": "p15_pinball",
+        "oosRows": selected_overall["n"],
+        "oosSeasons": "2024 and 2025",
+        "positionModels": 4,
+        "xgboostFits": 8,
+        "calibrationMethod": "Held-out season comparison by position",
+        "scoringFormat": SCORING_FORMAT,
+        "scoringRules": [
+            "1 point per reception",
+            "no tight-end reception bonus",
+            "no receiving first-down points",
+        ],
+        "maxHistoricalSeasonUsed": int(p15_metadata["max_historical_season_used"]),
+    }
+    return clean(
+        {
+            "floorSelectedModelByPosition": selected_by_position,
+            "floorCalibrationModel": floor_model,
+            "floorFfsimulatorModel": {
+                "name": "ffsimulator",
+                "version": "ppr_v1 · rank-conditioned simulation",
+                "algorithm": "Rank-conditioned simulation",
+                "output": "Full p15 floor, p50 middle estimate, and p85 ceiling",
+                "simulations": int(ffsim_metadata["simulation_settings"]["n_simulations"]),
+                "input": "Earlier-season PPR outcome pools",
+            },
+            "floorSelectedPortfolioOverall": {
+                "n": selected_overall["n"],
+                "coverage": selected_overall["p15_coverage"],
+                "pinballLoss": selected_overall["p15_pinball_loss"],
+                "p15Mae": selected_overall["p15_mae"],
+                "p15Rmse": selected_overall["p15_rmse"],
+                "lowSideMissRate": selected_overall["low_side_miss_rate"],
+                "meanBelowP15": selected_overall["mean_below_p15"],
+                "p15TailExcess": selected_overall["p15_tail_excess"],
+                "nBelowP15": selected_overall["n_below_p15"],
+                "rankSpearman": selected_overall["p15_rank_spearman"],
+            },
+            "floorPositionModelSelections": selection_rows,
+            "floorScorecardMetrics": scorecard,
+            "floorOverallMetrics": overall_rows,
+            "floorOosSeasonPositionMetrics": [
+                clean(
+                    {
+                        "season": int(row["season"]),
+                        "position": str(row["position"]),
+                        "n": int(row["n"]),
+                        "coverage": row["p15_coverage"],
+                        "pinballLoss": row["p15_pinball_loss"],
+                        "rankSpearman": row["p15_rank_spearman"],
+                        "selectedModel": selected_by_position[str(row["position"])],
+                        "selectedCoverage": row["p15_coverage"],
+                        "selectedPinballLoss": row["p15_pinball_loss"],
+                        "selectedRankSpearman": row["p15_rank_spearman"],
+                        "lowSideMissRate": row["low_side_miss_rate"],
+                        "meanBelowP15": row["mean_below_p15"],
+                        "p15TailExcess": row["p15_tail_excess"],
+                        "scoringFormat": SCORING_FORMAT,
+                    }
+                )
+                for _, row in metrics.iterrows()
+                if MODEL_LABELS[str(row["model"])] == selected_by_position[str(row["position"])]
+            ],
+            "floorOosSeasonSummaries": season_summaries,
+            "floorOosWeeklyPositionMetrics": weekly_position_metrics,
+            "floorOosWeeklySummaries": weekly_summaries,
+            "floorModelFits": model_fits,
+            "floorFeatureFamilies": [
+                {"name": "Rank summaries", "detail": "Week, consensus rank, rank spread, projector count, and rank limits."},
+                {"name": "Stat projections", "detail": "Passing, rushing, receiving, and fumble projections from Footballguys."},
+                {"name": "Derived PPR score", "detail": "Projected stats converted to PPR points with one point per reception."},
+            ],
+            "floorCalibrationBinMinimum": 30,
+            "floorCalibrationBins": calibration_bins,
+            "floorSelectedCalibrationBins": selected_bins,
+            "floorOosOverall": overall_rows[-1] if overall_rows else {},
+            "floorBaselineOverall": next(row for row in overall_rows if row["model"] == "ffsimulator"),
+            "floorOosPositionSummaries": selection_rows,
+            "floorScoringContract": {
+                "format": SCORING_FORMAT,
+                "version": SCORING_CONTRACT_VERSION,
+                "targetQuantile": 0.15,
+                "metric": "p15_pinball",
+                "rules": [
+                    "1 point per reception",
+                    "no tight-end reception bonus",
+                    "no receiving first-down points",
+                ],
+            },
+        }
+    )
+
+
+
 def build_data() -> dict[str, Any]:
     backtest = root() / "backtest_fbg_2023_2025"
     output = backtest / "outputs"
@@ -361,7 +787,7 @@ def build_data() -> dict[str, Any]:
         raise ValueError("Model metadata does not use PPR.")
 
     run_date = date.today().strftime("%b %d, %Y").replace(" 0", " ")
-    return clean(
+    data = clean(
         {
             "selectedModelByPosition": selected_by_position,
             "calibrationModel": {
@@ -461,6 +887,8 @@ def build_data() -> dict[str, Any]:
             },
         }
     )
+    data.update(build_floor_data(backtest, output, player))
+    return data
 
 
 def write_typescript(data: dict[str, Any]) -> None:
@@ -495,6 +923,26 @@ def write_typescript(data: dict[str, Any]) -> None:
         "baselineOverall",
         "oosPositionSummaries",
         "scoringContract",
+        "floorSelectedModelByPosition",
+        "floorCalibrationModel",
+        "floorFfsimulatorModel",
+        "floorSelectedPortfolioOverall",
+        "floorPositionModelSelections",
+        "floorScorecardMetrics",
+        "floorOverallMetrics",
+        "floorOosSeasonPositionMetrics",
+        "floorOosSeasonSummaries",
+        "floorOosWeeklyPositionMetrics",
+        "floorOosWeeklySummaries",
+        "floorModelFits",
+        "floorFeatureFamilies",
+        "floorCalibrationBinMinimum",
+        "floorCalibrationBins",
+        "floorSelectedCalibrationBins",
+        "floorOosOverall",
+        "floorBaselineOverall",
+        "floorOosPositionSummaries",
+        "floorScoringContract",
     ]
     for name in exports:
         value = json.dumps(data[name], indent=2, ensure_ascii=False, allow_nan=False)

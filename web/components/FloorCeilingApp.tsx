@@ -54,6 +54,14 @@ import {
   selectedCalibrationBins,
   selectedModelByPosition,
   selectedPortfolioOverall,
+  floorCalibrationBinMinimum,
+  floorCalibrationModel,
+  floorScoringContract,
+  floorSelectedCalibrationBins,
+  floorSelectedModelByPosition,
+  floorSelectedPortfolioOverall,
+  floorOosSeasonPositionMetrics,
+  floorPositionModelSelections,
 } from "@/lib/calibration-data";
 import {
   demoForecasts,
@@ -713,7 +721,40 @@ function formatCalibrationMetric(value: number) {
   return value.toFixed(2);
 }
 
+type CalibrationMethodologyRow = { position: keyof typeof positionDisplayNames; method: string };
+
+function CalibrationMethodologyPanel({ rows, estimate }: { rows: CalibrationMethodologyRow[]; estimate: "high" | "low" }) {
+  return (
+    <Panel className="calibration-methodology-panel" eyebrow="Current Best Performing Methodology" title="By position">
+      <div className="calibration-methodology-table-wrap">
+        <table className="calibration-methodology-table">
+          <caption className="sr-only">Current best performing methodology by position</caption>
+          <thead><tr><th scope="col">Position</th><th scope="col">Methodology</th></tr></thead>
+          <tbody>{rows.map((row) => <tr key={row.position}><th scope="row"><span className="position-chip">{row.position}</span><span>{positionDisplayNames[row.position]}</span></th><td><strong>{row.method}</strong></td></tr>)}</tbody>
+        </table>
+      </div>
+      <div className="calibration-methodology-definitions">
+        <div><strong>Simulation</strong><span>Uses earlier PPR scores to build the low, middle, and high estimates.</span></div>
+        <div><strong>Projection model</strong><span>Uses projection inputs to estimate the {estimate} score.</span></div>
+      </div>
+    </Panel>
+  );
+}
+
 function CalibrationPage() {
+  const [view, setView] = useState<"ceiling" | "floor">("ceiling");
+  return (
+    <>
+      <div className="calibration-subnav" role="tablist" aria-label="Model calibration views">
+        <button type="button" role="tab" aria-selected={view === "ceiling"} className={cx(view === "ceiling" && "active")} onClick={() => setView("ceiling")}>Ceiling / P85</button>
+        <button type="button" role="tab" aria-selected={view === "floor"} className={cx(view === "floor" && "active")} onClick={() => setView("floor")}>Floor / P15</button>
+      </div>
+      {view === "ceiling" ? <CeilingCalibrationPage /> : <FloorCalibrationPage />}
+    </>
+  );
+}
+
+function CeilingCalibrationPage() {
   const [seasonFilter, setSeasonFilter] = useState<string>("All test seasons");
   const [positionFilter, setPositionFilter] = useState<string>("All positions");
 
@@ -899,26 +940,7 @@ function CalibrationPage() {
         <MetricCard label="High-estimate miss score" value={formatCalibrationMetric(selectedPortfolioOverall.pinballLoss)} detail="Weighted error for the high estimate. Lower is better." tone="good" icon={<Gauge size={17} />} />
       </div>
 
-      <div className="calibration-range-note"><span className="calibration-range-note-icon"><Info size={15} /></span><div><strong>What does the 70% full-range check mean?</strong><span>The low estimate through the high estimate should contain about 70 of 100 final scores.</span><small>The selected mix does not get one full-range score here because the projection model supplies the high estimate only.</small></div></div>
-
-      <div className="two-column-grid calibration-info-grid">
-        <Panel eyebrow="Read the range" title="Three estimates, in plain English">
-          <div className="calibration-definition-list">
-            <div><span>Low estimate, p15</span><strong>Lower end</strong><small>About 15 of 100 final scores are at or below this number.</small></div>
-            <div><span>Middle estimate, p50</span><strong>Typical result</strong><small>About half of final scores are at or below this number.</small></div>
-            <div><span>High estimate, p85</span><strong>Ceiling</strong><small>About 85 of 100 final scores are at or below this number.</small></div>
-            <div><span>Full range, p15 to p85</span><strong>About 70 of 100</strong><small>The low and high estimates together should contain about 70 of 100 final scores.</small></div>
-          </div>
-          <Explainer>For one player, the final score can fall below the low estimate or above the high estimate.</Explainer>
-        </Panel>
-        <Panel eyebrow="Method choice" title="The method can change by position">
-          <div className="calibration-definition-list">
-            <div><span>Quarterback</span><strong>Simulation</strong><small>Uses earlier PPR scores to build the low, middle, and high estimates.</small></div>
-            <div><span>Running back, wide receiver, tight end</span><strong>Projection model</strong><small>Uses projection inputs to estimate the high score.</small></div>
-          </div>
-          <Explainer>We chose the method with the percentage of scores at or below the ceiling closest to 85%. When the percentages were close, we chose the lower miss score.</Explainer>
-        </Panel>
-      </div>
+      <CalibrationMethodologyPanel rows={selectedPositionRows} estimate="high" />
 
       <Panel className="calibration-scorecard-panel" eyebrow="Method by position" title="Which method do we use?" action={<span className="calibration-panel-note">85% target</span>}>
         <DataTable
@@ -968,6 +990,249 @@ function CalibrationPage() {
             <li>The high estimate is a ceiling for a group of players. It is not an exact-score prediction.</li>
             <li>The combined result is close to the 85% target. One player can still fall above or below it.</li>
             <li>The 70% full-range check is separate because the projection model supplies only the high estimate.</li>
+          </ul>
+        </Panel>
+      </div>
+    </>
+  );
+}
+
+function FloorCalibrationPage() {
+  const [seasonFilter, setSeasonFilter] = useState<string>("All test seasons");
+  const [positionFilter, setPositionFilter] = useState<string>("All positions");
+
+  const filteredBins = useMemo(
+    () => floorSelectedCalibrationBins.filter((row) => {
+      const matchesSeason = seasonFilter === "All test seasons" || row.season === Number(seasonFilter);
+      const matchesPosition = positionFilter === "All positions" || row.position === positionFilter;
+      return matchesSeason && matchesPosition;
+    }),
+    [positionFilter, seasonFilter],
+  );
+
+  const chartGroups = useMemo(() => {
+    const groups = new Map<string, { position: (typeof calibrationPositionOrder)[number]; label: string; rows: Array<(typeof floorSelectedCalibrationBins)[number]> }>();
+    filteredBins.forEach((row) => {
+      const groupKey = row.position;
+      const current = groups.get(groupKey);
+      if (current) {
+        current.rows.push(row);
+      } else {
+        groups.set(groupKey, { position: row.position, label: row.position + " · " + (row.model === "ffsimulator" ? "Simulation" : "Projection model"), rows: [row] });
+      }
+    });
+    return calibrationPositionOrder
+      .map((position) => groups.get(position))
+      .filter((group): group is NonNullable<typeof group> => Boolean(group));
+  }, [filteredBins]);
+
+  const chartMax = useMemo(() => {
+    const values = filteredBins.flatMap((row) => [row.predicted, row.observed]);
+    return Math.max(30, Math.ceil(Math.max(...values, 0) / 5) * 5);
+  }, [filteredBins]);
+
+  const reliabilityOption = useMemo<EChartsOption>(() => ({
+    animation: false,
+    grid: { left: 52, right: 18, top: 42, bottom: 48, containLabel: true },
+    legend: { top: 0, type: "scroll", textStyle: { color: "#50687A", fontSize: 10 } },
+    tooltip: { trigger: "item" },
+    xAxis: {
+      type: "value",
+      min: 0,
+      max: chartMax,
+      name: "Low estimate",
+      nameLocation: "middle",
+      nameGap: 30,
+      nameTextStyle: { color: "#50687A", fontSize: 10 },
+      axisLabel: { color: "#73889A", fontSize: 9 },
+      splitLine: { lineStyle: { color: "#E8EEF2" } },
+    },
+    yAxis: {
+      type: "value",
+      min: 0,
+      max: chartMax,
+      name: "Low estimate from final scores",
+      nameLocation: "middle",
+      nameGap: 38,
+      nameTextStyle: { color: "#50687A", fontSize: 10 },
+      axisLabel: { color: "#73889A", fontSize: 9 },
+      splitLine: { lineStyle: { color: "#E8EEF2" } },
+    },
+    series: [
+      {
+        name: "Perfect match",
+        type: "line",
+        data: [[0, 0], [chartMax, chartMax]],
+        symbol: "none",
+        lineStyle: { color: "#A8B7C2", type: "dashed", width: 1.5 },
+      },
+      ...chartGroups.map((group) => ({
+        name: group.label,
+        type: "scatter" as const,
+        data: group.rows.map((row) => [row.predicted, row.observed, row.n]),
+        symbolSize: 10,
+        itemStyle: {
+          color: calibrationPositionColors[group.position],
+          opacity: 0.88,
+        },
+      })),
+    ],
+  }), [chartGroups, chartMax]);
+
+  const coverageRows = useMemo(
+    () => floorOosSeasonPositionMetrics
+      .filter((row) => {
+        const matchesSeason = seasonFilter === "All test seasons" || row.season === Number(seasonFilter);
+        const matchesPosition = positionFilter === "All positions" || row.position === positionFilter;
+        return matchesSeason && matchesPosition;
+      })
+      .map((row) => ({
+        ...row,
+        selectedModel: floorSelectedModelByPosition[row.position],
+        coverage: row.selectedCoverage,
+        pinballLoss: row.selectedPinballLoss,
+        rankSpearman: row.selectedRankSpearman,
+      })),
+    [positionFilter, seasonFilter],
+  );
+
+  const coverageOption = useMemo<EChartsOption>(() => ({
+    animation: false,
+    color: ["#1264A3", "#D87945"],
+    grid: { left: 46, right: 16, top: 40, bottom: 52, containLabel: true },
+    legend: { top: 0, textStyle: { color: "#50687A", fontSize: 10 } },
+    tooltip: { trigger: "axis" },
+    xAxis: {
+      type: "category",
+      data: coverageRows.map((row) => row.position + " · " + row.season),
+      axisLabel: { color: "#73889A", fontSize: 9, interval: 0 },
+      axisLine: { lineStyle: { color: "#CBD7DE" } },
+    },
+    yAxis: {
+      type: "value",
+      min: 0,
+      max: 0.4,
+      axisLabel: { color: "#73889A", fontSize: 9, formatter: (value: number) => Math.round(value * 100) + "%" },
+      splitLine: { lineStyle: { color: "#E8EEF2" } },
+    },
+    series: [
+      {
+        name: "Scores at or below floor",
+        type: "bar",
+        data: coverageRows.map((row) => ({
+          value: row.coverage,
+          itemStyle: { color: row.selectedModel === "ffsimulator" ? "#7C5BAA" : "#1264A3" },
+        })),
+        barMaxWidth: 28,
+        itemStyle: { borderRadius: [4, 4, 0, 0] },
+      },
+      {
+        name: "15% target",
+        type: "line",
+        data: coverageRows.map(() => 0.15),
+        symbol: "none",
+        lineStyle: { color: "#D87945", type: "dashed", width: 2 },
+      },
+    ],
+  }), [coverageRows]);
+
+  const selectedPositionRows = floorPositionModelSelections.map((row) => ({
+    ...row,
+    method: row.selectedModel === "ffsimulator" ? "Simulation" : "Projection model",
+  }));
+
+  const chartScope = [
+    seasonFilter === "All test seasons" ? "2024 and 2025" : seasonFilter,
+    positionFilter === "All positions" ? "all positions" : positionFilter,
+  ].join(" · ");
+
+  return (
+    <>
+      <SectionIntro eyebrow="Model check" title="Do the low estimates match past scores?" status={<StatusPill label="Near target" tone="good" />} action={<StatusPill label="PPR scoring" tone="blue" />}>We compare each low estimate with the final score from past weeks. The target is for about 15 of 100 scores to stay at or below the estimate.</SectionIntro>
+
+      <section className="calibration-model-card">
+        <div className="calibration-model-main">
+          <div className="calibration-model-heading">
+            <div className="model-symbol"><Activity size={21} /></div>
+            <div>
+              <div className="panel-eyebrow">The short answer</div>
+              <h2>The low estimate is close to its target</h2>
+              <p>We choose the method separately for each position. The result below combines those choices.</p>
+            </div>
+            <StatusPill label="Past results" tone="blue" />
+          </div>
+          <div className="calibration-model-result">
+            <span className="calibration-result-icon"><CheckCircle2 size={17} /></span>
+            <div><strong>{formatCalibrationPercent(floorSelectedPortfolioOverall.coverage)} of final scores stayed at or below the floor</strong><span>The target is 15%. This result uses 2024 and 2025 scores that the models did not see during training.</span></div>
+          </div>
+        </div>
+        <div className="calibration-model-meta">
+          <div><span>Test period</span><strong>{floorCalibrationModel.oosSeasons}</strong></div>
+          <div><span>Scores checked</span><strong>Past final scores</strong></div>
+          <div><span>Positions</span><strong>QB, RB, WR, TE</strong></div>
+          <div><span>Scoring</span><strong>{floorCalibrationModel.scoringFormat}</strong></div>
+        </div>
+      </section>
+
+      <div className="calibration-model-note"><Info size={15} /><span>Scoring used here: {floorScoringContract.format}. Each reception is 1 point. This check adds no tight-end reception bonus and no receiving first-down points.</span></div>
+
+      <div className="calibration-summary-grid">
+        <MetricCard label="Scores at or below floor" value={formatCalibrationPercent(floorSelectedPortfolioOverall.coverage)} detail="Goal: about 15 of 100 final scores" tone="good" icon={<Target size={17} />} />
+        <MetricCard label="Scores below floor" value={formatCalibrationPercent(floorSelectedPortfolioOverall.lowSideMissRate)} detail="The final score fell below the low estimate" tone="warn" icon={<ArrowDownRight size={17} />} />
+        <MetricCard label="Typical gap" value={formatCalibrationMetric(floorSelectedPortfolioOverall.p15Mae) + " pts"} detail="Average distance between estimate and final score" tone="neutral" icon={<Activity size={17} />} />
+        <MetricCard label="Floor miss score" value={formatCalibrationMetric(floorSelectedPortfolioOverall.pinballLoss)} detail="Weighted error for the low estimate. Lower is better." tone="good" icon={<Gauge size={17} />} />
+      </div>
+
+      <CalibrationMethodologyPanel rows={selectedPositionRows} estimate="low" />
+
+      <Panel className="calibration-scorecard-panel" eyebrow="Method by position" title="Which method do we use?" action={<span className="calibration-panel-note">15% target</span>}>
+        <DataTable
+          data={selectedPositionRows}
+          columns={[
+            { accessorKey: "position", header: "Position", cell: (info) => <span className="position-chip">{info.getValue<string>()}</span> },
+            { accessorKey: "method", header: "Method", cell: (info) => <strong>{info.getValue<string>()}</strong> },
+            { accessorKey: "selectedCoverage", header: "At or below floor", cell: (info) => <strong>{formatCalibrationPercent(info.getValue<number>())}</strong> },
+            { accessorKey: "selectedP15Mae", header: "Typical gap", cell: (info) => formatCalibrationMetric(info.getValue<number>()) + " pts" },
+            { accessorKey: "selectedLowSideMissRate", header: "Below floor", cell: (info) => formatCalibrationPercent(info.getValue<number>()) },
+            { accessorKey: "selectedPinballLoss", header: "Miss score", cell: (info) => formatCalibrationMetric(info.getValue<number>()) },
+          ]}
+        />
+        <Explainer>At or below floor should be near 15%. Typical gap is the average distance between estimate and final score. Miss score gives more weight to scores below the floor. Lower is better.</Explainer>
+      </Panel>
+
+      <div className="calibration-visual-toolbar">
+        <div><div className="panel-eyebrow">Past results</div><strong>Check the result by season or position</strong><span>Both charts use the selected method for each position.</span></div>
+        <div className="calibration-visual-filters">
+          <FilterSelect label="Test season" value={seasonFilter} options={calibrationSeasonOptions} onChange={setSeasonFilter} compact />
+          <FilterSelect label="Position" value={positionFilter} options={calibrationPositionOptions} onChange={setPositionFilter} compact />
+        </div>
+      </div>
+
+      <div className="calibration-chart-grid calibration-oos-charts">
+        <Panel className="calibration-chart-large" eyebrow="Estimate vs final score" title="Do low estimates match final scores?" action={<span className="calibration-panel-note">{chartScope}</span>}>
+          {filteredBins.length ? <EChart option={reliabilityOption} height={330} ariaLabel="Past result comparison for the selected floor models" /> : <EmptyState icon={<Database size={22} />} title="No chart data" body="This filter has no position and season groups with enough past results." />}
+          <Explainer>Each dot groups past results with similar low estimates. Points near the diagonal mean the estimate and final-score result are similar. Each group has at least {floorCalibrationBinMinimum} final scores.</Explainer>
+        </Panel>
+        <Panel eyebrow="Floor check" title="How often did scores stay at or below the floor?" action={<span className="calibration-panel-note">15% target</span>}>
+          {coverageRows.length ? <EChart option={coverageOption} height={330} ariaLabel="Past score coverage at or below the floor for the selected models" /> : <EmptyState icon={<Database size={22} />} title="No coverage data" body="This filter has no past scores to compare." />}
+          <Explainer>A bar near 15% means about 15 of 100 final scores stayed at or below the low estimate.</Explainer>
+        </Panel>
+      </div>
+
+      <div className="two-column-grid calibration-policy-grid">
+        <Panel eyebrow="Test basis" title="Where does this result come from?">
+          <div className="calibration-data-facts calibration-evidence-summary">
+            <div><strong>{floorCalibrationModel.oosSeasons}</strong><span>Test seasons</span></div>
+            <div><strong>{floorCalibrationModel.positionModels}</strong><span>Positions</span></div>
+          </div>
+          <p className="calibration-copy">Each test season uses only earlier seasons for model history. A result enters the check only when the forecast and final score belong to the same player and game.</p>
+          <Explainer>This check uses {floorCalibrationModel.oosRows.toLocaleString()} matched forecast rows. Review the result again as more seasons finish.</Explainer>
+        </Panel>
+        <Panel eyebrow="Use this result" title="What should you take away?">
+          <ul className="calibration-list">
+            <li>The low estimate is a floor for a group of players. It is an estimate of the lower end, not an exact-score prediction.</li>
+            <li>The combined result is close to the 15% target. One player can still fall below or above it.</li>
+            <li>The 70% full-range check is separate because the projection model supplies only the low estimate.</li>
           </ul>
         </Panel>
       </div>

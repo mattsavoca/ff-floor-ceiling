@@ -403,6 +403,10 @@ a { color: inherit; }
 .methodology-source-grid strong { color: var(--navy); font-size: 11px; }
 .methodology-source-grid code { overflow-wrap: anywhere; color: var(--action); font: 9px "SFMono-Regular", Consolas, monospace; }
 .methodology-source-grid small { color: var(--muted); font-size: 9px; line-height: 1.4; }
+.calibration-subnav { display: inline-flex; gap: 4px; margin-bottom: 14px; padding: 4px; border: 1px solid var(--line); border-radius: 8px; background: #f6f8fa; }
+.calibration-subnav button { padding: 7px 11px; border: 0; border-radius: 5px; background: transparent; color: var(--muted); font-size: 10px; font-weight: 720; }
+.calibration-subnav button:hover { color: var(--action); }
+.calibration-subnav button.active { background: #fff; color: var(--action); box-shadow: 0 1px 2px rgba(18, 48, 74, .12); }
 .calibration-filters { display: flex; align-items: end; gap: 13px; margin: -4px 0 15px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 8px; background: #fff; box-shadow: 0 1px 2px rgba(18, 48, 74, .025); }
 .calibration-filters .filter-control { min-width: 137px; }
 .filter-note { display: inline-flex; align-items: center; gap: 5px; margin-left: auto; padding-bottom: 6px; color: var(--muted); font-size: 10px; }
@@ -431,19 +435,20 @@ a { color: inherit; }
 .calibration-model-meta strong { overflow: hidden; color: var(--navy); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
 .calibration-model-note { display: flex; align-items: flex-start; gap: 7px; margin-bottom: 14px; padding: 11px 13px; border: 1px solid #cbdde7; border-radius: 7px; background: #f7fbfd; color: #526e7e; font-size: 10px; line-height: 1.45; }
 .calibration-model-note > svg { flex: 0 0 auto; margin-top: 1px; color: var(--action); }
-.calibration-range-note { display: flex; align-items: flex-start; gap: 9px; margin-bottom: 14px; padding: 12px 13px; border: 1px solid #cbdde7; border-radius: 7px; background: #f7fbfd; color: #526e7e; font-size: 10px; line-height: 1.45; }
-.calibration-range-note-icon { display: grid; place-items: center; width: 25px; height: 25px; flex: 0 0 auto; border-radius: 6px; background: var(--blue-soft); color: var(--action); }
-.calibration-range-note > div { display: grid; gap: 3px; }
-.calibration-range-note strong { color: var(--navy); font-size: 11px; }
-.calibration-range-note span, .calibration-range-note small { color: #526e7e; }
-.calibration-range-note small { font-size: 10px; }
 .compact-note { margin: 0 19px 16px; }
-.calibration-info-grid, .calibration-derivation-grid, .calibration-policy-grid { margin-bottom: 14px; }
-.calibration-definition-list { display: grid; gap: 1px; margin: 0 19px 14px; border: 1px solid var(--line-light); border-radius: 7px; overflow: hidden; background: var(--line-light); }
-.calibration-definition-list > div { display: grid; grid-template-columns: 112px 1fr; column-gap: 11px; padding: 10px 11px; background: #fff; }
-.calibration-definition-list span { color: var(--muted); font-size: 10px; }
-.calibration-definition-list strong { color: var(--navy); font-size: 11px; }
-.calibration-definition-list small { grid-column: 2; margin-top: 3px; color: var(--muted); font-size: 9px; line-height: 1.4; }
+.calibration-methodology-panel, .calibration-derivation-grid, .calibration-policy-grid { margin-bottom: 14px; }
+.calibration-methodology-table-wrap { margin: 0 19px 14px; overflow-x: auto; border: 1px solid var(--line-light); border-radius: 7px; }
+.calibration-methodology-table { width: 100%; border-collapse: collapse; color: var(--muted); font: 10px "SFMono-Regular", Consolas, monospace; }
+.calibration-methodology-table th, .calibration-methodology-table td { padding: 9px 10px; border-bottom: 1px solid var(--line-light); text-align: left; }
+.calibration-methodology-table thead th { background: #fbfcfd; color: var(--navy); font-size: 9px; font-weight: 750; text-transform: uppercase; }
+.calibration-methodology-table tbody th { color: var(--navy); font-weight: 500; }
+.calibration-methodology-table tbody th > span + span { margin-left: 7px; }
+.calibration-methodology-table tbody td strong { color: var(--navy); font-size: 11px; }
+.calibration-methodology-table tbody tr:last-child th, .calibration-methodology-table tbody tr:last-child td { border-bottom: 0; }
+.calibration-methodology-definitions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; margin: 0 19px 16px; border: 1px solid var(--line-light); border-radius: 7px; overflow: hidden; background: var(--line-light); }
+.calibration-methodology-definitions > div { display: grid; align-content: start; gap: 4px; padding: 11px; background: #fff; }
+.calibration-methodology-definitions strong { color: var(--navy); font-size: 11px; }
+.calibration-methodology-definitions span { color: var(--muted); font-size: 9px; line-height: 1.4; }
 .calibration-data-facts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; margin: 0 19px 14px; border: 1px solid var(--line-light); border-radius: 7px; overflow: hidden; background: var(--line-light); }
 .calibration-evidence-summary { grid-template-columns: repeat(2, 1fr); }
 .calibration-data-facts > div { display: grid; gap: 4px; padding: 12px 10px; background: #fff; }
@@ -823,8 +828,9 @@ a { color: inherit; }
   .source-map-box .text-button { margin-left: 28px; }
   .calibration-model-heading { grid-template-columns: 34px 1fr; }
   .calibration-model-heading > .status-pill { grid-column: 2; margin-top: 0; }
-  .calibration-definition-list > div { grid-template-columns: 1fr; gap: 4px; }
-  .calibration-definition-list small { grid-column: auto; margin-top: 0; }
+  .calibration-subnav { display: flex; width: 100%; }
+  .calibration-subnav button { flex: 1; }
+  .calibration-methodology-definitions { grid-template-columns: 1fr; }
   .calibration-data-facts { grid-template-columns: 1fr 1fr; }
   .calibration-data-facts > div:last-child { grid-column: span 2; }
   .calibration-evidence-summary > div:last-child { grid-column: auto; }
