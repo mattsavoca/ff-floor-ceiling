@@ -70,15 +70,22 @@ held-out-results action, renamed the choice pane to `Positional Model
 Selection`, and expanded the range note with short coverage and pinball-loss
 definitions.
 
+The latest follow-up keeps `ContextStrip` in the app shell but hides it when
+Methodology is active. It changes the section title to `Floor and Ceiling
+Modeling Process`, removes the old scoring and test sentence, and adds the
+requested backtest description and highlighted percentile assumption.
+
 ## Verification
 
 - `npm run typecheck` from `web/` - passed.
-- `npm run lint` from `web/` - passed with 15 existing warnings and no errors;
+- `npm run lint` from `web/` - passed with 11 existing warnings and no errors;
   no new Methodology lint issue was reported.
 - `npm run build` from `web/` - passed. Next.js compiled and generated all
   static pages.
 - T3 browser check - passed on desktop and mobile layouts. The Floor / P15
   toggle changed the table caption and selected models as expected.
+- T3 browser check - confirmed Methodology has no `.context-strip` element and
+  Overview still has one.
 - `git diff --check` - passed; Git emitted only its LF/CRLF normalization
   warnings.
 - Existing unrelated worktree changes were preserved.

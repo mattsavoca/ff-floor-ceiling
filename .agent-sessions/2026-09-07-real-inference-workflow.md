@@ -56,7 +56,7 @@ local store during cleanup.
   parity, positional rank sequences, nearest rank matching, six producer
   calls for the fixture, complete source labels, override precedence and
   reset, explicit copy, and cross-session isolation.
-- Final measured fixture run: 5.373 seconds wall time and 441,257,984 bytes
+- Final measured fixture run: 5.214 seconds wall time and 421,335,040 bytes
   peak worker-process RSS. It accepted 4 rows and published 4 rows with one
   QB, RB, WR, and TE row. Every skill-position row used XGBoost p15, CSV PPR,
   `ffsimulator` p50, and XGBoost p85. The QB row used the complete
