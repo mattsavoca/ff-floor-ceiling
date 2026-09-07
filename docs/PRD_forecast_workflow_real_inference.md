@@ -1,6 +1,8 @@
 # PRD: Real forecast workflow
 
-Status: Proposed
+Status: Active implementation
+
+Updated: 2026-09-07
 
 ## 1. Product decision
 
@@ -11,9 +13,11 @@ The output uses this position policy:
 | Position | Floor, p15 | Average | Median, p50 | Ceiling, p85 |
 | --- | --- | --- | --- | --- |
 | QB | `ffsimulator` p15 | `ffsimulator` mean | `ffsimulator` p50 | `ffsimulator` p85 |
-| RB, WR, TE | XGBoost floor service | CSV PPR projection | `ffsimulator` p50 | XGBoost ceiling service |
+| RB, WR, TE | XGBoost p15 floor service | CSV PPR projection | `ffsimulator` p50 | XGBoost p85 ceiling service |
 
-The XGBoost floor service is a release dependency for complete RB, WR, and TE ranges. Until it exists, the workflow must show a partial result with `Floor model pending`. It must not publish a complete range with a placeholder floor.
+The XGBoost p15 floor model is implemented and is part of the app and backend model path. The workflow must call it for RB, WR, and TE. It must never show `Floor model pending`, substitute a simulation floor, or publish a placeholder value for those positions. The QB floor remains `ffsimulator` p15.
+
+The implemented floor release uses the PPR `ppr_v1` contract, XGBoost `reg:quantileerror` with `quantile_alpha = 0.15`, eight walk-forward position-season fits, and held-out checks for 2024 and 2025. The app exposes its calibration evidence and model card.
 
 The browser must never run R or Python model code. The browser submits an upload and reads a server result.
 
@@ -148,13 +152,23 @@ Call the ceiling service for RB, WR, and TE. Use its result as `ceiling`.
 
 Do not call this service for QB. The QB ceiling comes from `ffsimulator`.
 
-### 5.2 Floor service
+### 5.2 Floor service, implemented
 
-Add the matching endpoint when the floor models exist:
+The p15 model is implemented in the XGBoost artifact path and is available to the app and backend. Use the matching batch endpoint:
 
 ~~~text
 POST /v1/models/p15/predict
 ~~~
+
+The current floor release uses:
+
+- `ppr_v1` scoring.
+- `reg:quantileerror` with `quantile_alpha = 0.15`.
+- One position model for each target season and supported position.
+- Walk-forward training for target seasons 2024 and 2025. Training rows stop before the target season.
+- `p15_pinball` as the primary quantile metric.
+
+The release contains eight position-season fits and 9,390 held-out player-week rows. The app exposes the saved calibration results and the floor model card. The service response must include the model release, feature version, quantile label, and prediction count.
 
 Call the floor service for RB, WR, and TE. Use its result as `floor`.
 
@@ -171,12 +185,7 @@ consensus_rank, consensus_projected_score
 
 The supplied CSV can provide `week`, `ecr`, `rank_sd`, `consensus_rank`, and `consensus_projected_score` after the adapter derives them. It does not provide `n_projectors`, `rank_min`, or `rank_max`.
 
-The worker must not invent those missing fields. Before the XGBoost service goes live, choose one of these release paths:
-
-1. Require those fields in the upload contract.
-2. Train and export a new serving model with a feature contract that the supplied file can satisfy.
-
-The first live release should use option 2 if this file remains the required input format. The existing backtest artifacts remain comparison evidence until their feature contract matches the serving input.
+The worker must not invent those missing fields. The serving adapter for the implemented p15 and p85 releases must either derive them from the approved projection source or reject the run with the missing field names and affected player IDs. The current backtest artifacts remain the source of model version, feature version, and validation metadata.
 
 Every model service must reject a request with missing or invalid features. It must return the field names and affected player IDs.
 
@@ -268,6 +277,16 @@ The page polls the run state. Client timers must not mark a run complete. A refr
 
 Keep the bundled Week 1 output as an explicit Demo mode. Demo mode must not share state with a live run.
 
+### Methodology model cards
+
+The Methodology tab must show the model cards used by the forecast workflow.
+
+- Keep each card in a native foldable pane.
+- Default every pane to folded. Do not add an `open` attribute or equivalent initial open state.
+- Show the floor card as an implemented model card, not a placeholder or future work item.
+- The floor card must state its p15 target, PPR contract, XGBoost objective, training split, input feature families, held-out evidence, limitations, and workflow position policy.
+- State the production mix clearly: `ffsimulator` supplies the complete QB range and p50 values, XGBoost p15 supplies the RB/WR/TE floor, the CSV projection supplies the RB/WR/TE average, and XGBoost p85 supplies the RB/WR/TE ceiling.
+
 ### Player Ranges
 
 Update the range chart and table to use the combined result frame. Show these columns:
@@ -297,6 +316,8 @@ The workflow must keep the last complete result visible when a new run fails. A 
 
 The worker must retry transient XGBoost service failures. It must stop after a bounded retry count. It must never publish a partial result.
 
+A missing or failed p15 response is a hard failure for an RB, WR, or TE row. The worker must not fall back to `ffsimulator` p15, zero, the CSV projection, or a copied value from another player.
+
 An older run must not replace a newer upload. A session must access only its own uploads, runs, and results. Expired session data must be removed by cleanup work.
 
 ## 10. Tests and release checks
@@ -315,7 +336,7 @@ The fixture test must show:
 - one derived ECR sequence per position
 - one `ffsimulator` row per accepted player
 - one XGBoost ceiling result per RB, WR, and TE player
-- one XGBoost floor result per RB, WR, and TE player after the floor service ships
+- one implemented XGBoost p15 floor result per RB, WR, and TE player
 - 402 final rows for a complete run
 
 Add tests for:
@@ -324,12 +345,14 @@ Add tests for:
 - exact and nearest rank uncertainty joins
 - deterministic `ffsimulator` output for the same seed
 - missing XGBoost features
+- missing p15 results fail the affected skill-position rows
 - unknown and duplicate prediction IDs
 - p15, p50, and p85 ordering
 - worker retry and timeout behavior
 - partial output rejection
 - upload isolation between sessions
 - result refresh and CSV export
+- Methodology floor model card is present and folded on initial render
 
 Run one real fixture on the deployment target. Record wall time, peak worker memory, accepted rows, output rows, and each external model call.
 
@@ -342,8 +365,8 @@ Run one real fixture on the deployment target. Record wall time, peak worker mem
 5. Build the XGBoost p85 service and its serving feature contract.
 6. Add the durable upload, run, and result APIs.
 7. Replace the demo state machine with server job state and real result rows.
-8. Add the XGBoost p15 service.
-9. Turn on complete RB, WR, and TE ranges.
+8. Wire the implemented XGBoost p15 service into the combined result and enforce hard p15 response checks.
+9. Add the folded p15 model card and update the methodology source map.
 10. Run the fixture and deployment checks before release.
 
 ## 12. Out of scope

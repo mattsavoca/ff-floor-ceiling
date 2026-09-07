@@ -62,6 +62,8 @@ import {
   floorSelectedPortfolioOverall,
   floorOosSeasonPositionMetrics,
   floorPositionModelSelections,
+  floorModelFits,
+  floorFeatureFamilies,
 } from "@/lib/calibration-data";
 import {
   demoForecasts,
@@ -617,6 +619,7 @@ function OverviewPage({ navigate, season, week, onWeekChange }: { navigate: (tab
 
   const selectedCoverage = formatCalibrationPercent(selectedSummary.coverage);
   const selectedCoverageError = `${selectedSummary.coverage - 0.85 >= 0 ? "+" : ""}${((selectedSummary.coverage - 0.85) * 100).toFixed(1)}%`;
+  const floorCoverageError = `${floorSelectedPortfolioOverall.coverage - 0.15 >= 0 ? "+" : ""}${((floorSelectedPortfolioOverall.coverage - 0.15) * 100).toFixed(1)}%`;
   const selectedMissRate = formatCalibrationPercent(selectedSummary.highSideMissRate);
 
   return (
@@ -631,13 +634,314 @@ function OverviewPage({ navigate, season, week, onWeekChange }: { navigate: (tab
         <Panel className="chart-panel position-chart-panel" eyebrow="Position coverage" title="Best model P85 coverage"><EChart option={positionCoverageOption} height={300} ariaLabel="Best model P85 coverage by position across the last four 2025 out-of-sample weeks" onClick={handlePositionCoverageClick} /><Explainer>Each line shows one position. Hover for the weekly value, use the legend to focus the chart, or click a point to select that week.</Explainer></Panel>
       </div>
       <Panel className="input-change-panel" eyebrow="Ceiling Model Calibration by Position" title={`Best model results for ${season} · Week ${week}`} action={<span className="calibration-panel-note">Weekly Observations: {selectedSummary.n.toLocaleString()}</span>}><div className="table-scroll"><table className="weekly-metrics-table"><thead><tr><th scope="col">Position</th><th scope="col">Selected model</th><th scope="col">P85 coverage</th><th scope="col">P85 loss</th><th scope="col">P85 MAE</th><th scope="col">Scores</th></tr></thead><tbody>{selectedPositionRows.map((row) => <tr key={row.position}><th scope="row"><span className="position-chip">{row.position}</span><span>{positionDisplayNames[row.position]}</span></th><td><span className={cx("methodology-model-badge", row.model === "ffsimulator" ? "methodology-model-badge-simulation" : "methodology-model-badge-xgboost")}>{row.model}</span></td><td>{formatCalibrationPercent(row.coverage)}</td><td>{formatCalibrationMetric(row.pinballLoss)}</td><td>{formatCalibrationMetric(row.p85Mae)}</td><td>{row.n.toLocaleString()}</td></tr>)}</tbody></table></div><Explainer>P85 Coverage: percentage of position who scored at or below the predicted 85th percentile outcome. A perfectly calibrated model would hit exactly 85% (the model target).</Explainer></Panel>
-      <div className="two-column-grid lower-overview-grid"><Panel eyebrow="Weekly Results at a Glance" title={`Week ${week}`}><div className="weekly-readout-grid"><div><span>Best position coverage</span><strong>{formatCalibrationPercent(Math.max(...selectedPositionRows.map((row) => row.coverage)))}</strong><small>{selectedPositionRows.find((row) => row.coverage === Math.max(...selectedPositionRows.map((item) => item.coverage)))?.position} had the highest coverage.</small></div><div><span>Ceiling coverage error</span><strong>{selectedCoverageError}</strong><small>Difference from the 85% model target.</small></div><div><span>Floor coverage error</span><strong></strong><small>Model buildout in progress.</small></div></div><Explainer>Model Drift</Explainer></Panel></div>
+      <div className="two-column-grid lower-overview-grid"><Panel eyebrow="Weekly Results at a Glance" title={`Week ${week}`}><div className="weekly-readout-grid"><div><span>Best position coverage</span><strong>{formatCalibrationPercent(Math.max(...selectedPositionRows.map((row) => row.coverage)))}</strong><small>{selectedPositionRows.find((row) => row.coverage === Math.max(...selectedPositionRows.map((item) => item.coverage)))?.position} had the highest coverage.</small></div><div><span>Ceiling coverage error</span><strong>{selectedCoverageError}</strong><small>Difference from the 85% model target.</small></div><div><span>Floor coverage error</span><strong>{floorCoverageError}</strong><small>Difference from the 15% target across held-out rows.</small></div></div><Explainer>Model Drift</Explainer></Panel></div>
     </>
   );
 }
 
 
 type MethodologyPageProps = { navigate: (tab: TabId) => void };
+
+const p85ModelTrainingRows = [
+  { targetSeason: 2024, trainingSeasons: "2023", trainingRows: 3988, heldOutRows: 4580 },
+  { targetSeason: 2025, trainingSeasons: "2023, 2024", trainingRows: 8568, heldOutRows: 4810 },
+] as const;
+
+const p85ModelSettings = [
+  { targetSeason: 2024, position: "QB", trainingRows: 457, maxDepth: 4, minChildWeight: 15, subsample: 0.9, colsample: 0.7, learningRate: 0.03, regLambda: 1, rounds: 414 },
+  { targetSeason: 2024, position: "RB", trainingRows: 984, maxDepth: 2, minChildWeight: 5, subsample: 0.7, colsample: 1, learningRate: 0.03, regLambda: 1, rounds: 325 },
+  { targetSeason: 2024, position: "WR", trainingRows: 1488, maxDepth: 2, minChildWeight: 1, subsample: 0.9, colsample: 1, learningRate: 0.03, regLambda: 1, rounds: 575 },
+  { targetSeason: 2024, position: "TE", trainingRows: 1059, maxDepth: 2, minChildWeight: 1, subsample: 0.9, colsample: 0.7, learningRate: 0.06, regLambda: 1, rounds: 159 },
+  { targetSeason: 2025, position: "QB", trainingRows: 940, maxDepth: 2, minChildWeight: 5, subsample: 0.9, colsample: 0.7, learningRate: 0.06, regLambda: 5, rounds: 271 },
+  { targetSeason: 2025, position: "RB", trainingRows: 2175, maxDepth: 2, minChildWeight: 1, subsample: 0.7, colsample: 1, learningRate: 0.06, regLambda: 1, rounds: 380 },
+  { targetSeason: 2025, position: "WR", trainingRows: 3236, maxDepth: 2, minChildWeight: 1, subsample: 0.7, colsample: 0.7, learningRate: 0.06, regLambda: 1, rounds: 485 },
+  { targetSeason: 2025, position: "TE", trainingRows: 2217, maxDepth: 3, minChildWeight: 1, subsample: 0.7, colsample: 1, learningRate: 0.06, regLambda: 1, rounds: 467 },
+] as const;
+
+const p85FeatureSets = [
+  {
+    label: "QB models, 21 features",
+    fields: "week, ecr, rank_sd, n_projectors, rank_min, rank_max, consensus_rank, consensus_projected_score, pass-att, pass-cmp, pass-1d, pass-int, pass-sck, pass-td, pass-yds, rush-car, rush-1d, rush-td, rush-yds, fum-lost, projection_fpts",
+  },
+  {
+    label: "RB, WR, and TE models, 18 features",
+    fields: "week, ecr, rank_sd, n_projectors, rank_min, rank_max, consensus_rank, consensus_projected_score, rush-car, rush-1d, rush-td, rush-yds, rec-rec, rec-tgt, rec-td, rec-yds, fum-lost, projection_fpts",
+  },
+] as const;
+
+const p85OverallPerformance = {
+  rows: 9390,
+  baselineCoverage: 0.8805111821086262,
+  xgbCoverage: 0.8413205537806177,
+  baselineLoss: 1.8256161608093715,
+  xgbLoss: 1.637125402586459,
+  baselineRankSpearman: 0.5395841437158123,
+  xgbRankSpearman: 0.6288275947096983,
+} as const;
+
+function P85ModelCard() {
+  return (
+    <details className="methodology-model-card-panel">
+      <summary className="methodology-model-card-summary">
+        <div className="methodology-model-icon methodology-model-icon-xgboost"><FileText size={19} /></div>
+        <div>
+          <span className="panel-eyebrow">Model card</span>
+          <h2>Direct XGBoost p85 ceiling</h2>
+          <p>Purpose, training data, held-out evidence, and known limits for the direct ceiling candidate.</p>
+        </div>
+        <StatusPill label="Candidate" tone="warn" />
+        <ChevronDown size={18} aria-hidden="true" />
+      </summary>
+
+      <div className="methodology-model-card-body">
+        <div className="model-card-intro">
+          <div>
+            <span className="methodology-detail-label">Summary</span>
+            <p>This model estimates a player&apos;s 85th-percentile weekly fantasy score in points per reception scoring. The output is a ceiling estimate, not a hard upper limit.</p>
+            <p>The model predicts p85 only. The combined workflow gets p15 from the floor model and p50 from <code>ffsimulator</code>.</p>
+          </div>
+          <div className="model-card-facts">
+            <div><span>Status</span><strong>Candidate</strong><small>Historical comparison only</small></div>
+            <div><span>Model family</span><strong>8 models</strong><small>One per position and target season</small></div>
+            <div><span>Objective</span><strong>Quantile regression</strong><small><code>reg:quantileerror</code>, alpha 0.85</small></div>
+            <div><span>Scoring</span><strong>PPR, <code>ppr_v1</code></strong><small>Weekly player points</small></div>
+            <div><span>Framework</span><strong>XGBoost 3.4.1</strong><small>Python 3.12</small></div>
+            <div><span>Run</span><strong>{calibrationModel.runDate}</strong><small>Artifact version {calibrationModel.version}</small></div>
+          </div>
+        </div>
+
+        <div className="model-card-section-grid">
+          <section className="model-card-section" aria-labelledby="p85-model-card-use-title">
+            <h3 id="p85-model-card-use-title">Intended use</h3>
+            <ul className="methodology-data-list">
+              <li>Estimate weekly player upside before kickoff.</li>
+              <li>Rank players by projected ceiling.</li>
+              <li>Compare direct projection models with the simulation baseline.</li>
+            </ul>
+          </section>
+          <section className="model-card-section" aria-labelledby="p85-model-card-out-title">
+            <h3 id="p85-model-card-out-title">Out of scope</h3>
+            <ul className="methodology-data-list">
+              <li>Do not use the output as a maximum score.</li>
+              <li>Do not use it to create a complete player range by itself.</li>
+              <li>Do not use it as a causal explanation or a profit forecast.</li>
+            </ul>
+          </section>
+        </div>
+
+        <section className="model-card-section" aria-labelledby="p85-model-card-data-title">
+          <h3 id="p85-model-card-data-title">Training data and target</h3>
+          <p>The experiment uses Footballguys Projections Consensus rows from the 2023 through 2025 backtest seasons. It joins projection rows with rank summaries and realized weekly outcomes.</p>
+          <ul className="methodology-data-list">
+            <li>14,985 projection rows matched through a one-to-one join.</li>
+            <li>13,378 eligible rows after identity, projector-count, outcome, and projection checks.</li>
+            <li>Target: <code>actual_score</code>, the realized weekly PPR score.</li>
+            <li>Eligibility requires a matched player identity, at least 3 projectors, and a non-free-agent team.</li>
+          </ul>
+          <div className="model-card-table-wrap">
+            <table className="model-card-table">
+              <caption className="sr-only">Training and held-out rows by target season</caption>
+              <thead><tr><th scope="col">Target season</th><th scope="col">Training seasons</th><th scope="col">Training rows</th><th scope="col">Held-out rows</th></tr></thead>
+              <tbody>{p85ModelTrainingRows.map((row) => <tr key={row.targetSeason}><th scope="row">{row.targetSeason}</th><td>{row.trainingSeasons}</td><td>{row.trainingRows.toLocaleString()}</td><td>{row.heldOutRows.toLocaleString()}</td></tr>)}</tbody>
+            </table>
+          </div>
+        </section>
+
+        <section className="model-card-section" aria-labelledby="p85-model-card-features-title">
+          <h3 id="p85-model-card-features-title">Input features</h3>
+          <p>The model uses rank summaries, raw stat projections, and one derived PPR projection score. Player identifiers, names, teams, target outcomes, and future-season rows stay out of the feature set.</p>
+          <div className="model-card-feature-list">{p85FeatureSets.map((featureSet) => <div key={featureSet.label}><strong>{featureSet.label}</strong><code>{featureSet.fields}</code></div>)}</div>
+          <div className="methodology-limit model-card-inline-limit"><Info size={16} /><div><strong>Duplicate projection inputs</strong><p><code>consensus_projected_score</code> and <code>projection_fpts</code> match exactly. Interpret their importance as one combined signal.</p></div></div>
+        </section>
+
+        <section className="model-card-section" aria-labelledby="p85-model-card-method-title">
+          <h3 id="p85-model-card-method-title">Training method</h3>
+          <ol className="methodology-step-list">
+            <li><span>01</span><div><strong>Split by season</strong><p>Train on seasons before the target season.</p></div></li>
+            <li><span>02</span><div><strong>Choose settings</strong><p>Test 144 parameter combinations on weeks 14 through 17 of the latest training season.</p></div></li>
+            <li><span>03</span><div><strong>Refit the model</strong><p>Fit the selected settings on all earlier rows.</p></div></li>
+            <li><span>04</span><div><strong>Score the next season</strong><p>Clip negative predictions to zero and store the result as <code>xgb_p85</code>.</p></div></li>
+          </ol>
+          <div className="model-card-table-wrap">
+            <table className="model-card-table model-card-settings-table">
+              <caption className="sr-only">Selected XGBoost settings by target season and position</caption>
+              <thead><tr><th scope="col">Season</th><th scope="col">Position</th><th scope="col">Rows</th><th scope="col">Depth</th><th scope="col">Child weight</th><th scope="col">Row sample</th><th scope="col">Feature sample</th><th scope="col">Rate</th><th scope="col">Lambda</th><th scope="col">Rounds</th></tr></thead>
+              <tbody>{p85ModelSettings.map((row) => <tr key={`${row.targetSeason}-${row.position}`}><th scope="row">{row.targetSeason}</th><td>{row.position}</td><td>{row.trainingRows.toLocaleString()}</td><td>{row.maxDepth}</td><td>{row.minChildWeight}</td><td>{row.subsample.toFixed(2)}</td><td>{row.colsample.toFixed(2)}</td><td>{row.learningRate.toFixed(2)}</td><td>{row.regLambda.toFixed(1)}</td><td>{row.rounds}</td></tr>)}</tbody>
+            </table>
+          </div>
+        </section>
+
+        <section className="model-card-section" aria-labelledby="p85-model-card-results-title">
+          <h3 id="p85-model-card-results-title">Held-out performance</h3>
+          <p>Coverage measures the share of rows where the actual score is at or below p85. A calibrated p85 targets about 85% coverage. Pinball loss is the primary error score, and lower is better.</p>
+          <div className="model-card-table-wrap">
+            <table className="model-card-table model-card-results-table">
+              <caption className="sr-only">Held-out p85 comparison by position</caption>
+              <thead><tr><th scope="col">Position</th><th scope="col">Rows</th><th scope="col">Baseline coverage</th><th scope="col">XGBoost coverage</th><th scope="col">Baseline loss</th><th scope="col">XGBoost loss</th><th scope="col">Baseline rank rho</th><th scope="col">XGBoost rank rho</th></tr></thead>
+              <tbody>
+                <tr><th scope="row">All</th><td>{p85OverallPerformance.rows.toLocaleString()}</td><td>{formatCalibrationPercent(p85OverallPerformance.baselineCoverage)}</td><td>{formatCalibrationPercent(p85OverallPerformance.xgbCoverage)}</td><td>{p85OverallPerformance.baselineLoss.toFixed(3)}</td><td>{p85OverallPerformance.xgbLoss.toFixed(3)}</td><td>{p85OverallPerformance.baselineRankSpearman.toFixed(3)}</td><td>{p85OverallPerformance.xgbRankSpearman.toFixed(3)}</td></tr>
+                {positionModelSelections.map((row) => <tr key={row.position}><th scope="row">{row.position}</th><td>{row.n.toLocaleString()}</td><td>{formatCalibrationPercent(row.ffsimulatorCoverage)}</td><td>{formatCalibrationPercent(row.xgbCoverage)}</td><td>{row.ffsimulatorPinballLoss.toFixed(3)}</td><td>{row.xgbPinballLoss.toFixed(3)}</td><td>{row.ffsimulatorRankSpearman.toFixed(3)}</td><td>{row.xgbRankSpearman.toFixed(3)}</td></tr>)}
+              </tbody>
+            </table>
+          </div>
+          <p className="model-card-result-note">The direct model improves pinball loss for RB, WR, and TE. QB coverage is 77.7%, below the 85% target, and its pinball loss is worse than the baseline.</p>
+        </section>
+
+        <div className="model-card-section-grid">
+          <section className="model-card-section" aria-labelledby="p85-model-card-explain-title">
+            <h3 id="p85-model-card-explain-title">Explainability</h3>
+            <p>Tree SHAP explains raw p85 output for 8 models and 9,390 held-out rows. The maximum additivity error was 0.00003052 points.</p>
+            <ul className="methodology-data-list">
+              <li>RB: consensus projected score and rushing yards.</li>
+              <li>TE: receiving yards and targets.</li>
+              <li>WR: receiving yards, receptions, and consensus projected score.</li>
+              <li>QB: consensus projected score, projected sacks, and rank features.</li>
+            </ul>
+            <p>SHAP values show model association. They do not establish causation.</p>
+          </section>
+          <section className="model-card-section" aria-labelledby="p85-model-card-limits-title">
+            <h3 id="p85-model-card-limits-title">Limitations and monitoring</h3>
+            <ul className="methodology-data-list">
+              <li>Evaluation covers only 2024 and 2025.</li>
+              <li>The model supports PPR QB, RB, WR, and TE forecasts only.</li>
+              <li>Projection source changes can create input drift.</li>
+              <li>Coverage can vary by position, season, rank, and data quality.</li>
+              <li>No protected-group analysis was performed.</li>
+              <li>Monitor coverage, pinball loss, high-side miss rate, and rank correlation by position and recent week.</li>
+            </ul>
+          </section>
+        </div>
+
+        <div className="methodology-limit model-card-recommendation"><Info size={16} /><div><strong>Recommendation</strong><p>Use the direct p85 model for RB, WR, and TE with the implemented p15 floor model and <code>ffsimulator</code> p50. Keep the complete QB range on <code>ffsimulator</code>. Review the combined interval as its own model release.</p></div></div>
+      </div>
+    </details>
+  );
+}
+
+function P15ModelCard() {
+  return (
+    <details className="methodology-model-card-panel methodology-model-card-panel-floor">
+      <summary className="methodology-model-card-summary">
+        <div className="methodology-model-icon methodology-model-icon-floor"><FileText size={19} /></div>
+        <div>
+          <span className="panel-eyebrow">Model card</span>
+          <h2>Direct XGBoost p15 floor</h2>
+          <p>Purpose, training data, held-out evidence, and limits for the implemented lower-tail model.</p>
+        </div>
+        <StatusPill label="Implemented" tone="good" />
+        <ChevronDown size={18} aria-hidden="true" />
+      </summary>
+
+      <div className="methodology-model-card-body">
+        <div className="model-card-intro">
+          <div>
+            <span className="methodology-detail-label">Summary</span>
+            <p>This model estimates a player&apos;s 15th-percentile weekly fantasy score in points per reception scoring. The output is a floor estimate, not a guaranteed minimum.</p>
+            <p>The model is implemented in the XGBoost artifact path and is available to the forecast backend. The workflow uses it for RB, WR, and TE. QB uses <code>ffsimulator</code> p15.</p>
+          </div>
+          <div className="model-card-facts">
+            <div><span>Status</span><strong>Implemented</strong><small>Available to the forecast workflow</small></div>
+            <div><span>Model family</span><strong>{floorModelFits.length} models</strong><small>One per position and target season</small></div>
+            <div><span>Objective</span><strong>Quantile regression</strong><small><code>reg:quantileerror</code>, alpha 0.15</small></div>
+            <div><span>Scoring</span><strong>PPR, <code>ppr_v1</code></strong><small>Weekly player points</small></div>
+            <div><span>Framework</span><strong>XGBoost 3.4.1</strong><small>Python 3.12</small></div>
+            <div><span>Run</span><strong>{floorCalibrationModel.runDate}</strong><small>Artifact version {floorCalibrationModel.version}</small></div>
+          </div>
+        </div>
+
+        <div className="model-card-section-grid">
+          <section className="model-card-section" aria-labelledby="p15-model-card-use-title">
+            <h3 id="p15-model-card-use-title">Intended use</h3>
+            <ul className="methodology-data-list">
+              <li>Estimate the lower end of weekly player outcomes before kickoff.</li>
+              <li>Supply the p15 floor for RB, WR, and TE in the combined forecast range.</li>
+              <li>Compare a direct lower-tail model with the <code>ffsimulator</code> baseline.</li>
+            </ul>
+          </section>
+          <section className="model-card-section" aria-labelledby="p15-model-card-out-title">
+            <h3 id="p15-model-card-out-title">Out of scope</h3>
+            <ul className="methodology-data-list">
+              <li>Do not use the output as a hard minimum.</li>
+              <li>Do not use it as the QB floor in the forecast workflow.</li>
+              <li>Do not use it to supply the median or a complete range by itself.</li>
+            </ul>
+          </section>
+        </div>
+
+        <section className="model-card-section" aria-labelledby="p15-model-card-data-title">
+          <h3 id="p15-model-card-data-title">Training data and target</h3>
+          <p>The experiment uses Footballguys projection rows joined with rank summaries and realized weekly PPR outcomes. Each target-season fit uses earlier seasons only.</p>
+          <ul className="methodology-data-list">
+            <li>Held-out target seasons: {floorCalibrationModel.oosSeasons}.</li>
+            <li>{floorCalibrationModel.oosRows.toLocaleString()} matched player-week rows used for out-of-sample checks.</li>
+            <li>Target: <code>actual_score</code>, the realized weekly PPR score.</li>
+            <li>Metric: <code>{floorCalibrationModel.metric}</code>.</li>
+            <li>Maximum historical season used: {floorCalibrationModel.maxHistoricalSeasonUsed}.</li>
+          </ul>
+        </section>
+
+        <section className="model-card-section" aria-labelledby="p15-model-card-features-title">
+          <h3 id="p15-model-card-features-title">Input features</h3>
+          <p>The model uses rank summaries, raw stat projections, and one derived PPR projection score. Player identifiers, names, teams, target outcomes, and future-season rows stay out of the feature set.</p>
+          <div className="model-card-feature-list">{floorFeatureFamilies.map((featureSet) => <div key={featureSet.name}><strong>{featureSet.name}</strong><code>{featureSet.detail}</code></div>)}</div>
+          <div className="methodology-limit model-card-inline-limit"><Info size={16} /><div><strong>Shared projection inputs</strong><p><code>consensus_projected_score</code> and <code>projection_fpts</code> match exactly in the training data. Treat them as one combined signal.</p></div></div>
+        </section>
+
+        <section className="model-card-section" aria-labelledby="p15-model-card-method-title">
+          <h3 id="p15-model-card-method-title">Training method</h3>
+          <ol className="methodology-step-list">
+            <li><span>01</span><div><strong>Split by season</strong><p>Train on seasons before the target season.</p></div></li>
+            <li><span>02</span><div><strong>Choose settings</strong><p>Test 144 parameter combinations on weeks 14 through 17 of the latest training season with p15 pinball loss.</p></div></li>
+            <li><span>03</span><div><strong>Refit the model</strong><p>Fit the selected settings on all eligible earlier rows.</p></div></li>
+            <li><span>04</span><div><strong>Score the next season</strong><p>Clip negative predictions to zero and store the result as <code>xgb_p15</code>.</p></div></li>
+          </ol>
+          <div className="model-card-table-wrap">
+            <table className="model-card-table model-card-settings-table">
+              <caption className="sr-only">Selected XGBoost p15 settings by target season and position</caption>
+              <thead><tr><th scope="col">Season</th><th scope="col">Position</th><th scope="col">Rows</th><th scope="col">Features</th><th scope="col">Depth</th><th scope="col">Child weight</th><th scope="col">Row sample</th><th scope="col">Rate</th><th scope="col">Rounds</th></tr></thead>
+              <tbody>{floorModelFits.map((row) => <tr key={`${row.targetSeason}-${row.position}`}><th scope="row">{row.targetSeason}</th><td>{row.position}</td><td>{row.trainingRows.toLocaleString()}</td><td>{row.featureCount}</td><td>{row.maxDepth}</td><td>{row.minChildWeight}</td><td>{row.subsample.toFixed(2)}</td><td>{row.learningRate.toFixed(2)}</td><td>{row.rounds}</td></tr>)}</tbody>
+            </table>
+          </div>
+        </section>
+
+        <section className="model-card-section" aria-labelledby="p15-model-card-results-title">
+          <h3 id="p15-model-card-results-title">Held-out performance</h3>
+          <p>Coverage measures the share of rows where the actual score is at or below p15. A calibrated p15 targets about 15% coverage. Pinball loss is the primary error score, and lower is better.</p>
+          <div className="model-card-table-wrap">
+            <table className="model-card-table model-card-results-table">
+              <caption className="sr-only">Held-out p15 comparison by position</caption>
+              <thead><tr><th scope="col">Position</th><th scope="col">Rows</th><th scope="col">Baseline coverage</th><th scope="col">XGBoost coverage</th><th scope="col">Baseline loss</th><th scope="col">XGBoost loss</th><th scope="col">Selected</th></tr></thead>
+              <tbody>
+                <tr><th scope="row">Selected mix</th><td>{floorSelectedPortfolioOverall.n.toLocaleString()}</td><td>—</td><td>—</td><td>—</td><td>—</td><td>{formatCalibrationPercent(floorSelectedPortfolioOverall.coverage)}</td></tr>
+                {floorPositionModelSelections.map((row) => <tr key={row.position}><th scope="row">{row.position}</th><td>{row.n.toLocaleString()}</td><td>{formatCalibrationPercent(row.ffsimulatorCoverage)}</td><td>{formatCalibrationPercent(row.xgbCoverage)}</td><td>{row.ffsimulatorPinballLoss.toFixed(3)}</td><td>{row.xgbPinballLoss.toFixed(3)}</td><td>{row.selectedModel === "ffsimulator" ? "ffsimulator" : "XGBoost"}</td></tr>)}
+              </tbody>
+            </table>
+          </div>
+          <p className="model-card-result-note">The implemented p15 path has a {formatCalibrationPercent(floorSelectedPortfolioOverall.coverage)} coverage result for the selected mix against a 15% target. Keep this lower-tail calibration gap visible when the model is used.</p>
+        </section>
+
+        <div className="model-card-section-grid">
+          <section className="model-card-section" aria-labelledby="p15-model-card-explain-title">
+            <h3 id="p15-model-card-explain-title">Explainability</h3>
+            <p>Tree SHAP explains the p15 output for {floorModelFits.length} models and {floorCalibrationModel.oosRows.toLocaleString()} held-out rows. SHAP values show model association. They do not establish causation.</p>
+            <p>Saved explanations live under <code>outputs/xgb_p15_projection/shap</code>.</p>
+          </section>
+          <section className="model-card-section" aria-labelledby="p15-model-card-limits-title">
+            <h3 id="p15-model-card-limits-title">Limitations and monitoring</h3>
+            <ul className="methodology-data-list">
+              <li>Evaluation covers only {floorCalibrationModel.oosSeasons}.</li>
+              <li>The model supports PPR QB, RB, WR, and TE artifacts. The workflow assigns the p15 output to RB, WR, and TE.</li>
+              <li>Coverage can vary by position, season, rank, and input quality.</li>
+              <li>Monitor p15 coverage, pinball loss, lower-side miss rate, and rank correlation.</li>
+            </ul>
+          </section>
+        </div>
+
+        <div className="methodology-limit model-card-recommendation"><Info size={16} /><div><strong>Recommendation</strong><p>Use the implemented p15 model for RB, WR, and TE. Use <code>ffsimulator</code> p15 for QB, p50 for the median, and the direct p85 model for the skill-position ceiling. The combined result needs its own model release and interval checks.</p></div></div>
+      </div>
+    </details>
+  );
+}
 
 function MethodologyPage({ navigate }: MethodologyPageProps) {
   const simulationPositions = positionModelSelections.filter((row) => row.selectedModel === "ffsimulator").map((row) => row.position);
@@ -646,7 +950,7 @@ function MethodologyPage({ navigate }: MethodologyPageProps) {
 
   return (
     <>
-      <SectionIntro eyebrow="Methodology" title="How each model builds a range" status={<StatusPill label="Two model paths" tone="blue" />} action={<Button variant="secondary" onClick={() => navigate("calibration")} icon={<Target size={15} />}>View calibration</Button>}>The site compares a rank-based simulation with a direct XGBoost ceiling model. Both use the same PPR score definition and are tested on player-week results that the model did not see.</SectionIntro>
+      <SectionIntro eyebrow="Methodology" title="How each model builds a range" status={<StatusPill label="Three model paths" tone="blue" />} action={<Button variant="secondary" onClick={() => navigate("calibration")} icon={<Target size={15} />}>View calibration</Button>}>The site combines rank-based simulation with direct XGBoost floor and ceiling models. All paths use the same PPR score definition and are tested on player-week results that the models did not see.</SectionIntro>
 
       <section className="methodology-range-summary" aria-labelledby="methodology-range-title">
         <div className="methodology-range-summary-copy">
@@ -655,7 +959,7 @@ function MethodologyPage({ navigate }: MethodologyPageProps) {
           <p>The published range describes a distribution of possible PPR scores. The floor and ceiling are percentiles, not promises about one player&apos;s result.</p>
         </div>
         <div className="methodology-range-markers">
-          <div className="methodology-range-marker methodology-range-marker-floor"><strong>p15</strong><span>Floor</span><small>15th percentile of the simulated score distribution</small></div>
+          <div className="methodology-range-marker methodology-range-marker-floor"><strong>p15</strong><span>Floor</span><small>15th percentile from the active floor model</small></div>
           <div className="methodology-range-marker methodology-range-marker-middle"><strong>p50</strong><span>Middle</span><small>Median score, where half the simulated scores are lower</small></div>
           <div className="methodology-range-marker methodology-range-marker-ceiling"><strong>p85</strong><span>Ceiling</span><small>85th percentile, used for the model comparison</small></div>
         </div>
@@ -685,11 +989,14 @@ function MethodologyPage({ navigate }: MethodologyPageProps) {
         </article>
       </div>
 
-      <div className="methodology-limit"><Info size={17} /><div><strong>Why the two paths do not produce the same fields</strong><p>`ffsimulator` samples a full score distribution, so it can report a floor, middle, and ceiling. The current XGBoost experiment trains only the 85th-quantile model. A full XGBoost range needs separate p15 and p50 models with the same time-split checks.</p></div></div>
+      <P85ModelCard />
+      <P15ModelCard />
 
-      <Panel className="methodology-contract-panel" eyebrow="Shared contract" title="The rules stay fixed across both paths">
+      <div className="methodology-limit"><Info size={17} /><div><strong>Why the paths are combined</strong><p><code>ffsimulator</code> samples a full score distribution, so it supplies the QB floor, median, and ceiling and the skill-position median. XGBoost estimates the skill-position tails directly, with one implemented p15 floor model and one p85 ceiling model. The CSV projection remains the average for RB, WR, and TE.</p></div></div>
+
+      <Panel className="methodology-contract-panel" eyebrow="Shared contract" title="The rules stay fixed across paths">
         <div className="methodology-contract-grid"><div><span>Score</span><strong>Weekly PPR points</strong><small>1 point per reception. No tight-end bonus and no receiving first-down points.</small></div><div><span>Range target</span><strong>p15 to p85</strong><small>A nominal 70% interval when the distribution is calibrated.</small></div><div><span>Test seasons</span><strong>{calibrationModel.oosSeasons}</strong><small>Each target season uses earlier seasons for training.</small></div><div><span>Rows checked</span><strong>{calibrationModel.oosRows.toLocaleString()}</strong><small>Matched player-week rows with a forecast and a final score.</small></div><div><span>Future-data rule</span><strong>Train before target</strong><small>Target or future outcomes cannot enter the features or training rows.</small></div></div>
-        <Explainer>More simulations reduce random sampling noise in `ffsimulator`. They do not fix a biased outcome pool or prove that the XGBoost ceiling is calibrated.</Explainer>
+        <Explainer>More simulations reduce random sampling noise in <code>ffsimulator</code>. They do not fix a biased outcome pool. Held-out coverage checks both XGBoost quantile models.</Explainer>
       </Panel>
 
       <Panel className="methodology-choice-panel" eyebrow="Model choice" title="Which model is better for future forecasts?" action={<Button variant="secondary" onClick={() => navigate("calibration")} icon={<Target size={15} />}>Open held-out results</Button>}>
@@ -698,7 +1005,7 @@ function MethodologyPage({ navigate }: MethodologyPageProps) {
         <Explainer>Coverage is compared with 85%. Pinball loss is the main error score, and lower is better. The table uses held-out results, not the current Week 1 forecast.</Explainer>
       </Panel>
 
-      <div id="methodology-source-map"><Panel className="methodology-sources-panel" eyebrow="Source map" title="Where to inspect the implementation" action={<span className="source-status"><span className="saved-dot" /> Public evidence</span>}><div className="methodology-source-grid"><div><strong>Ranked simulation</strong><code>R/01_rankings.R</code><code>R/02_ffsimulator.R</code><code>R/03_summaries.R</code><small>Ranking normalization, draws, and percentiles.</small></div><div><strong>Direct XGBoost</strong><code>scripts/08_xgb_p85_projection_experiment.py</code><code>scripts/10_build_calibration_page_data.py</code><small>Feature construction, walk-forward fits, and comparison data.</small></div><div><strong>Historical evidence</strong><code>backtest_fbg_2023_2025/README.md</code><code>outputs/player_backtest_metadata.json</code><code>outputs/xgb_p85_projection/metadata.json</code><small>Source choices, cutoffs, scoring rules, and saved model settings.</small></div></div><Explainer>Private uploads and temporary session records do not enter the published calibration data.</Explainer></Panel></div>
+      <div id="methodology-source-map"><Panel className="methodology-sources-panel" eyebrow="Source map" title="Where to inspect the implementation" action={<span className="source-status"><span className="saved-dot" /> Public evidence</span>}><div className="methodology-source-grid"><div><strong>Ranked simulation</strong><code>R/01_rankings.R</code><code>R/02_ffsimulator.R</code><code>R/03_summaries.R</code><small>Ranking normalization, draws, and percentiles.</small></div><div><strong>Direct XGBoost</strong><code>scripts/08_xgb_p85_projection_experiment.py</code><code>scripts/08_xgb_p15_projection_experiment.py</code><code>scripts/10_build_calibration_page_data.py</code><small>Feature construction, walk-forward fits, and p85 and p15 comparison data.</small></div><div><strong>Historical evidence</strong><code>backtest_fbg_2023_2025/README.md</code><code>outputs/xgb_p85_projection/metadata.json</code><code>outputs/xgb_p15_projection/metadata.json</code><small>Source choices, cutoffs, scoring rules, and saved model settings.</small></div></div><Explainer>Private uploads and temporary session records do not enter the published calibration data.</Explainer></Panel></div>
     </>
   );
 }
@@ -783,9 +1090,15 @@ function CeilingCalibrationPage() {
       .filter((group): group is NonNullable<typeof group> => Boolean(group));
   }, [filteredBins]);
 
-  const chartMax = useMemo(() => {
+  const chartBounds = useMemo(() => {
     const values = filteredBins.flatMap((row) => [row.predicted, row.observed]);
-    return Math.max(30, Math.ceil(Math.max(...values, 0) / 5) * 5);
+    const minValue = Math.min(...values, 0);
+    const maxValue = Math.max(...values, 0);
+    const maxPadding = Math.max(1, maxValue * 0.08);
+    return {
+      min: minValue <= 0 ? Math.min(-1, Math.floor(minValue)) : 0,
+      max: Math.max(30, Math.ceil((maxValue + maxPadding) / 5) * 5),
+    };
   }, [filteredBins]);
 
   const reliabilityOption = useMemo<EChartsOption>(() => ({
@@ -795,8 +1108,8 @@ function CeilingCalibrationPage() {
     tooltip: { trigger: "item" },
     xAxis: {
       type: "value",
-      min: 0,
-      max: chartMax,
+      min: chartBounds.min,
+      max: chartBounds.max,
       name: "High estimate",
       nameLocation: "middle",
       nameGap: 30,
@@ -806,8 +1119,8 @@ function CeilingCalibrationPage() {
     },
     yAxis: {
       type: "value",
-      min: 0,
-      max: chartMax,
+      min: chartBounds.min,
+      max: chartBounds.max,
       name: "High estimate from final scores",
       nameLocation: "middle",
       nameGap: 38,
@@ -819,7 +1132,7 @@ function CeilingCalibrationPage() {
       {
         name: "Perfect match",
         type: "line",
-        data: [[0, 0], [chartMax, chartMax]],
+        data: [[chartBounds.min, chartBounds.min], [chartBounds.max, chartBounds.max]],
         symbol: "none",
         lineStyle: { color: "#A8B7C2", type: "dashed", width: 1.5 },
       },
@@ -834,7 +1147,7 @@ function CeilingCalibrationPage() {
         },
       })),
     ],
-  }), [chartGroups, chartMax]);
+  }), [chartBounds, chartGroups]);
 
   const coverageRows = useMemo(
     () => oosSeasonPositionMetrics
@@ -1026,9 +1339,15 @@ function FloorCalibrationPage() {
       .filter((group): group is NonNullable<typeof group> => Boolean(group));
   }, [filteredBins]);
 
-  const chartMax = useMemo(() => {
+  const chartBounds = useMemo(() => {
     const values = filteredBins.flatMap((row) => [row.predicted, row.observed]);
-    return Math.max(30, Math.ceil(Math.max(...values, 0) / 5) * 5);
+    const minValue = Math.min(...values, 0);
+    const maxValue = Math.max(...values, 0);
+    const maxPadding = Math.max(1, maxValue * 0.08);
+    return {
+      min: minValue <= 0 ? Math.min(-1, Math.floor(minValue)) : 0,
+      max: Math.max(30, Math.ceil((maxValue + maxPadding) / 5) * 5),
+    };
   }, [filteredBins]);
 
   const reliabilityOption = useMemo<EChartsOption>(() => ({
@@ -1038,8 +1357,8 @@ function FloorCalibrationPage() {
     tooltip: { trigger: "item" },
     xAxis: {
       type: "value",
-      min: 0,
-      max: chartMax,
+      min: chartBounds.min,
+      max: chartBounds.max,
       name: "Low estimate",
       nameLocation: "middle",
       nameGap: 30,
@@ -1049,8 +1368,8 @@ function FloorCalibrationPage() {
     },
     yAxis: {
       type: "value",
-      min: 0,
-      max: chartMax,
+      min: chartBounds.min,
+      max: chartBounds.max,
       name: "Low estimate from final scores",
       nameLocation: "middle",
       nameGap: 38,
@@ -1062,7 +1381,7 @@ function FloorCalibrationPage() {
       {
         name: "Perfect match",
         type: "line",
-        data: [[0, 0], [chartMax, chartMax]],
+        data: [[chartBounds.min, chartBounds.min], [chartBounds.max, chartBounds.max]],
         symbol: "none",
         lineStyle: { color: "#A8B7C2", type: "dashed", width: 1.5 },
       },
@@ -1077,7 +1396,7 @@ function FloorCalibrationPage() {
         },
       })),
     ],
-  }), [chartGroups, chartMax]);
+  }), [chartBounds, chartGroups]);
 
   const coverageRows = useMemo(
     () => floorOosSeasonPositionMetrics
@@ -1213,7 +1532,7 @@ function FloorCalibrationPage() {
           {filteredBins.length ? <EChart option={reliabilityOption} height={330} ariaLabel="Past result comparison for the selected floor models" /> : <EmptyState icon={<Database size={22} />} title="No chart data" body="This filter has no position and season groups with enough past results." />}
           <Explainer>Each dot groups past results with similar low estimates. Points near the diagonal mean the estimate and final-score result are similar. Each group has at least {floorCalibrationBinMinimum} final scores.</Explainer>
         </Panel>
-        <Panel eyebrow="Floor check" title="How often did scores stay at or below the floor?" action={<span className="calibration-panel-note">15% target</span>}>
+        <Panel className="calibration-floor-check-panel" eyebrow="Floor check" title="How often did scores stay at or below the floor?" action={<span className="calibration-panel-note">15% target</span>}>
           {coverageRows.length ? <EChart option={coverageOption} height={330} ariaLabel="Past score coverage at or below the floor for the selected models" /> : <EmptyState icon={<Database size={22} />} title="No coverage data" body="This filter has no past scores to compare." />}
           <Explainer>A bar near 15% means about 15 of 100 final scores stayed at or below the low estimate.</Explainer>
         </Panel>
