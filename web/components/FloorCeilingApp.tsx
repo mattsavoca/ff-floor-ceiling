@@ -57,8 +57,6 @@ import {
   demoForecasts,
   demoUploadReport,
   positionSummaries,
-  timeline,
-  toolRows,
 } from "@/lib/project-data";
 import { applyOverride, calculateDemoSummary, clampFactor, formatNumber, validateRange } from "@/lib/metrics";
 import type { ForecastRow, OverrideSpec, RangeValues, RunState, TabId, UploadReport, ViewMode } from "@/lib/types";
@@ -66,9 +64,9 @@ import type { EChartsOption } from "echarts";
 
 const navItems: Array<{ id: TabId; label: string; description: string; icon: typeof LayoutDashboard }> = [
   { id: "overview", label: "Overview", description: "Weekly monitoring", icon: LayoutDashboard },
-  { id: "methodology", label: "Methodology", description: "How the model changed", icon: GitBranch },
-  { id: "calibration", label: "Model calibration", description: "Historical evidence", icon: Target },
-  { id: "projection", label: "Projection to sim", description: "Run a forecast", icon: Zap },
+  { id: "methodology", label: "Methodology", description: "How ranges are derived", icon: GitBranch },
+  { id: "calibration", label: "Model check", description: "Compare with past scores", icon: Target },
+  { id: "projection", label: "Forecast workflow", description: "Upload and run", icon: Zap },
   { id: "overrides", label: "Manual overrides", description: "Record judgment", icon: SlidersHorizontal },
 ];
 
@@ -435,18 +433,18 @@ export function FloorCeilingApp() {
         <div className="sidebar-label">Workspace</div>
         <nav className="primary-nav" aria-label="Primary navigation">{navItems.map((item) => { const Icon = item.icon; return <button type="button" key={item.id} onClick={() => navigate(item.id)} className={cx("nav-item", activeTab === item.id && "nav-item-active")}><Icon size={18} /><span><strong>{item.label}</strong><small>{item.description}</small></span>{activeTab === item.id ? <ChevronRight size={16} className="nav-arrow" /> : null}</button>; })}</nav>
         <div className="sidebar-divider" />
-        <div className="sidebar-label">{activeTab === "calibration" ? "Selected portfolio" : "Current run"}</div>
-        {activeTab === "calibration" ? <div className="sidebar-run-card calibration-sidebar-card"><div className="run-card-top"><span className="run-dot run-dot-good" />Held-out evidence<MoreHorizontal size={15} /></div><strong>{calibrationModel.shortName}</strong><span>{calibrationModel.oosRows.toLocaleString()} held-out rows</span><span className="sidebar-run-id">2024 · 2025</span></div> : <div className="sidebar-run-card"><div className="run-card-top"><span className={cx("run-dot", runState === "Complete" ? "run-dot-good" : runState === "Failed" ? "run-dot-warn" : "run-dot-blue")} />{runState}<MoreHorizontal size={15} /></div><strong>Week {week} · {season}</strong><span>{upload.accepted.toLocaleString()} accepted rows</span><span className="sidebar-run-id">{shortId(runId)}</span></div>}
+        <div className="sidebar-label">{activeTab === "calibration" ? "Model check" : "Current run"}</div>
+        {activeTab === "calibration" ? <div className="sidebar-run-card calibration-sidebar-card"><div className="run-card-top"><span className="run-dot run-dot-good" />Past results<MoreHorizontal size={15} /></div><strong>{calibrationModel.shortName}</strong><span>{calibrationModel.oosRows.toLocaleString()} scores checked</span><span className="sidebar-run-id">2024 · 2025</span></div> : <div className="sidebar-run-card"><div className="run-card-top"><span className={cx("run-dot", runState === "Complete" ? "run-dot-good" : runState === "Failed" ? "run-dot-warn" : "run-dot-blue")} />{runState}<MoreHorizontal size={15} /></div><strong>Week {week} · {season}</strong><span>{upload.accepted.toLocaleString()} accepted rows</span><span className="sidebar-run-id">{shortId(runId)}</span></div>}
         <div className="sidebar-spacer" />
         <div className="sidebar-footer"><div className="owner-row"><span className="owner-avatar">MS</span><span><strong>Matt Savoca</strong><small>Owner workspace</small></span><Settings2 size={16} /></div><div className="privacy-note"><LockKeyhole size={13} /> Temporary data stays in this browser.</div></div>
       </aside>
       {mobileNavOpen ? <button className="nav-scrim" type="button" onClick={() => setMobileNavOpen(false)} aria-label="Close navigation" /> : null}
       <main className="main-area">
-        <header className={cx("topbar", activeTab === "projection" && "projection-topbar")}><div className="mobile-brand"><button type="button" className="menu-button" onClick={() => setMobileNavOpen(true)} aria-label="Open navigation"><Menu size={20} /></button><span>Floor &amp; Ceiling</span></div><div className="topbar-context"><span className="topbar-kicker">{activeTab === "calibration" ? "Model card" : "Forecast workspace"}</span><span className="topbar-separator">/</span><strong>{activeTab === "calibration" ? calibrationModel.shortName : `${season} · Week ${week}`}</strong></div><div className="topbar-actions"><span className="saved-state"><span className="saved-dot" /> Saved locally</span><button type="button" className="session-button" onClick={() => setSessionMenuOpen((open) => !open)}><span className="session-avatar"><UserRound size={14} /></span><span>{shortId(workspaceId)}</span><ChevronDown size={14} /></button>{sessionMenuOpen ? <div className="session-menu"><div className="session-menu-heading"><span className="session-avatar large"><UserRound size={16} /></span><div><strong>Temporary workspace</strong><span>{shortId(workspaceId)}</span></div></div><div className="session-menu-row"><Clock3 size={15} /><span>Expires {formatRelativeTime(expiresAt)}</span></div><div className="session-menu-row"><ShieldCheck size={15} /><span>Private to this browser</span></div><div className="session-menu-divider" /><Button variant="quiet" onClick={resetWorkspace} icon={<RotateCcw size={15} />}>Reset workspace</Button><p>Download work before the session expires. Lost or expired data cannot be recovered.</p></div> : null}</div></header>
+        <header className={cx("topbar", activeTab === "projection" && "projection-topbar")}><div className="mobile-brand"><button type="button" className="menu-button" onClick={() => setMobileNavOpen(true)} aria-label="Open navigation"><Menu size={20} /></button><span>Floor &amp; Ceiling</span></div><div className="topbar-context"><span className="topbar-kicker">{activeTab === "calibration" ? "Model check" : "Forecast workspace"}</span><span className="topbar-separator">/</span><strong>{activeTab === "calibration" ? calibrationModel.shortName : `${season} · Week ${week}`}</strong></div><div className="topbar-actions"><span className="saved-state"><span className="saved-dot" /> Saved locally</span><button type="button" className="session-button" onClick={() => setSessionMenuOpen((open) => !open)}><span className="session-avatar"><UserRound size={14} /></span><span>{shortId(workspaceId)}</span><ChevronDown size={14} /></button>{sessionMenuOpen ? <div className="session-menu"><div className="session-menu-heading"><span className="session-avatar large"><UserRound size={16} /></span><div><strong>Temporary workspace</strong><span>{shortId(workspaceId)}</span></div></div><div className="session-menu-row"><Clock3 size={15} /><span>Expires {formatRelativeTime(expiresAt)}</span></div><div className="session-menu-row"><ShieldCheck size={15} /><span>Private to this browser</span></div><div className="session-menu-divider" /><Button variant="quiet" onClick={resetWorkspace} icon={<RotateCcw size={15} />}>Reset workspace</Button><p>Download work before the session expires. Lost or expired data cannot be recovered.</p></div> : null}</div></header>
         {activeTab !== "calibration" && activeTab !== "projection" ? <ContextStrip season={season} week={week} metricDefinition={metricDefinition} onSeason={setSeason} onWeek={setWeek} onMetricDefinition={setMetricDefinition} /> : null}
         <div className="page-content">
           {activeTab === "overview" ? <OverviewPage navigate={navigate} /> : null}
-          {activeTab === "methodology" ? <MethodologyPage /> : null}
+          {activeTab === "methodology" ? <MethodologyPage navigate={navigate} /> : null}
           {activeTab === "calibration" ? <CalibrationPage /> : null}
           {activeTab === "projection" ? <ProjectionPage upload={upload} uploadErrors={uploadErrors} runState={runState} runId={runId} viewMode={viewMode} onViewMode={setViewMode} rows={filteredForecasts} allRows={demoForecasts} overrides={overrides} search={projectionSearch} position={projectionPosition} team={projectionTeam} sort={projectionSort} teams={teams} onSearch={setProjectionSearch} onPosition={setProjectionPosition} onTeam={setProjectionTeam} onSort={setProjectionSort} onFile={handleFile} onUseDemo={useDemoSample} onResetUpload={resetUpload} onStartRun={startRun} onExport={(scope) => exportForecasts(scope === "filtered" ? filteredForecasts : demoForecasts, scope)} onSelectPlayer={(row) => setSelectedPlayerId(row.id)} onOpenOverrides={(row) => { setSelectedPlayerId(row.id); setActiveTab("overrides"); }} /> : null}
           {activeTab === "overrides" ? <OverridesPage rows={demoForecasts} overrides={overrides} history={overrideHistory} selectedRow={selectedRow} selectedPlayerId={selectedPlayerId} onSelectRow={(row) => setSelectedPlayerId(row.id)} onSave={saveOverride} onResetPlayer={resetPlayer} onResetAll={resetAllOverrides} onCopy={() => { setToast("Copy prior overrides creates a reviewable draft inside this session."); addHistory("Copied prior overrides", "No unmatched players in the current run.", "blue"); }} /> : null}
@@ -460,61 +458,103 @@ export function FloorCeilingApp() {
 
 function OverviewPage({ navigate }: { navigate: (tab: TabId) => void }) {
   const totalRows = demoForecasts.length;
-  const averageMedian = demoForecasts.reduce((sum, row) => sum + row.original.median, 0) / Math.max(totalRows, 1);
-  const averageWidth = demoForecasts.reduce((sum, row) => sum + row.original.ceiling - row.original.floor, 0) / Math.max(totalRows, 1);
-  const simulationCounts = Array.from(new Set(demoForecasts.map((row) => row.nSimulations)));
-  const summaryItems = [
-    ["Loaded rows", totalRows.toLocaleString(), "Week 1 player range output"],
-    ["Simulation draws", simulationCounts.length === 1 ? simulationCounts[0].toLocaleString() : "Mixed", "Stored on each output row"],
-    ["Average median", formatNumber(averageMedian), "Across loaded player rows"],
-    ["Average width", formatNumber(averageWidth), "Average ceiling minus floor"],
-  ];
 
   return (
     <>
-      <SectionIntro eyebrow="Weekly monitoring" title="Read the current forecast output" status={<StatusPill label="Output loaded" tone="good" />} action={<Button variant="primary" onClick={() => navigate("projection")} icon={<Upload size={16} />}>Open forecast workflow</Button>}>This view shows the stored Week 1 ranges and the checks that are available now. Historical accuracy stays empty until completed outcomes are loaded.</SectionIntro>
+      <SectionIntro eyebrow="Weekly monitoring" title="What is ready for this week?" status={<StatusPill label="Forecast ready" tone="good" />} action={<Button variant="primary" onClick={() => navigate("projection")} icon={<Upload size={16} />}>Open forecast</Button>}>The Week 1 player ranges are ready to review. Accuracy checks start after final player scores are loaded.</SectionIntro>
       <div className="overview-hero-grid">
-        <Panel className="latest-panel" eyebrow="Current output" title="2026 · Week 1" action={<button type="button" className="icon-button" aria-label="Open output details" onClick={() => navigate("projection")}><MoreHorizontal size={18} /></button>}>
-          <div className="latest-status"><StatusPill label="Stored output" tone="good" /><span>{totalRows.toLocaleString()} player rows · 4 positions</span></div>
-          <div className="latest-big-number">{totalRows.toLocaleString()} <small>player range rows</small></div>
-          <div className="latest-detail-grid"><div><span>Lower marker</span><strong>p15</strong><small>Loaded</small></div><div><span>Median</span><strong>p50</strong><small>Loaded</small></div><div><span>Upper marker</span><strong>p85</strong><small>Loaded</small></div><div><span>Completed outcomes</span><strong>Pending</strong><small>Needed for evaluation</small></div></div>
-          <div className="latest-foot"><span><Clock3 size={14} /> Source timestamp: Aug 31, 2026</span><button type="button" className="text-button" onClick={() => navigate("projection")}>Inspect rows <ArrowUpRight size={14} /></button></div>
+        <Panel className="latest-panel" eyebrow="Current forecast" title="2026 · Week 1" action={<button type="button" className="icon-button" aria-label="Open forecast details" onClick={() => navigate("projection")}><MoreHorizontal size={18} /></button>}>
+          <div className="latest-status"><StatusPill label="Ready to review" tone="good" /><span>{totalRows.toLocaleString()} players loaded</span></div>
+          <div className="latest-summary"><strong>Review the range before kickoff.</strong><span>Each player has a low estimate, a middle estimate, and a high estimate.</span></div>
+          <div className="latest-detail-grid"><div><span>Low estimate</span><strong>p15</strong><small>Lower end of the range</small></div><div><span>Middle estimate</span><strong>p50</strong><small>Typical result</small></div><div><span>High estimate</span><strong>p85</strong><small>Ceiling for the range</small></div><div><span>Final scores</span><strong>Waiting</strong><small>Needed to check accuracy</small></div></div>
+          <div className="latest-foot"><span><Clock3 size={14} /> Forecast saved Aug 31, 2026</span><button type="button" className="text-button" onClick={() => navigate("projection")}>Open forecast <ArrowUpRight size={14} /></button></div>
         </Panel>
-        <Panel className="next-forecast-panel" eyebrow="Evaluation status" title="Waiting for outcomes"><div className="forecast-readiness"><div className="readiness-icon"><Clock3 size={22} /></div><div><strong>Forecast rows are ready</strong><span>Completed outcome rows are not loaded</span></div></div><div className="readiness-list"><div><span>Accuracy checks</span><strong>Pending</strong></div><div><span>Coverage</span><strong>Pending</strong></div><div><span>Quantile loss</span><strong>Pending</strong></div><div><span>Next action</span><strong>Load outcomes</strong></div></div><Button variant="secondary" onClick={() => navigate("calibration")} className="full-width" icon={<Target size={15} />}>Open evaluation</Button></Panel>
+        <Panel className="next-forecast-panel" eyebrow="Next step" title="Add final player scores"><div className="forecast-readiness"><div className="readiness-icon"><Clock3 size={22} /></div><div><strong>Accuracy checks are waiting</strong><span>We need a final score for the same player and game.</span></div></div><div className="readiness-list"><div><span>Forecast</span><strong>Ready</strong></div><div><span>Final scores</span><strong>Waiting</strong></div><div><span>Accuracy report</span><strong>After scores load</strong></div></div><Button variant="secondary" onClick={() => navigate("calibration")} className="full-width" icon={<Target size={15} />}>Open evaluation</Button></Panel>
       </div>
-      <div className="metric-grid">{summaryItems.map(([label, value, detail], index) => <MetricCard key={label} label={label} value={value} detail={detail} tone={index < 2 ? "good" : "neutral"} icon={index === 0 ? <Users size={17} /> : index === 1 ? <Gauge size={17} /> : index === 2 ? <Activity size={17} /> : <Target size={17} />} />)}<MetricCard label="Held-out evaluation" value="Pending" detail="Completed outcomes are required" tone="neutral" icon={<Link2 size={17} />} /></div>
+      <div className="metric-grid overview-status-grid"><MetricCard label="Forecast" value="Ready" detail="Week 1 player ranges" tone="good" icon={<Users size={17} />} /><MetricCard label="Scoring" value="PPR" detail="1 point per reception" tone="neutral" icon={<Gauge size={17} />} /><MetricCard label="Range" value="3 estimates" detail="Low, middle, and high" tone="neutral" icon={<Target size={17} />} /><MetricCard label="Accuracy check" value="Waiting" detail="Add final player scores" tone="neutral" icon={<Link2 size={17} />} /></div>
       <div className="two-column-grid overview-main-grid">
-        <Panel className="chart-panel" eyebrow="Forecast performance" title="Historical evaluation is empty"><div className="empty-chart-state"><Database size={22} /><strong>Completed outcomes are required</strong><span>The current artifact contains ranges only. Coverage, loss, and error charts will appear after matching outcome rows are loaded.</span><Button variant="secondary" onClick={() => navigate("calibration")}>Open evaluation</Button></div></Panel>
-        <Panel className="inspect-panel" eyebrow="Available checks" title="Review the current output"><div className="inspect-list">{[
-          ["Loaded player rows", "The site loaded every row from the Week 1 player range output.", "Open output", "projection"],
-          ["Range fields", "Each row includes a floor, median, and ceiling.", "Open output", "projection"],
-          ["Stored run count", "Each row records the number of simulation draws.", "Open methodology", "methodology"],
-          ["Evaluation boundary", "Accuracy claims wait for completed outcome rows.", "Open evaluation", "calibration"],
-        ].map(([label, detail, value, tab]) => <button type="button" className="inspect-item" key={label} onClick={() => navigate(tab as TabId)}><span className="inspect-item-icon inspect-good"><CheckCircle2 size={16} /></span><span className="inspect-copy"><strong>{label}</strong><small>{detail}</small></span><span className="inspect-value">{value}</span><ChevronRight size={15} /></button>)}</div><Explainer>These checks describe data state. They do not alter the stored output.</Explainer></Panel>
+        <Panel className="chart-panel" eyebrow="Accuracy check" title="Final scores are still needed"><div className="empty-chart-state"><Clock3 size={22} /><strong>Waiting for final scores</strong><span>Load completed player scores to see how often the estimates matched and how far they missed.</span><Button variant="secondary" onClick={() => navigate("calibration")}>Open evaluation</Button></div></Panel>
+        <Panel className="inspect-panel" eyebrow="Next actions" title="What should you check?"><div className="inspect-list">{[
+          ["Review the player ranges", "Check the low, middle, and high estimates before kickoff.", "Open forecast", "projection"],
+          ["Review manual changes", "Saved edits need a reason and stay separate from the original forecast.", "Open overrides", "overrides"],
+          ["Load final scores", "Accuracy checks need a completed score for the same player and game.", "Open evaluation", "calibration"],
+          ["Check the source file", "The bundled Week 1 file passed the input checks.", "Open methodology", "methodology"],
+        ].map(([label, detail, value, tab]) => <button type="button" className="inspect-item" key={label} onClick={() => navigate(tab as TabId)}><span className="inspect-item-icon inspect-good"><CheckCircle2 size={16} /></span><span className="inspect-copy"><strong>{label}</strong><small>{detail}</small></span><span className="inspect-value">{value}</span><ChevronRight size={15} /></button>)}</div><Explainer>These actions help you prepare the weekly forecast. They do not change the stored output.</Explainer></Panel>
       </div>
-      <Panel className="input-change-panel" eyebrow="Input changes" title="What is loaded now?" action={<div className="panel-actions"><StatusPill label="Source checked" tone="good" /><button type="button" className="text-button" onClick={() => navigate("projection")}>Open output <ArrowUpRight size={14} /></button></div>}><div className="input-summary-grid"><div className="input-summary-item"><div className="input-summary-top"><span>Player rows</span><strong>{totalRows.toLocaleString()}</strong></div><MiniBar value={Math.min(1, totalRows / 300)} color="blue" /><small>Week 1 stored range output</small></div><div className="input-summary-item"><div className="input-summary-top"><span>Range fields</span><strong>3</strong></div><MiniBar value={0.75} color="green" /><small>p15, p50, and p85</small></div><div className="input-summary-item"><div className="input-summary-top"><span>Identity fields</span><strong>Present</strong></div><MiniBar value={1} color="green" /><small>Player ID and name are loaded</small></div><div className="input-summary-item"><div className="input-summary-top"><span>Outcome rows</span><strong>Pending</strong></div><MiniBar value={0} color="orange" /><small>Required for historical checks</small></div></div><Explainer>Upload a new file to create a local run. The stored output remains unchanged until you start that run.</Explainer></Panel>
-      <div className="two-column-grid lower-overview-grid"><Panel eyebrow="Position breakdown" title="Stored range summary"><div className="position-breakdown">{positionSummaries.map((row) => <div className="position-line" key={row.position}><span className="position-chip">{row.position}</span><span className="position-name">{row.position === "QB" ? "Quarterback" : row.position === "RB" ? "Running back" : row.position === "WR" ? "Wide receiver" : "Tight end"}</span><span className="position-stat"><strong>{row.rows.toLocaleString()}</strong><small>rows</small></span><MiniBar value={row.rows / Math.max(...positionSummaries.map((item) => item.rows))} color={row.position === "QB" ? "orange" : "blue"} /><span className="position-stat"><strong>{formatNumber(row.averageMedian)}</strong><small>average median</small></span></div>)}</div><Explainer>These values summarize the stored Week 1 rows. They do not measure accuracy.</Explainer></Panel><Panel eyebrow="Weekly loop" title="From output to evidence"><div className="loop-list">{["Load model output", "Inspect input changes", "Review stored ranges", "Record manual changes", "Freeze before kickoff", "Load completed outcomes", "Inspect the evaluation"].map((item, index) => <button type="button" className={cx("loop-step", index === 2 && "loop-step-current")} key={item} onClick={() => index < 4 ? navigate("projection") : navigate("calibration")}><span>{String(index + 1).padStart(2, "0")}</span><strong>{item}</strong>{index === 2 ? <StatusPill label="Current" tone="blue" /> : <ChevronRight size={14} />}</button>)}</div></Panel></div>
+      <Panel className="input-change-panel" eyebrow="Data status" title="What is in the forecast?" action={<div className="panel-actions"><StatusPill label="Source checked" tone="good" /><button type="button" className="text-button" onClick={() => navigate("projection")}>Open forecast <ArrowUpRight size={14} /></button></div>}><div className="input-summary-grid"><div className="input-summary-item"><div className="input-summary-top"><span>Forecast file</span><strong>Ready</strong></div><MiniBar value={1} color="blue" /><small>Week 1 model output</small></div><div className="input-summary-item"><div className="input-summary-top"><span>Players</span><strong>{totalRows.toLocaleString()}</strong></div><MiniBar value={Math.min(1, totalRows / 300)} color="green" /><small>Player ranges loaded</small></div><div className="input-summary-item"><div className="input-summary-top"><span>Range values</span><strong>3</strong></div><MiniBar value={0.75} color="green" /><small>Low, middle, and high estimates</small></div><div className="input-summary-item"><div className="input-summary-top"><span>Final scores</span><strong>Waiting</strong></div><MiniBar value={0} color="orange" /><small>Needed for accuracy checks</small></div></div><Explainer>The forecast file is ready. Final scores are needed before the site can measure accuracy.</Explainer></Panel>
+      <div className="two-column-grid lower-overview-grid"><Panel eyebrow="Forecast by position" title="Which players are included?"><div className="position-breakdown">{positionSummaries.map((row) => <div className="position-line" key={row.position}><span className="position-chip">{row.position}</span><span className="position-name">{row.position === "QB" ? "Quarterback" : row.position === "RB" ? "Running back" : row.position === "WR" ? "Wide receiver" : "Tight end"}</span><span className="position-stat"><strong>{row.rows.toLocaleString()}</strong><small>players</small></span><MiniBar value={row.rows / Math.max(...positionSummaries.map((item) => item.rows))} color={row.position === "QB" ? "orange" : "blue"} /><span className="position-stat"><strong>{formatNumber(row.averageMedian)}</strong><small>middle estimate</small></span></div>)}</div><Explainer>These are forecast rows. They do not measure accuracy.</Explainer></Panel><Panel eyebrow="Before kickoff" title="This week's checklist"><div className="loop-list">{["Load the player forecast", "Check the source", "Review the ranges", "Save manual changes", "Freeze the forecast", "Load final scores", "Compare with final scores"].map((item, index) => <button type="button" className={cx("loop-step", index === 2 && "loop-step-current")} key={item} onClick={() => index < 5 ? navigate(index === 0 ? "projection" : index === 3 ? "overrides" : "projection") : navigate("calibration")}><span>{String(index + 1).padStart(2, "0")}</span><strong>{item}</strong>{index === 2 ? <StatusPill label="Current" tone="blue" /> : <ChevronRight size={14} />}</button>)}</div></Panel></div>
     </>
   );
 }
 
 
-function MethodologyPage() {
-  const [selectedStage, setSelectedStage] = useState(3);
-  const stage = timeline[selectedStage];
+type MethodologyPageProps = { navigate: (tab: TabId) => void };
+
+function MethodologyPage({ navigate }: MethodologyPageProps) {
+  const simulationPositions = positionModelSelections.filter((row) => row.selectedModel === "ffsimulator").map((row) => row.position);
+  const xgboostPositions = positionModelSelections.filter((row) => row.selectedModel === "XGBoost").map((row) => row.position);
+  const selectedSummary = `${simulationPositions.join(" and ")} use ffsimulator. ${xgboostPositions.join(", ")} use XGBoost.`;
+
   return (
     <>
-      <SectionIntro eyebrow="Methodology" title="What changed the engineer's mind?" status={<StatusPill label={`${timeline.length} recorded stages`} tone="blue" />} action={<Button variant="secondary" onClick={() => document.getElementById("methodology-source-map")?.scrollIntoView({ behavior: "smooth" })} icon={<FileText size={15} />}>Source map</Button>}>This timeline records the data contract, the stored output, and the checks that remain before evaluation.</SectionIntro>
-      <div className="methodology-notice"><div className="notice-icon"><GitBranch size={20} /></div><div><strong>The stored output stays explicit.</strong><p>The Week 1 output supplies p15, p50, and p85 for each loaded row. Evaluation stays separate until outcomes arrive.</p></div><StatusPill label="Model policy" tone="dark" /></div>
-      <div className="methodology-layout"><div className="timeline-column"><div className="timeline-header"><div><span className="panel-eyebrow">Derivation timeline</span><h2>From rank inputs to weekly monitoring</h2></div><span className="timeline-count">{String(timeline.length).padStart(2, "0")} stages</span></div>{timeline.map((item, index) => <button type="button" className={cx("timeline-item", index === selectedStage && "timeline-item-active")} key={item.number} onClick={() => setSelectedStage(index)}><span className="timeline-number">{item.number}</span><span className="timeline-line" /><span className="timeline-content"><span className="timeline-tag">{item.tag}</span><strong>{item.title}</strong><small>{item.question}</small></span><ChevronRight size={16} /></button>)}</div><div className="evidence-column"><Panel className="stage-panel" eyebrow={`Stage ${stage.number} · ${stage.tag}`} title={stage.title} action={<button type="button" className="icon-button" aria-label="More stage details"><MoreHorizontal size={18} /></button>}><div className="stage-question"><CircleHelp size={17} /><span>{stage.question}</span></div><div className="stage-sections"><div><span className="stage-label">Method</span><p>{stage.method}</p></div><div><span className="stage-label">Evidence</span><p>{stage.evidence}</p></div><div><span className="stage-label">Decision</span><p>{stage.decision}</p></div></div><div className="stage-source"><Link2 size={14} /><span>Source link</span><code>{stage.source}</code><ArrowUpRight size={14} /></div></Panel><Panel className="ai-evidence-panel" eyebrow="AI-assisted work" title="A correction, recorded" action={<StatusPill label="Summary" tone="blue" />}><div className="ai-evidence-grid"><div className="ai-evidence-block owner"><div className="ai-avatar owner-avatar-small">MS</div><div><span className="stage-label">Owner question</span><p>The owner asked whether future data could be in the earlier forecast.</p></div></div><div className="ai-evidence-block agent"><div className="ai-avatar agent-avatar-small"><Sparkles size={15} /></div><div><span className="stage-label">Implementation work</span><p>Rebuilt the time boundary, added a future-season rejection case, and reran the backtest.</p></div></div><div className="ai-evidence-block checks"><div className="ai-avatar check-avatar-small"><Check size={15} /></div><div><span className="stage-label">Checks</span><p>Every training season now precedes its target season. The earlier result stays discarded.</p></div></div><div className="ai-evidence-block decision"><div className="ai-avatar decision-avatar-small"><ArrowUpRight size={15} /></div><div><span className="stage-label">Resulting decision</span><p>Report the corrected chronology and keep the baseline until a candidate clears its full range checks.</p></div></div></div><Explainer>Summary of a reviewed agent session. It does not claim autonomy, time savings, or a model promotion.</Explainer></Panel></div></div>
-      <div className="two-column-grid method-lower-grid"><Panel eyebrow="Tools and data" title="What powers the work"><div className="tools-table"><div className="tools-row tools-head"><span>Group</span><span>Tools or sources</span><span>Role</span></div>{toolRows.map(([group, tools, role]) => <div className="tools-row" key={group}><strong>{group}</strong><span>{tools}</span><span>{role}</span></div>)}</div></Panel><Panel eyebrow="Metric definition" title="Outcome metric v1.0"><div className="metric-definition-card"><div className="metric-definition-value">Version 1.0 <span>approved outcome metric</span></div><div className="metric-definition-rules"><span><CheckCircle2 size={14} /> Metric definition is explicit</span><span><CheckCircle2 size={14} /> Input and output units stay consistent</span><span><CheckCircle2 size={14} /> Version is stored with every result</span></div></div><Explainer>The metric contract is explicit, versioned, and applied before simulation.</Explainer></Panel></div>
-      <Panel className="method-source-panel" eyebrow="Public evidence" title="Data boundaries" action={<span className="source-status"><span className="saved-dot" /> Stored output</span>}><div className="source-grid"><div><span>Projection source</span><strong>Week 1 model output</strong><small>Player ranges · Aug 31, 2026</small></div><div><span>Identity match</span><strong>100.0%</strong><small>{demoForecasts.length.toLocaleString()} accepted · 0 unresolved</small></div><div><span>Historical source</span><strong>Not loaded</strong><small>Evaluation waits for completed outcomes</small></div><div><span>Training cutoff</span><strong>Before target season</strong><small>Worker input remains versioned</small></div></div></Panel>
-      <div id="methodology-source-map" className="source-map-box"><FileText size={18} /><div><strong>Source map</strong><p>Repository code, session summaries, selected model artifacts, and the Week 1 output define this public preview. Private uploads and session records never enter the bundled output.</p></div><button type="button" className="text-button">View repository links <ArrowUpRight size={14} /></button></div>
+      <SectionIntro eyebrow="Methodology" title="How each model builds a range" status={<StatusPill label="Two model paths" tone="blue" />} action={<Button variant="secondary" onClick={() => navigate("calibration")} icon={<Target size={15} />}>View model check</Button>}>The site compares a rank-based simulation with a direct XGBoost ceiling model. Both use the same PPR score definition and are tested on player-week results that the model did not see.</SectionIntro>
+
+      <section className="methodology-range-summary" aria-labelledby="methodology-range-title">
+        <div className="methodology-range-summary-copy">
+          <span className="panel-eyebrow">The output</span>
+          <h2 id="methodology-range-title">One weekly score, three markers</h2>
+          <p>The published range describes a distribution of possible PPR scores. The floor and ceiling are percentiles, not promises about one player&apos;s result.</p>
+        </div>
+        <div className="methodology-range-markers">
+          <div className="methodology-range-marker methodology-range-marker-floor"><strong>p15</strong><span>Floor</span><small>15th percentile of the simulated score distribution</small></div>
+          <div className="methodology-range-marker methodology-range-marker-middle"><strong>p50</strong><span>Middle</span><small>Median score, where half the simulated scores are lower</small></div>
+          <div className="methodology-range-marker methodology-range-marker-ceiling"><strong>p85</strong><span>Ceiling</span><small>85th percentile, used for the model comparison</small></div>
+        </div>
+      </section>
+
+      <div className="methodology-model-grid">
+        <article className="methodology-model-card methodology-model-card-simulation">
+          <div className="methodology-model-heading">
+            <div className="methodology-model-icon methodology-model-icon-simulation"><GitBranch size={21} /></div>
+            <div><span className="panel-eyebrow">Path 1 · R</span><h2>ffsimulator rank-conditioned simulation</h2><p>Builds the full range by sampling historical weekly scores for players at nearby ranks.</p></div>
+          </div>
+          <div className="methodology-detail-block"><span className="methodology-detail-label">Stack</span><div className="methodology-pill-list"><span>R</span><span>fffloorceiling</span><span>ffsimulator</span><span>data.table</span><span>arrow</span><span>nflreadr</span><span>ggplot2</span><span>testthat</span></div></div>
+          <div className="methodology-detail-block"><span className="methodology-detail-label">Data used</span><ul className="methodology-data-list"><li>Footballguys Projections Consensus. The source row order within each position becomes the player rank after free-agent rows are removed.</li><li>Historical FantasyPros weekly rank variation. The median standard deviation by position and rank supplies rank uncertainty.</li><li>Prior-season `nflreadr` weekly PPR scores. The history cutoff is strictly before the target season.</li></ul></div>
+          <div className="methodology-detail-block"><span className="methodology-detail-label">How one prediction is derived</span><ol className="methodology-step-list"><li><span>01</span><div><strong>Normalize the ranking row</strong><p>Keep the stable player ID, position, team, source rank, and rank uncertainty together.</p></div></li><li><span>02</span><div><strong>Draw a nearby rank</strong><p>For each simulation, sample an integer rank around the expected rank. The backtest uses a normal draw with a standard deviation equal to 0.5 times the mapped rank SD.</p></div></li><li><span>03</span><div><strong>Sample a historical score</strong><p>Use the sampled position and rank to select a weekly PPR outcome from the `ffsimulator` pool. Repeat for every simulation.</p></div></li><li><span>04</span><div><strong>Read the percentiles</strong><p>Take the 15th, 50th, and 85th percentiles of the simulated scores. Those values become p15, p50, and p85.</p></div></li></ol></div>
+          <div className="methodology-output-box"><span>Current output</span><strong>Full p15 / p50 / p85 range</strong><small>The backtest uses 1,000 simulations per player-week. The Week 1 FBG snapshot uses 100.</small></div>
+        </article>
+
+        <article className="methodology-model-card methodology-model-card-xgboost">
+          <div className="methodology-model-heading">
+            <div className="methodology-model-icon methodology-model-icon-xgboost"><Activity size={21} /></div>
+            <div><span className="panel-eyebrow">Path 2 · Python</span><h2>XGBoost direct p85 model</h2><p>Predicts the ceiling from the projection fields themselves instead of sampling a historical outcome pool.</p></div>
+          </div>
+          <div className="methodology-detail-block"><span className="methodology-detail-label">Stack</span><div className="methodology-pill-list"><span>Python 3.12</span><span>XGBoost</span><span>pandas</span><span>NumPy</span><span>PyArrow</span><span>SHAP</span><span>matplotlib</span></div></div>
+          <div className="methodology-detail-block"><span className="methodology-detail-label">Data used</span><ul className="methodology-data-list"><li>Footballguys weekly Projections Consensus rows from the 2023 through 2025 backtest seasons.</li><li>Rank features such as week, ECR, rank SD, projector count, rank range, consensus rank, and consensus projected score.</li><li>Raw projected passing, rushing, receiving, and fumble statistics, plus one derived PPR projection score.</li><li>Actual weekly PPR points from `nflreadr` are the training label. They never enter the feature columns. The `ffsimulator` output is a comparison baseline, not an XGBoost feature.</li></ul></div>
+          <div className="methodology-detail-block"><span className="methodology-detail-label">How one prediction is derived</span><ol className="methodology-step-list"><li><span>01</span><div><strong>Build one player-week row</strong><p>Join the rank summary, raw projection fields, derived PPR projection, and final PPR score for each historical row.</p></div></li><li><span>02</span><div><strong>Fit one model per position</strong><p>Train separate QB, RB, WR, and TE models with XGBoost&apos;s `reg:quantileerror` objective and `quantile_alpha = 0.85`.</p></div></li><li><span>03</span><div><strong>Tune on the latest prior weeks</strong><p>Test 144 bounded parameter settings on weeks 14 through 17 of the latest training season. Choose the setting with the lowest p85 pinball loss, then refit on all earlier seasons.</p></div></li><li><span>04</span><div><strong>Score the next season</strong><p>Pass only pre-kickoff features to the position model. Clamp a negative prediction to zero and store the result as `xgb_p85`.</p></div></li></ol></div>
+          <div className="methodology-output-box"><span>Current output</span><strong>Direct p85 ceiling only</strong><small>The current XGBoost artifact does not produce p15 or p50. It cannot claim a complete range on its own.</small></div>
+        </article>
+      </div>
+
+      <div className="methodology-limit"><Info size={17} /><div><strong>Why the two paths do not produce the same fields</strong><p>`ffsimulator` samples a full score distribution, so it can report a floor, middle, and ceiling. The current XGBoost experiment trains only the 85th-quantile model. A full XGBoost range needs separate p15 and p50 models with the same time-split checks.</p></div></div>
+
+      <Panel className="methodology-contract-panel" eyebrow="Shared contract" title="The rules stay fixed across both paths">
+        <div className="methodology-contract-grid"><div><span>Score</span><strong>Weekly PPR points</strong><small>1 point per reception. No tight-end bonus and no receiving first-down points.</small></div><div><span>Range target</span><strong>p15 to p85</strong><small>A nominal 70% interval when the distribution is calibrated.</small></div><div><span>Test seasons</span><strong>{calibrationModel.oosSeasons}</strong><small>Each target season uses earlier seasons for training.</small></div><div><span>Rows checked</span><strong>{calibrationModel.oosRows.toLocaleString()}</strong><small>Matched player-week rows with a forecast and a final score.</small></div><div><span>Future-data rule</span><strong>Train before target</strong><small>Target or future outcomes cannot enter the features or training rows.</small></div></div>
+        <Explainer>More simulations reduce random sampling noise in `ffsimulator`. They do not fix a biased outcome pool or prove that the XGBoost ceiling is calibrated.</Explainer>
+      </Panel>
+
+      <Panel className="methodology-choice-panel" eyebrow="Model choice" title="Which model is better for future forecasts?" action={<Button variant="secondary" onClick={() => navigate("calibration")} icon={<Target size={15} />}>Open held-out results</Button>}>
+        <div className="methodology-choice-layout"><div className="methodology-choice-copy"><p>We choose the ceiling model separately for each position. Both candidates see the same matched player-week rows from 2024 and 2025 after their predictions are frozen.</p><ol className="methodology-choice-rules"><li><strong>Check coverage.</strong> Keep a candidate only when the share of actual scores at or below p85 is within 5 percentage points of the 85% target.</li><li><strong>Compare pinball loss.</strong> Among candidates that pass the coverage guard, choose the lower p85 pinball loss. Lower is better because the loss penalizes misses above the ceiling more heavily.</li><li><strong>Keep diagnostics visible.</strong> p85 MAE, rank Spearman correlation, and the size of the upper-tail miss help review the choice. They do not replace the primary rule.</li></ol></div><div className="methodology-choice-result"><span className="methodology-detail-label">Current position-specific choice</span><strong>{selectedSummary}</strong><p>New completed seasons can change this choice. Until then, the selected model stays fixed for the forward forecast.</p></div></div>
+        <div className="methodology-choice-table-wrap"><table className="methodology-choice-table"><caption className="sr-only">Held-out p85 coverage and pinball loss by position</caption><thead><tr><th rowSpan={2}>Position</th><th colSpan={2}>ffsimulator</th><th colSpan={2}>XGBoost</th><th rowSpan={2}>Selected</th></tr><tr><th>Coverage</th><th>Loss</th><th>Coverage</th><th>Loss</th></tr></thead><tbody>{positionModelSelections.map((row) => <tr key={row.position}><th scope="row"><span className="position-chip">{row.position}</span></th><td>{formatCalibrationPercent(row.ffsimulatorCoverage)}</td><td>{formatCalibrationMetric(row.ffsimulatorPinballLoss)}</td><td>{formatCalibrationPercent(row.xgbCoverage)}</td><td>{formatCalibrationMetric(row.xgbPinballLoss)}</td><td><span className={cx("methodology-model-badge", row.selectedModel === "ffsimulator" ? "methodology-model-badge-simulation" : "methodology-model-badge-xgboost")}>{row.selectedModel === "ffsimulator" ? "ffsimulator" : "XGBoost"}</span></td></tr>)}</tbody></table></div>
+        <Explainer>Coverage is compared with 85%. Pinball loss is the main error score, and lower is better. The table uses held-out results, not the current Week 1 forecast.</Explainer>
+      </Panel>
+
+      <div id="methodology-source-map"><Panel className="methodology-sources-panel" eyebrow="Source map" title="Where to inspect the implementation" action={<span className="source-status"><span className="saved-dot" /> Public evidence</span>}><div className="methodology-source-grid"><div><strong>Ranked simulation</strong><code>R/01_rankings.R</code><code>R/02_ffsimulator.R</code><code>R/03_summaries.R</code><small>Ranking normalization, draws, and percentiles.</small></div><div><strong>Direct XGBoost</strong><code>scripts/08_xgb_p85_projection_experiment.py</code><code>scripts/10_build_calibration_page_data.py</code><small>Feature construction, walk-forward fits, and comparison data.</small></div><div><strong>Historical evidence</strong><code>backtest_fbg_2023_2025/README.md</code><code>outputs/player_backtest_metadata.json</code><code>outputs/xgb_p85_projection/metadata.json</code><small>Source choices, cutoffs, scoring rules, and saved model settings.</small></div></div><Explainer>Private uploads and temporary session records do not enter the published calibration data.</Explainer></Panel></div>
     </>
   );
 }
 
-const calibrationSeasonOptions = ["All held-out seasons", "2024", "2025"] as const;
+const calibrationSeasonOptions = ["All test seasons", "2024", "2025"] as const;
 const calibrationPositionOptions = ["All positions", "QB", "RB", "WR", "TE"] as const;
 const calibrationPositionOrder = ["QB", "RB", "WR", "TE"] as const;
 const calibrationPositionColors: Record<(typeof calibrationPositionOrder)[number], string> = {
@@ -533,12 +573,12 @@ function formatCalibrationMetric(value: number) {
 }
 
 function CalibrationPage() {
-  const [seasonFilter, setSeasonFilter] = useState<string>("All held-out seasons");
+  const [seasonFilter, setSeasonFilter] = useState<string>("All test seasons");
   const [positionFilter, setPositionFilter] = useState<string>("All positions");
 
   const filteredBins = useMemo(
     () => selectedCalibrationBins.filter((row) => {
-      const matchesSeason = seasonFilter === "All held-out seasons" || row.season === Number(seasonFilter);
+      const matchesSeason = seasonFilter === "All test seasons" || row.season === Number(seasonFilter);
       const matchesPosition = positionFilter === "All positions" || row.position === positionFilter;
       return matchesSeason && matchesPosition;
     }),
@@ -553,7 +593,7 @@ function CalibrationPage() {
       if (current) {
         current.rows.push(row);
       } else {
-        groups.set(groupKey, { position: row.position, label: row.position + " · " + row.model, rows: [row] });
+        groups.set(groupKey, { position: row.position, label: row.position + " · " + (row.model === "ffsimulator" ? "Simulation" : "Projection model"), rows: [row] });
       }
     });
     return calibrationPositionOrder
@@ -575,7 +615,7 @@ function CalibrationPage() {
       type: "value",
       min: 0,
       max: chartMax,
-      name: "Predicted high estimate",
+      name: "High estimate",
       nameLocation: "middle",
       nameGap: 30,
       nameTextStyle: { color: "#50687A", fontSize: 10 },
@@ -586,7 +626,7 @@ function CalibrationPage() {
       type: "value",
       min: 0,
       max: chartMax,
-      name: "Observed high estimate",
+      name: "High estimate from final scores",
       nameLocation: "middle",
       nameGap: 38,
       nameTextStyle: { color: "#50687A", fontSize: 10 },
@@ -595,7 +635,7 @@ function CalibrationPage() {
     },
     series: [
       {
-        name: "Same prediction and result",
+        name: "Perfect match",
         type: "line",
         data: [[0, 0], [chartMax, chartMax]],
         symbol: "none",
@@ -617,7 +657,7 @@ function CalibrationPage() {
   const coverageRows = useMemo(
     () => oosSeasonPositionMetrics
       .filter((row) => {
-        const matchesSeason = seasonFilter === "All held-out seasons" || row.season === Number(seasonFilter);
+        const matchesSeason = seasonFilter === "All test seasons" || row.season === Number(seasonFilter);
         const matchesPosition = positionFilter === "All positions" || row.position === positionFilter;
         return matchesSeason && matchesPosition;
       })
@@ -639,7 +679,7 @@ function CalibrationPage() {
     tooltip: { trigger: "axis" },
     xAxis: {
       type: "category",
-      data: coverageRows.map((row) => row.position + " · " + (row.selectedModel === "ffsimulator" ? "sim" : "XGB") + " · " + row.season),
+      data: coverageRows.map((row) => row.position + " · " + row.season),
       axisLabel: { color: "#73889A", fontSize: 9, interval: 0 },
       axisLine: { lineStyle: { color: "#CBD7DE" } },
     },
@@ -652,7 +692,7 @@ function CalibrationPage() {
     },
     series: [
       {
-        name: "Selected coverage",
+        name: "Scores at or below ceiling",
         type: "bar",
         data: coverageRows.map((row) => ({
           value: row.coverage,
@@ -673,17 +713,17 @@ function CalibrationPage() {
 
   const selectedPositionRows = positionModelSelections.map((row) => ({
     ...row,
-    method: row.selectedModel === "ffsimulator" ? "ffsimulator" : "XGBoost",
+    method: row.selectedModel === "ffsimulator" ? "Simulation" : "Projection model",
   }));
 
   const chartScope = [
-    seasonFilter === "All held-out seasons" ? "2024 and 2025" : seasonFilter,
+    seasonFilter === "All test seasons" ? "2024 and 2025" : seasonFilter,
     positionFilter === "All positions" ? "all positions" : positionFilter,
   ].join(" · ");
 
   return (
     <>
-      <SectionIntro eyebrow="Model calibration" title="How good is the model?" status={<StatusPill label={calibrationModel.status} tone="good" />} action={<StatusPill label="PPR scoring" tone="blue" />}>We tested two prediction methods on QB, RB, WR, and TE. This page shows the best-performing method for each position and how it performed on weeks it did not see during training.</SectionIntro>
+      <SectionIntro eyebrow="Model check" title="Do the high estimates match past scores?" status={<StatusPill label="Near target" tone="good" />} action={<StatusPill label="PPR scoring" tone="blue" />}>We compare each high estimate with the final score from past weeks. The target is for about 85 of 100 scores to stay at or below the estimate.</SectionIntro>
 
       <section className="calibration-model-card">
         <div className="calibration-model-main">
@@ -691,100 +731,102 @@ function CalibrationPage() {
             <div className="model-symbol"><Activity size={21} /></div>
             <div>
               <div className="panel-eyebrow">The short answer</div>
-              <h2>Validated PPR model</h2>
-              <p>The selected method changes by position. The result below combines the selected methods across all four positions.</p>
+              <h2>The high estimate is close to its target</h2>
+              <p>We choose the method separately for each position. The result below combines those choices.</p>
             </div>
-            <StatusPill label="Held-out results" tone="blue" />
+            <StatusPill label="Past results" tone="blue" />
           </div>
           <div className="calibration-model-result">
             <span className="calibration-result-icon"><CheckCircle2 size={17} /></span>
-            <div><strong>{formatCalibrationPercent(selectedPortfolioOverall.coverage)} high-score coverage</strong><span>Across {selectedPortfolioOverall.n.toLocaleString()} held-out player-weeks, the actual score stayed at or below the model&apos;s high estimate {formatCalibrationPercent(selectedPortfolioOverall.coverage)} of the time. The goal is 85%.</span></div>
+            <div><strong>{formatCalibrationPercent(selectedPortfolioOverall.coverage)} of final scores stayed at or below the ceiling</strong><span>The target is 85%. This result uses 2024 and 2025 scores that the models did not see during training.</span></div>
           </div>
         </div>
         <div className="calibration-model-meta">
-          <div><span>Held-out seasons</span><strong>{calibrationModel.oosSeasons}</strong></div>
-          <div><span>Held-out player-weeks</span><strong>{selectedPortfolioOverall.n.toLocaleString()}</strong></div>
-          <div><span>Positions tested</span><strong>QB · RB · WR · TE</strong></div>
+          <div><span>Test period</span><strong>{calibrationModel.oosSeasons}</strong></div>
+          <div><span>Scores checked</span><strong>Past final scores</strong></div>
+          <div><span>Positions</span><strong>QB, RB, WR, TE</strong></div>
           <div><span>Scoring</span><strong>{calibrationModel.scoringFormat}</strong></div>
         </div>
       </section>
 
-      <div className="calibration-model-note"><Info size={15} /><span>{scoringContract.format} scoring: {scoringContract.rules.join(". ")}.</span></div>
+      <div className="calibration-model-note"><Info size={15} /><span>Scoring used here: {scoringContract.format}. Each reception is 1 point. This check adds no tight-end reception bonus and no receiving first-down points.</span></div>
 
       <div className="calibration-summary-grid">
-        <MetricCard label="High-score coverage" value={formatCalibrationPercent(selectedPortfolioOverall.coverage)} detail="Goal: 85% of actual scores stay below the ceiling" tone="good" icon={<Target size={17} />} />
-        <MetricCard label="Average error" value={formatCalibrationMetric(selectedPortfolioOverall.p85Mae) + " pts"} detail="Average distance from the actual score" tone="neutral" icon={<Activity size={17} />} />
-        <MetricCard label="Above-ceiling weeks" value={formatCalibrationPercent(selectedPortfolioOverall.highSideMissRate)} detail="Actual score exceeded the ceiling" tone="warn" icon={<ArrowUpRight size={17} />} />
-        <MetricCard label="High-score loss" value={formatCalibrationMetric(selectedPortfolioOverall.pinballLoss)} detail="Lower is better" tone="good" icon={<Gauge size={17} />} />
+        <MetricCard label="Scores at or below ceiling" value={formatCalibrationPercent(selectedPortfolioOverall.coverage)} detail="Goal: about 85 of 100 final scores" tone="good" icon={<Target size={17} />} />
+        <MetricCard label="Scores above ceiling" value={formatCalibrationPercent(selectedPortfolioOverall.highSideMissRate)} detail="The final score beat the high estimate" tone="warn" icon={<ArrowUpRight size={17} />} />
+        <MetricCard label="Typical gap" value={formatCalibrationMetric(selectedPortfolioOverall.p85Mae) + " pts"} detail="Average distance between estimate and final score" tone="neutral" icon={<Activity size={17} />} />
+        <MetricCard label="High-estimate miss score" value={formatCalibrationMetric(selectedPortfolioOverall.pinballLoss)} detail="Weighted error for the high estimate. Lower is better." tone="good" icon={<Gauge size={17} />} />
       </div>
+
+      <div className="calibration-range-note"><span className="calibration-range-note-icon"><Info size={15} /></span><div><strong>What does the 70% full-range check mean?</strong><span>The low estimate through the high estimate should contain about 70 of 100 final scores.</span><small>The selected mix does not get one full-range score here because the projection model supplies the high estimate only.</small></div></div>
 
       <div className="two-column-grid calibration-info-grid">
-        <Panel eyebrow="What we tested" title="Two methods across four positions">
+        <Panel eyebrow="Read the range" title="Three estimates, in plain English">
           <div className="calibration-definition-list">
-            <div><span>Method 1</span><strong>ffsimulator</strong><small>Uses earlier-season PPR outcomes to create a low estimate, a middle estimate, and a high estimate.</small></div>
-            <div><span>Method 2</span><strong>XGBoost</strong><small>Uses the PPR projection inputs to predict the high estimate directly.</small></div>
+            <div><span>Low estimate, p15</span><strong>Lower end</strong><small>About 15 of 100 final scores are at or below this number.</small></div>
+            <div><span>Middle estimate, p50</span><strong>Typical result</strong><small>About half of final scores are at or below this number.</small></div>
+            <div><span>High estimate, p85</span><strong>Ceiling</strong><small>About 85 of 100 final scores are at or below this number.</small></div>
+            <div><span>Full range, p15 to p85</span><strong>About 70 of 100</strong><small>The low and high estimates together should contain about 70 of 100 final scores.</small></div>
           </div>
-          <Explainer>We tried both methods on QB, RB, WR, and TE. We selected the method with coverage closest to 85%, then used the lower high-score loss when coverage was close.</Explainer>
+          <Explainer>For one player, the final score can fall below the low estimate or above the high estimate.</Explainer>
         </Panel>
-        <Panel eyebrow="How to read the result" title="The high estimate is a ceiling">
+        <Panel eyebrow="Method choice" title="The method can change by position">
           <div className="calibration-definition-list">
-            <div><span>Coverage</span><strong>How often actual stays below</strong><small>{formatCalibrationPercent(selectedPortfolioOverall.coverage)} means about 85 of 100 held-out scores stayed at or below the high estimate.</small></div>
-            <div><span>Average error</span><strong>Typical distance</strong><small>{formatCalibrationMetric(selectedPortfolioOverall.p85Mae)} PPR points is the average distance between the high estimate and the actual score.</small></div>
+            <div><span>Quarterback</span><strong>Simulation</strong><small>Uses earlier PPR scores to build the low, middle, and high estimates.</small></div>
+            <div><span>Running back, wide receiver, tight end</span><strong>Projection model</strong><small>Uses projection inputs to estimate the high score.</small></div>
           </div>
-          <Explainer>These results describe a group of held-out weeks. They do not guarantee the result for one player or one future week.</Explainer>
+          <Explainer>We chose the method with the percentage of scores at or below the ceiling closest to 85%. When the percentages were close, we chose the lower miss score.</Explainer>
         </Panel>
       </div>
 
-      <Panel className="calibration-scorecard-panel" eyebrow="Best model by position" title="Which method did best?" action={<span className="calibration-panel-note">85% coverage goal</span>}>
+      <Panel className="calibration-scorecard-panel" eyebrow="Method by position" title="Which method do we use?" action={<span className="calibration-panel-note">85% target</span>}>
         <DataTable
           data={selectedPositionRows}
           columns={[
             { accessorKey: "position", header: "Position", cell: (info) => <span className="position-chip">{info.getValue<string>()}</span> },
-            { accessorKey: "method", header: "Best method", cell: (info) => <strong>{info.getValue<string>()}</strong> },
-            { accessorKey: "n", header: "Held-out weeks", cell: (info) => info.getValue<number>().toLocaleString() },
-            { accessorKey: "selectedCoverage", header: "Coverage", cell: (info) => <strong>{formatCalibrationPercent(info.getValue<number>())}</strong> },
-            { accessorKey: "selectedP85Mae", header: "Average error", cell: (info) => formatCalibrationMetric(info.getValue<number>()) + " pts" },
+            { accessorKey: "method", header: "Method", cell: (info) => <strong>{info.getValue<string>()}</strong> },
+            { accessorKey: "selectedCoverage", header: "At or below ceiling", cell: (info) => <strong>{formatCalibrationPercent(info.getValue<number>())}</strong> },
+            { accessorKey: "selectedP85Mae", header: "Typical gap", cell: (info) => formatCalibrationMetric(info.getValue<number>()) + " pts" },
             { accessorKey: "selectedHighSideMissRate", header: "Above ceiling", cell: (info) => formatCalibrationPercent(info.getValue<number>()) },
-            { accessorKey: "selectedPinballLoss", header: "High-score loss", cell: (info) => formatCalibrationMetric(info.getValue<number>()) },
+            { accessorKey: "selectedPinballLoss", header: "Miss score", cell: (info) => formatCalibrationMetric(info.getValue<number>()) },
           ]}
         />
-        <Explainer>Coverage near 85% is the target. Average error is the average distance from the actual score. High-score loss is the quantile error measure, where lower is better.</Explainer>
+        <Explainer>At or below ceiling should be near 85%. Typical gap is the average distance between estimate and final score. Miss score gives more weight to scores above the ceiling. Lower is better.</Explainer>
       </Panel>
 
       <div className="calibration-visual-toolbar">
-        <div><div className="panel-eyebrow">Held-out evidence</div><strong>Check the result by season or position</strong><span>Both charts show only the selected method for each position.</span></div>
+        <div><div className="panel-eyebrow">Past results</div><strong>Check the result by season or position</strong><span>Both charts use the selected method for each position.</span></div>
         <div className="calibration-visual-filters">
-          <FilterSelect label="Held-out season" value={seasonFilter} options={calibrationSeasonOptions} onChange={setSeasonFilter} compact />
+          <FilterSelect label="Test season" value={seasonFilter} options={calibrationSeasonOptions} onChange={setSeasonFilter} compact />
           <FilterSelect label="Position" value={positionFilter} options={calibrationPositionOptions} onChange={setPositionFilter} compact />
         </div>
       </div>
 
       <div className="calibration-chart-grid calibration-oos-charts">
-        <Panel className="calibration-chart-large" eyebrow="Reliability check" title="Do predicted ceilings match actual scores?" action={<span className="calibration-panel-note">{chartScope}</span>}>
-          {filteredBins.length ? <EChart option={reliabilityOption} height={330} ariaLabel="Held-out reliability diagram for the selected models" /> : <EmptyState icon={<Database size={22} />} title="No chart data" body="The selected view has no groups with enough rows." />}
-          <Explainer>Each dot groups held-out weeks with similar predicted high scores. Dots near the diagonal mean the prediction and the observed high score are similar. Each group has at least {calibrationBinMinimum} weeks.</Explainer>
+        <Panel className="calibration-chart-large" eyebrow="Estimate vs final score" title="Do high estimates match final scores?" action={<span className="calibration-panel-note">{chartScope}</span>}>
+          {filteredBins.length ? <EChart option={reliabilityOption} height={330} ariaLabel="Past result comparison for the selected models" /> : <EmptyState icon={<Database size={22} />} title="No chart data" body="This filter has no position and season groups with enough past results." />}
+          <Explainer>Each dot groups past results with similar high estimates. Points near the diagonal mean the estimate and final-score result are similar. Each group has at least {calibrationBinMinimum} final scores.</Explainer>
         </Panel>
-        <Panel eyebrow="Coverage check" title="Coverage by position and season" action={<span className="calibration-panel-note">85% target</span>}>
-          {coverageRows.length ? <EChart option={coverageOption} height={330} ariaLabel="Held-out high-score coverage for the selected models" /> : <EmptyState icon={<Database size={22} />} title="No coverage data" body="The selected view has no held-out coverage rows." />}
-          <Explainer>A bar near the dashed 85% line means the high estimate behaves as intended for that position and season.</Explainer>
+        <Panel eyebrow="Ceiling check" title="How often did scores stay at or below the ceiling?" action={<span className="calibration-panel-note">85% target</span>}>
+          {coverageRows.length ? <EChart option={coverageOption} height={330} ariaLabel="Past score coverage at or below the ceiling for the selected models" /> : <EmptyState icon={<Database size={22} />} title="No coverage data" body="This filter has no past scores to compare." />}
+          <Explainer>A bar near 85% means about 85 of 100 final scores stayed at or below the high estimate.</Explainer>
         </Panel>
       </div>
 
       <div className="two-column-grid calibration-policy-grid">
-        <Panel eyebrow="Evidence window" title="What this test covers">
-          <div className="calibration-data-facts">
-            <div><strong>{calibrationModel.oosRows.toLocaleString()}</strong><span>Held-out player-weeks</span></div>
+        <Panel eyebrow="Test basis" title="Where does this result come from?">
+          <div className="calibration-data-facts calibration-evidence-summary">
             <div><strong>{calibrationModel.oosSeasons}</strong><span>Test seasons</span></div>
             <div><strong>{calibrationModel.positionModels}</strong><span>Positions</span></div>
           </div>
-          <p className="calibration-copy">Each test season used only earlier seasons for model history. The scoring contract is PPR for every result on this page.</p>
-          <Explainer>Two seasons provide useful evidence, but they are a short test window. Review the results again as more seasons finish.</Explainer>
+          <p className="calibration-copy">Each test season uses only earlier seasons for model history. A result enters the check only when the forecast and final score belong to the same player and game.</p>
+          <Explainer>This check uses {calibrationModel.oosRows.toLocaleString()} matched forecast rows. Review the result again as more seasons finish.</Explainer>
         </Panel>
-        <Panel eyebrow="Before use" title="Keep the result in context">
+        <Panel eyebrow="Use this result" title="What should you take away?">
           <ul className="calibration-list">
-            <li>The model estimates a high score range. It does not predict the exact score.</li>
-            <li>Results describe the full held-out group. One player or week can miss by more or less.</li>
-            <li>The best method can differ by position. This test selected ffsimulator for QB and XGBoost for RB, WR, and TE.</li>
+            <li>The high estimate is a ceiling for a group of players. It is not an exact-score prediction.</li>
+            <li>The combined result is close to the 85% target. One player can still fall above or below it.</li>
+            <li>The 70% full-range check is separate because the projection model supplies only the high estimate.</li>
           </ul>
         </Panel>
       </div>
