@@ -3,8 +3,6 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
-import { randomUUID } from "node:crypto";
-import type { ParsedProjectionRow } from "../csv";
 import type { ForecastResult, ForecastResultRow, ForecastModelStatus } from "../types";
 import { buildFeatureRows, FEATURE_VERSION, groupServingFeatures, MissingFeatureError, MODEL_POSITIONS, type ServingFeatureRow } from "./features";
 import { joinRankUncertainty, loadRankReferenceSnapshot, type RankedProjectionRow } from "./rank-reference";
@@ -111,7 +109,7 @@ function rankingsCsv(rows: RankedProjectionRow[]) {
 function parseJsonOutput<T>(output: string, label: string) {
   try {
     return JSON.parse(output.trim()) as T;
-  } catch (error) {
+  } catch {
     throw new ForecastError(`${label} returned invalid JSON.`, { serviceResponse: output.slice(-2000), nextAction: "Retry after checking the producer logs." });
   }
 }
@@ -156,8 +154,9 @@ function spawnProcess(command: string, args: string[], options: { cwd: string; i
   });
 }
 
-function validateFfsimulator(response: FfsimulatorResponse, rows: RankedProjectionRow[], simulationCount: number) {
+function validateFfsimulator(response: FfsimulatorResponse, rows: RankedProjectionRow[], simulationCount: number, week: number, seed: number) {
   if (response.schema_version !== "ffsimulator-prediction.v1") throw new ForecastError("The ffsimulator response schema is unsupported.");
+  if (response.week !== week || response.seed !== seed) throw new ForecastError("The ffsimulator response context does not match the run.", { nextAction: "Retry after checking the simulator arguments and output." });
   if (response.simulation_count !== simulationCount || response.rows.length !== rows.length) {
     throw new ForecastError("The ffsimulator output count does not match the accepted input count.", { nextAction: "Retry after checking the simulator output." });
   }
@@ -167,8 +166,9 @@ function validateFfsimulator(response: FfsimulatorResponse, rows: RankedProjecti
     if (!expected.has(result.stable_player_id)) throw new ForecastError(`The ffsimulator returned an unknown player ID: ${result.stable_player_id}.`, { affectedPlayerIds: [result.stable_player_id] });
     if (seen.has(result.stable_player_id)) throw new ForecastError(`The ffsimulator returned a duplicate player ID: ${result.stable_player_id}.`, { affectedPlayerIds: [result.stable_player_id] });
     seen.add(result.stable_player_id);
-    const values = [result.mean, result.median, result.p15, result.p50, result.p85, result.probability_zero, result.probability_active];
-    if (values.some((value) => !Number.isFinite(value)) || result.n_simulations !== simulationCount) {
+    const scoreValues = [result.mean, result.median, result.p15, result.p50, result.p85];
+    const probabilityValues = [result.probability_zero, result.probability_active];
+    if (scoreValues.some((value) => !Number.isFinite(value) || value < 0) || probabilityValues.some((value) => !Number.isFinite(value) || value < 0 || value > 1) || result.n_simulations !== simulationCount) {
       throw new ForecastError(`The ffsimulator returned invalid values for ${result.stable_player_id}.`, { affectedPlayerIds: [result.stable_player_id] });
     }
     if (result.p15 > result.p50 || result.p50 > result.p85) throw new ForecastError(`The ffsimulator percentile order is invalid for ${result.stable_player_id}.`, { affectedPlayerIds: [result.stable_player_id] });
@@ -285,7 +285,7 @@ function modelStatus(status: ForecastModelStatus["status"], release?: string, fe
   return { status, release, featureVersion, predictionCount, error };
 }
 
-function makeCombinedRows(rows: RankedProjectionRow[], ffsim: FfsimulatorResponse, predictions: Map<string, { p15: number; p85: number }>, run: RunRecord, opponentByTeam: Map<string, { opponent: string; gameId: string }>, rankSnapshotId: string) {
+function makeCombinedRows(rows: RankedProjectionRow[], ffsim: FfsimulatorResponse, predictions: Map<string, { p15: number; p85: number }>, run: RunRecord, opponentByTeam: Map<string, { opponent: string; gameId: string }>) {
   const ffsimById = new Map(ffsim.rows.map((row) => [row.stable_player_id, row]));
   return rows.map((row) => {
     const simulation = ffsimById.get(row.stablePlayerId);
@@ -335,7 +335,6 @@ function makeCombinedRows(rows: RankedProjectionRow[], ffsim: FfsimulatorRespons
         ? { floor: "ffsimulator p15", average: "ffsimulator mean", median: "ffsimulator p50", ceiling: "ffsimulator p85" }
         : { floor: "XGBoost p15", average: "CSV PPR projection", median: "ffsimulator p50", ceiling: "XGBoost p85" },
     };
-    void rankSnapshotId;
     return result;
   });
 }
@@ -347,7 +346,7 @@ function validateCombinedRows(rows: ForecastResultRow[], acceptedRows: RankedPro
   const outputIds = rows.map((row) => row.stablePlayerId);
   if (outputIds.some((id, index) => id !== acceptedIds[index])) throw new ForecastError("The combined output changed the uploaded source order.");
   for (const row of rows) {
-    if (!Number.isFinite(row.floor) || !Number.isFinite(row.average) || !Number.isFinite(row.median) || !Number.isFinite(row.ceiling) || row.floor > row.median || row.median > row.ceiling) {
+    if (![row.floor, row.average, row.median, row.ceiling].every((value) => Number.isFinite(value) && value >= 0) || row.floor > row.median || row.median > row.ceiling) {
       throw new ForecastError(`The combined output has an invalid range for ${row.stablePlayerId}.`, { affectedPlayerIds: [row.stablePlayerId] });
     }
   }
@@ -380,7 +379,7 @@ export async function processRun(runId: string, workspaceId: string) {
     temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "fc-forecast-"));
     await updateStage("running_ffsimulator");
     const ffsimulator = await runFfsimulator(rankedRows, run, temporaryDirectory);
-    validateFfsimulator(ffsimulator, rankedRows, run.simulationCount);
+    validateFfsimulator(ffsimulator, rankedRows, run.simulationCount, run.week, run.seed);
     await updateStage("building_model_features");
     const servingRows = buildFeatureRows(rankedRows, run.week);
     const predictions = new Map<string, { p15: number; p85: number }>();
@@ -400,7 +399,7 @@ export async function processRun(runId: string, workspaceId: string) {
       }
     }
     await updateStage("validating_combined_result");
-    const combinedRows = makeCombinedRows(rankedRows, ffsimulator, predictions, run, opponentByTeam, rankSnapshot.snapshotId);
+    const combinedRows = makeCombinedRows(rankedRows, ffsimulator, predictions, run, opponentByTeam);
     validateCombinedRows(combinedRows, rankedRows);
     const completedAt = new Date().toISOString();
     const xgbCount = combinedRows.filter((row) => row.position !== "QB").length;

@@ -1,6 +1,7 @@
 import type { Position, UploadReport } from "./types";
 
 const supportedPositions = new Set<Position>(["QB", "RB", "WR", "TE"]);
+const freeAgentTeams = new Set(["FA", "FREE_AGENT", "FREE AGENT", "UFA", "N/A"]);
 export const MAX_UPLOAD_ROWS = 50_000;
 
 export type ProjectionCsvOptions = {
@@ -151,15 +152,17 @@ function chooseSet(
   groups: Array<{ id: string; label: string; rows: Array<{ raw: Record<string, string>; line: number }> }>,
   options: ProjectionCsvOptions,
 ) {
+  const supportedRowCount = (group: { rows: Array<{ raw: Record<string, string> }> }) => group.rows.filter(({ raw }) => supportedPositions.has(valueFor(raw, ["position", "pos"]).toUpperCase() as Position)).length;
+  const largestSupported = (candidates: typeof groups) => [...candidates].sort((left, right) => supportedRowCount(right) - supportedRowCount(left) || right.rows.length - left.rows.length)[0];
   if (!groups.length) return null;
   if (options.selectedSetId) return groups.find((group) => group.id === options.selectedSetId) ?? null;
   if (options.selectedSetName) {
     const named = groups.filter((group) => group.label.toLowerCase() === options.selectedSetName!.trim().toLowerCase());
-    if (named.length) return [...named].sort((left, right) => right.rows.length - left.rows.length)[0];
+    if (named.length) return largestSupported(named);
   }
   const consensus = groups.filter((group) => group.label.toLowerCase() === "projections consensus");
-  if (consensus.length) return [...consensus].sort((left, right) => right.rows.length - left.rows.length)[0];
-  return [...groups].sort((left, right) => right.rows.length - left.rows.length)[0];
+  if (consensus.length) return largestSupported(consensus);
+  return largestSupported(groups);
 }
 
 export function parseProjectionCsv(text: string, fileName: string, options: ProjectionCsvOptions = {}): ParsedUpload {
@@ -199,12 +202,12 @@ export function parseProjectionCsv(text: string, fileName: string, options: Proj
   const selectedSetId = selected?.id ?? options.selectedSetId ?? "uploaded_set";
   const selectedSetName = selected?.label ?? options.selectedSetName ?? "Uploaded projection set";
   const selectedRows = selected?.rows ?? [];
-  const sourceOrderUsed = !headers.some((header) => ["rank", "ecr", "consensus_rank", "positional_rank", "pos_rank"].includes(header));
   const explicitRankHeader = headers.some((header) => ["rank", "ecr", "consensus_rank", "positional_rank", "pos_rank"].includes(header));
   const seenIds = new Set<string>();
   const acceptedRows: ParsedProjectionRow[] = [];
   const positionCounts: UploadReport["positionCounts"] = { QB: 0, RB: 0, WR: 0, TE: 0 };
   const rankCounts = new Map<string, number>();
+  let sourceOrderUsed = false;
 
   selectedRows.forEach(({ raw, line }) => {
     const stablePlayerId = valueFor(raw, ["id", "player_id", "fbg_id", "stable_player_id"]);
@@ -223,7 +226,7 @@ export function parseProjectionCsv(text: string, fileName: string, options: Proj
       errors.push({ row: line, field: "position", message: "The position is outside QB, RB, WR, and TE.", value: position });
       return;
     }
-    if (!team || team === "FA") {
+    if (!team || freeAgentTeams.has(team)) {
       errors.push({ row: line, field: "team", message: "The team is missing or marked FA.", value: team });
       return;
     }
@@ -244,6 +247,7 @@ export function parseProjectionCsv(text: string, fileName: string, options: Proj
     const explicitRank = valueFor(raw, ["rank", "ecr", "consensus_rank", "positional_rank", "pos_rank"]);
     const hasExplicitRank = Boolean(explicitRankHeader && explicitRank);
     const rank = hasExplicitRank ? Number(explicitRank) : (rankCounts.get(position) ?? 0) + 1;
+    if (!hasExplicitRank) sourceOrderUsed = true;
     if (!Number.isFinite(rank) || rank < 1) {
       errors.push({ row: line, field: "rank", message: "The positional rank must be a positive number.", value: explicitRank });
       return;
@@ -278,7 +282,7 @@ export function parseProjectionCsv(text: string, fileName: string, options: Proj
       sourceTimestamp,
       rows: totalRows,
       accepted: acceptedRows.length,
-      excluded: Math.max(0, selectedRows.length - acceptedRows.length),
+      excluded: Math.max(0, totalRows - acceptedRows.length),
       unresolved: 0,
       positionCounts,
       selectedSet: selectedSetId,

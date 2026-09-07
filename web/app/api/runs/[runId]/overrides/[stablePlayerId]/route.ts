@@ -26,6 +26,10 @@ function isFiniteOptional(value: unknown) {
   return value === undefined || (typeof value === "number" && Number.isFinite(value));
 }
 
+function isBooleanOptional(value: unknown) {
+  return value === undefined || typeof value === "boolean";
+}
+
 function rowForOverride(run: NonNullable<Awaited<ReturnType<typeof store.getRun>>>, stablePlayerId: string): ForecastRow | null {
   const resultRow = run.result?.rows.find((row) => row.stablePlayerId === stablePlayerId);
   if (!resultRow) return null;
@@ -53,10 +57,13 @@ function parseOverride(value: unknown) {
   if (!reason) return { error: "A reason is required before saving an override." } as const;
   if (reason.length > 500) return { error: "The override reason must be 500 characters or fewer." } as const;
   if (!isFiniteOptional(body.factor) || !isFiniteOptional(body.workloadFactor) || !isFiniteOptional(body.analystProjection)) return { error: "Override numeric fields must be finite." } as const;
+  if (!isBooleanOptional(body.inactive) || !isBooleanOptional(body.exclude) || !isBooleanOptional(body.defensePreset)) return { error: "Override state fields must be boolean." } as const;
+  if (body.factor !== undefined && body.workloadFactor !== undefined && body.factor !== body.workloadFactor) return { error: "Use one workload factor value." } as const;
   if (body.factor !== undefined && (body.factor < 0 || body.factor > 2)) return { error: "The workload factor must be from 0 through 2." } as const;
   if (body.workloadFactor !== undefined && (body.workloadFactor < 0 || body.workloadFactor > 2)) return { error: "The workload factor must be from 0 through 2." } as const;
   if (body.preset !== undefined && !["full", "half", "quarter", "reduced_role"].includes(body.preset)) return { error: "The named preset is unsupported." } as const;
   if (body.edits !== undefined) {
+    if (!body.edits || typeof body.edits !== "object" || Array.isArray(body.edits)) return { error: "Direct range edits must be an object." } as const;
     for (const [field, valueForField] of Object.entries(body.edits)) {
       if (!["floor", "median", "ceiling"].includes(field) || typeof valueForField !== "number" || !Number.isFinite(valueForField) || valueForField < 0) return { error: "Direct range edits must use finite non-negative floor, median, and ceiling values." } as const;
     }

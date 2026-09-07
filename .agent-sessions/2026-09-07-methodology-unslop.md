@@ -58,12 +58,23 @@ from. The choice table answers which candidate won held-out calibration. Those
 views can differ, so the table keeps its held-out caption and the page states
 that a new completed season can change a pick.
 
+## Follow-up
+
+The three expandable Model Card panels now appear below the Model Choice pane.
+The direct XGBoost titles now read `Machine Learning-based Ceiling Model` and
+`Machine Learning-based Floor Model`. The card bodies and the ffsimulator title
+remain unchanged.
+
+The follow-up removed the Candidate and Implemented status pills, removed the
+held-out-results action, renamed the choice pane to `Positional Model
+Selection`, and expanded the range note with short coverage and pinball-loss
+definitions.
+
 ## Verification
 
 - `npm run typecheck` from `web/` - passed.
-- `npm run lint` from `web/` - reaches the app but fails on the existing Hook
-  rule at `web/components/FloorCeilingApp.tsx:566`; no new Methodology lint
-  issue was reported.
+- `npm run lint` from `web/` - passed with 15 existing warnings and no errors;
+  no new Methodology lint issue was reported.
 - `npm run build` from `web/` - passed. Next.js compiled and generated all
   static pages.
 - T3 browser check - passed on desktop and mobile layouts. The Floor / P15
@@ -80,7 +91,7 @@ that a new completed season can change a pick.
 
 The Methodology tab now leads with the product contract, shows the serving
 model for each percentile and position, and lets readers compare floor and
-ceiling model choices. The three model cards remain unchanged.
+ceiling model choices before opening the three detailed Model Cards.
 
 ## Open Questions
 

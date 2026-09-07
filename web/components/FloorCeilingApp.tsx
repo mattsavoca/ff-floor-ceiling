@@ -353,9 +353,9 @@ export function FloorCeilingApp() {
       }
       const runsResponse = await fetch("/api/runs").catch(() => null);
       if (!runsResponse?.ok || cancelled) return;
-      const runsData = await runsResponse.json() as { runs?: Array<{ runId: string; state: string; uploadId: string; season: number; week: number; lastCompleteRunId?: string }>; lastCompleteRunId?: string };
+      const runsData = await runsResponse.json() as { runs?: Array<{ runId: string; state: string; uploadId: string; season: number; week: number; failure?: { stage?: string; message?: string; nextAction?: string } }>; lastCompleteRunId?: string };
       const storedRunId = window.sessionStorage.getItem("fc-active-run-id");
-      const active = runsData.runs?.find((run) => run.runId === storedRunId && (run.state === "Queued" || run.state === "Running"));
+      const active = runsData.runs?.find((run) => run.runId === storedRunId && (run.state === "Queued" || run.state === "Running" || run.state === "Failed"));
       const lastComplete = runsData.lastCompleteRunId;
       if (active) {
         setDataMode("live");
@@ -363,21 +363,22 @@ export function FloorCeilingApp() {
         setLiveUploadId(active.uploadId);
         setSeason(String(active.season));
         setWeek(String(active.week));
-      setRunId(active.runId);
-      setRunState(active.state === "Running" ? "Running" : "Queued");
-      if (lastComplete && lastComplete !== active.runId) {
-        const resultResponse = await fetch(`/api/runs/${lastComplete}/result`).catch(() => null);
-        const resultData = resultResponse?.ok ? await resultResponse.json() as { result?: ForecastResult } : null;
-        if (resultData?.result && !cancelled) {
-          setResultRunId(lastComplete);
-          setLiveRows(forecastRowsFromResult(resultData.result));
-          setSourceInputRevision(resultData.result.metadata.sourceInputRevision);
+        setRunId(active.runId);
+        setRunState(active.state as RunState);
+        setRunFailure(active.failure ?? null);
+        if (lastComplete && lastComplete !== active.runId) {
+          const resultResponse = await fetch(`/api/runs/${lastComplete}/result`).catch(() => null);
+          const resultData = resultResponse?.ok ? await resultResponse.json() as { result?: ForecastResult } : null;
+          if (resultData?.result && !cancelled) {
+            setResultRunId(lastComplete);
+            setLiveRows(forecastRowsFromResult(resultData.result));
+            setSourceInputRevision(resultData.result.metadata.sourceInputRevision);
+          }
+          const overrideResponse = await fetch(`/api/runs/${lastComplete}/overrides`).catch(() => null);
+          const overrideData = overrideResponse?.ok ? await overrideResponse.json() as { overrideSet?: OverrideSet } : null;
+          if (overrideData?.overrideSet && !cancelled) setLiveOverrideSet(overrideData.overrideSet);
         }
-        const overrideResponse = await fetch(`/api/runs/${lastComplete}/overrides`).catch(() => null);
-        const overrideData = overrideResponse?.ok ? await overrideResponse.json() as { overrideSet?: OverrideSet } : null;
-        if (overrideData?.overrideSet && !cancelled) setLiveOverrideSet(overrideData.overrideSet);
         await restoreUpload(active.uploadId);
-      }
       } else if (lastComplete) {
         setDataMode("live");
         setResultRunId(lastComplete);
@@ -500,8 +501,8 @@ export function FloorCeilingApp() {
   }
 
   async function handleFile(file: File, selectedSetId?: string) {
-    if (file.size > 10 * 1024 * 1024) {
-      setUploadErrors([{ row: 0, field: "file", message: "The file is larger than the 10 MB upload limit." }]);
+    if (file.size > 20 * 1024 * 1024) {
+      setUploadErrors([{ row: 0, field: "file", message: "The file is larger than the 20 MB upload limit." }]);
       setRunState("Failed");
       return;
     }
@@ -511,6 +512,7 @@ export function FloorCeilingApp() {
     setLiveRows([]);
     setLiveOverrideSet(null);
     setRunFailure(null);
+    window.sessionStorage.removeItem("fc-active-run-id");
     try {
       const form = new FormData();
       form.set("file", file);
@@ -530,6 +532,7 @@ export function FloorCeilingApp() {
       setResultRunId("");
       setRunId("pending");
       setRunState(data.report.accepted > 0 ? "Ready" : "Failed");
+      window.sessionStorage.removeItem("fc-active-run-id");
       setToast(data.report.accepted > 0 ? `Accepted ${data.report.accepted.toLocaleString()} rows. Row exclusions remain visible in the report.` : "The upload has no accepted player rows.");
     } catch {
       setRunState("Failed");
@@ -559,6 +562,7 @@ export function FloorCeilingApp() {
     setUploadErrors([]);
     setRunState("Complete");
     setRunId("run_w1_2026_7f3a");
+    window.sessionStorage.removeItem("fc-active-run-id");
     setToast("The bundled demonstration is active. Live runs start after a CSV upload.");
   }
 
@@ -586,8 +590,6 @@ export function FloorCeilingApp() {
       return;
     }
     setRunState("Checking upload");
-    setLiveRows([]);
-    setLiveOverrideSet(null);
     const numericWeek = Number.parseInt(week, 10) || 1;
     try {
       const response = await fetch("/api/runs", {
@@ -1242,10 +1244,9 @@ function P85ModelCard() {
         <div className="methodology-model-icon methodology-model-icon-xgboost"><FileText size={19} /></div>
         <div>
           <span className="panel-eyebrow">Model card</span>
-          <h2>Direct XGBoost p85 ceiling</h2>
+          <h2>Machine Learning-based Ceiling Model</h2>
           <p>Purpose, training data, held-out evidence, and known limits for the direct ceiling candidate.</p>
         </div>
-        <StatusPill label="Candidate" tone="warn" />
         <ChevronDown size={18} aria-hidden="true" />
       </summary>
 
@@ -1381,10 +1382,9 @@ function P15ModelCard() {
         <div className="methodology-model-icon methodology-model-icon-floor"><FileText size={19} /></div>
         <div>
           <span className="panel-eyebrow">Model card</span>
-          <h2>Direct XGBoost p15 floor</h2>
+          <h2>Machine Learning-based Floor Model</h2>
           <p>Purpose, training data, held-out evidence, and limits for the implemented lower-tail model.</p>
         </div>
-        <StatusPill label="Implemented" tone="good" />
         <ChevronDown size={18} aria-hidden="true" />
       </summary>
 
@@ -1525,9 +1525,7 @@ function MethodologyPage({ navigate }: MethodologyPageProps) {
         <div className="methodology-range-marker methodology-range-marker-middle"><strong>p50</strong><span>Median</span><small>The coin-flip line. Half of outcomes land above.</small></div>
         <div className="methodology-range-marker methodology-range-marker-ceiling"><strong>p85</strong><span>Ceiling</span><small>A good week, not the best week. About 15 games in 100 finish over it.</small></div>
       </div>
-      <p className="methodology-range-caveat">Those are the rates the model claims. Whether it hits them is what the calibration tab measures.</p>
-
-      <FfsimulatorQbModelCard />
+      <p className="methodology-range-caveat">Coverage is the percentage of actual scores at or below a marker, with targets of 15%, 50%, and 85%. Pinball loss is a weighted error score in PPR points, and lower is better, so the calibration tab checks both before it chooses a model.</p>
 
       <div className="methodology-model-grid">
         <article className="methodology-model-card methodology-model-card-simulation">
@@ -1556,20 +1554,21 @@ function MethodologyPage({ navigate }: MethodologyPageProps) {
         </article>
       </div>
 
-      <P85ModelCard />
-      <P15ModelCard />
-
       <Panel className="methodology-output-map-panel" eyebrow="Model output" title="Which model supplies each number?">
         <div className="methodology-output-map-wrap"><table className="methodology-output-map"><caption className="sr-only">Model source for each range marker by position</caption><thead><tr><th scope="col">Position</th><th scope="col">Floor p15</th><th scope="col">Median p50</th><th scope="col">Ceiling p85</th></tr></thead><tbody>{outputModelRows.map((row) => <tr key={row.position}><th scope="row"><span className="position-chip">{row.position}</span></th><td>{modelBadge(row.floor)}</td><td>{modelBadge(row.median)}</td><td>{modelBadge(row.ceiling)}</td></tr>)}</tbody></table></div>
         <Explainer>For RB, WR, and TE, the CSV projection remains a separate average. It does not fill the p50 column.</Explainer>
       </Panel>
 
-      <Panel className="methodology-choice-panel" eyebrow="Model choice" title="How each position gets its model" action={<Button variant="secondary" onClick={() => navigate("calibration")} icon={<Target size={15} />}>Open held-out results</Button>}>
-        <div className="methodology-choice-copy"><p>Each position picks its own model. Both candidates run on the same 9,390 player-weeks from 2024 and 2025, with predictions locked before kickoff.</p><ol className="methodology-choice-rules"><li><strong>Coverage first.</strong> A candidate survives only if {choiceCoverageRange} of actual scores land at or below its {choicePercentile}.</li><li><strong>Then pinball loss.</strong> Lowest wins. The loss punishes a {choiceEstimate} set too {choiceMissDirection} harder than one set too {choiceOtherDirection}, which is what you want from a {choiceEstimate}.</li></ol></div>
+      <Panel className="methodology-choice-panel" eyebrow="Model choice" title="Positional Model Selection">
+        <div className="methodology-choice-copy"><p>Each position uses its own model, choosing between the simulation-based or machine learning-based methodology, whichever achieves the more calibrated result.</p><ol className="methodology-choice-rules"><li><strong>Coverage first.</strong> A candidate survives only if {choiceCoverageRange} of actual scores land at or below its {choicePercentile}.</li><li><strong>Then pinball loss.</strong> Lowest wins. The loss punishes a {choiceEstimate} set too {choiceMissDirection} harder than one set too {choiceOtherDirection}, which is what you want from a {choiceEstimate}.</li></ol></div>
         <div className="calibration-subnav methodology-choice-toggle" role="tablist" aria-label="Model choice estimate"><button type="button" role="tab" aria-selected={choiceIsCeiling} className={cx(choiceIsCeiling && "active")} onClick={() => setChoiceView("ceiling")}>Ceiling / P85</button><button type="button" role="tab" aria-selected={!choiceIsCeiling} className={cx(!choiceIsCeiling && "active")} onClick={() => setChoiceView("floor")}>Floor / P15</button></div>
         <div className="methodology-choice-table-wrap"><table className="methodology-choice-table"><caption className="sr-only">Held-out {choicePercentile} coverage and pinball loss by position</caption><thead><tr><th rowSpan={2}>Position</th><th colSpan={2}>ffsimulator</th><th colSpan={2}>XGBoost</th><th rowSpan={2}>Selected</th></tr><tr><th>Coverage</th><th>Loss</th><th>Coverage</th><th>Loss</th></tr></thead><tbody>{choiceRows.map((row) => <tr key={row.position}><th scope="row"><span className="position-chip">{row.position}</span></th><td>{formatCalibrationPercent(row.ffsimulatorCoverage)}</td><td>{formatCalibrationMetric(row.ffsimulatorPinballLoss)}</td><td>{formatCalibrationPercent(row.xgbCoverage)}</td><td>{formatCalibrationMetric(row.xgbPinballLoss)}</td><td>{modelBadge(row.selectedModel)}</td></tr>)}</tbody></table></div>
         <Explainer>Held-out results, not this week&apos;s forecast. A new completed season can change a pick. Until then it&apos;s frozen.</Explainer>
       </Panel>
+
+      <FfsimulatorQbModelCard />
+      <P85ModelCard />
+      <P15ModelCard />
 
       <div id="methodology-source-map"><Panel className="methodology-sources-panel" eyebrow="Source map" title="Where to inspect the implementation"><div className="methodology-source-grid"><div><strong>Ranked simulation</strong><code>R/01_rankings.R</code><code>R/02_ffsimulator.R</code><code>R/03_summaries.R</code><small>Ranking normalization, draws, and percentiles.</small></div><div><strong>Direct XGBoost</strong><code>scripts/08_xgb_p85_projection_experiment.py</code><code>scripts/08_xgb_p15_projection_experiment.py</code><code>scripts/10_build_calibration_page_data.py</code><small>Feature construction, walk-forward fits, and p85 and p15 comparison data.</small></div><div><strong>Historical evidence</strong><code>backtest_fbg_2023_2025/README.md</code><code>backtest_fbg_2023_2025/outputs/player_backtest_metadata.json</code><code>outputs/xgb_p85_projection/metadata.json</code><code>outputs/xgb_p15_projection/metadata.json</code><code>docs/model_card_ffsimulator_qb.md</code><small>Source choices, cutoffs, scoring rules, model settings, and the quarterback model card.</small></div></div><Explainer>Private uploads and temporary session records do not enter the published calibration data.</Explainer></Panel></div>
     </>

@@ -13,7 +13,9 @@ type SessionToken = {
 };
 
 function secret() {
-  return process.env.FC_SESSION_SECRET ?? localSecret;
+  if (process.env.FC_SESSION_SECRET) return process.env.FC_SESSION_SECRET;
+  if (process.env.NODE_ENV === "production") throw new Error("FC_SESSION_SECRET is required in production.");
+  return localSecret;
 }
 
 function sign(payload: string) {

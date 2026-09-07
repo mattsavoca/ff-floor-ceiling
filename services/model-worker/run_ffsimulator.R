@@ -30,7 +30,7 @@ if (!is.finite(n_simulations) || n_simulations < 100L || n_simulations > 10000L)
 if (!is.finite(week) || week < 1L || week > 18L) stop("--week must be from 1 through 18.", call. = FALSE)
 if (!is.finite(seed) || seed < 0L) stop("--seed must be a non-negative integer.", call. = FALSE)
 
-rankings <- read.csv(rankings_path, check.names = FALSE, stringsAsFactors = FALSE)
+rankings <- read.csv(rankings_path, check.names = FALSE, stringsAsFactors = FALSE, colClasses = "character")
 required_columns <- c("player_id", "player_name", "position", "team", "rank", "rank_uncertainty")
 missing_columns <- setdiff(required_columns, names(rankings))
 if (length(missing_columns)) stop("Rankings are missing columns: ", paste(missing_columns, collapse = ", "), call. = FALSE)
@@ -45,6 +45,7 @@ rankings$source_order <- as.integer(rankings$source_order)
 if (anyDuplicated(rankings$player_id)) stop("Rankings contain duplicate player IDs.", call. = FALSE)
 if (any(!is.finite(rankings$rank)) || any(rankings$rank <= 0)) stop("Rankings contain invalid ranks.", call. = FALSE)
 if (any(!is.finite(rankings$rank_uncertainty)) || any(rankings$rank_uncertainty < 0)) stop("Rankings contain invalid rank uncertainty.", call. = FALSE)
+if (any(!is.finite(rankings$source_order)) || any(rankings$source_order < 1L)) stop("Rankings contain invalid source order values.", call. = FALSE)
 
 outcome_pool <- readRDS(outcome_pool_path)
 draws <- simulate_player_week_outcomes(
@@ -68,6 +69,9 @@ summary <- merge(
 summary <- summary[order(summary$source_order), , drop = FALSE]
 if (anyNA(summary$p15) || anyNA(summary$mean) || anyNA(summary$median) || anyNA(summary$p85)) {
   stop("The simulator returned incomplete player summaries.", call. = FALSE)
+}
+if (any(!is.finite(summary$probability_zero)) || any(!is.finite(summary$probability_active)) || any(summary$probability_zero < 0 | summary$probability_zero > 1) || any(summary$probability_active < 0 | summary$probability_active > 1)) {
+  stop("The simulator returned invalid activity probabilities.", call. = FALSE)
 }
 if (any(summary$p15 > summary$median) || any(summary$median > summary$p85)) {
   stop("The simulator returned an invalid percentile order.", call. = FALSE)

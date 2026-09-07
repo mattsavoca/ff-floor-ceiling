@@ -40,10 +40,19 @@ product scope.
 8. Keep GitHub unchanged during a Vercel-only rollback. Make a Git rollback
    only after the owner requests it.
 
-The browser does not run model training or simulation. `/api/run` creates a
-bounded, idempotent queue request. `services/model-worker` defines the separate
-persistent worker boundary. `persistentWorker: false` in `/api/health` remains
-deliberate for the preview.
+The browser does not run model training or simulation. The real forecast tab
+uploads a source file, creates a durable run record, and reads the complete
+`forecast-result.v2` output. The server worker derives rank and uncertainty,
+runs `ffsimulator`, calls the released p15 and p85 services for RB, WR, and TE,
+checks the full join, and publishes no result until all accepted IDs are
+present. Manual overrides remain in a separate run-scoped set.
+
+`/api/run` creates a bounded queue request. `services/model-worker` defines the
+separate persistent worker boundary. The local preview starts R and Python
+processes inside the web process, so `persistentWorker: false` in
+`/api/health` remains deliberate. A production deployment needs a shared
+worker and durable job storage. Set `FC_SESSION_SECRET` in production. Do not
+use the local development secret for a deployed session boundary.
 
 ## Limits
 
@@ -62,6 +71,9 @@ permanent project policy.
 - `services/model-worker/README.md`
 - `contracts/model-job.v1.json`
 - `contracts/forecast-result.v1.json`
+- `contracts/forecast-result.v2.json`
+- `contracts/forecast-overrides.v1.json`
+- `scripts/test_forecast_workflow.ps1`
 - `.agent-sessions/2026-09-06-model-monitoring-site-deploy-and-rollback.md`
 - `npx vercel inspect <deployment-url>`
 - `npx vercel curl / --deployment <deployment-url>`

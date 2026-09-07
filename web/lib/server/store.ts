@@ -4,7 +4,6 @@ import path from "node:path";
 import type { ParsedProjectionRow } from "../csv";
 import type {
   ForecastResult,
-  OverrideHistoryEntry,
   OverrideSet,
   OverrideSpec,
   UploadReport,
@@ -110,9 +109,14 @@ function cleanExpired(state: PersistedState) {
       .filter((item) => item.workspaceExpiresAtMs > now)
       .map((item) => item.workspaceId),
   );
-  state.uploads = state.uploads.filter((item) => activeWorkspaces.has(item.workspaceId));
-  state.runs = state.runs.filter((item) => activeWorkspaces.has(item.workspaceId));
-  state.overrideSets = state.overrideSets.filter((item) => activeWorkspaces.has(item.workspaceId));
+  const uploads = state.uploads.filter((item) => activeWorkspaces.has(item.workspaceId));
+  const runs = state.runs.filter((item) => activeWorkspaces.has(item.workspaceId));
+  const overrideSets = state.overrideSets.filter((item) => activeWorkspaces.has(item.workspaceId));
+  const changed = uploads.length !== state.uploads.length || runs.length !== state.runs.length || overrideSets.length !== state.overrideSets.length;
+  state.uploads = uploads;
+  state.runs = runs;
+  state.overrideSets = overrideSets;
+  return changed;
 }
 
 async function loadState() {
@@ -125,7 +129,6 @@ async function loadState() {
       runs: Array.isArray(parsed.runs) ? parsed.runs : [],
       overrideSets: Array.isArray(parsed.overrideSets) ? parsed.overrideSets : [],
     };
-    cleanExpired(state);
     return state;
   } catch (error) {
     const code = error && typeof error === "object" && "code" in error ? error.code : undefined;
@@ -140,7 +143,7 @@ let writeQueue: Promise<void> = Promise.resolve();
 async function getState() {
   statePromise ??= loadState();
   const state = await statePromise;
-  cleanExpired(state);
+  if (cleanExpired(state)) await persist(state);
   return state;
 }
 
