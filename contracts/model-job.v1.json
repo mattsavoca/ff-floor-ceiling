@@ -22,7 +22,7 @@
       }
     },
     "modelVersion": { "type": "string", "pattern": "^[a-zA-Z0-9._-]{1,80}$" },
-    "simulationCount": { "type": "integer", "enum": [100, 1000] },
+    "simulationCount": { "type": "integer", "minimum": 100, "maximum": 1000, "multipleOf": 100 },
     "seed": { "type": "integer", "minimum": 0, "maximum": 2147483647 },
     "inputRevision": { "type": "string", "minLength": 1, "maxLength": 128 },
     "upload": {

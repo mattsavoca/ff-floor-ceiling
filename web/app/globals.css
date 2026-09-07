@@ -103,7 +103,10 @@ a { color: inherit; }
 .session-menu-divider { height: 1px; margin: 9px 0 8px; background: var(--line-light); }
 .session-menu > .button { width: 100%; justify-content: flex-start; padding-left: 2px; }
 .session-menu p { margin: 10px 1px 0; color: var(--muted); font-size: 10px; line-height: 1.45; }
-.context-strip { min-height: 46px; display: flex; align-items: center; gap: 14px; padding: 7px 34px; border-bottom: 1px solid var(--line); background: #fff; }
+.context-strip { min-height: 46px; display: flex; align-items: center; gap: 14px; padding: 7px 34px; border-bottom: 1px solid var(--line); background: #fff; cursor: pointer; }
+.context-strip:hover { background: #fbfdfe; }
+.context-strip:focus-visible { position: relative; z-index: 1; outline: 2px solid #73afd1; outline-offset: -2px; }
+.context-strip .select-wrap select { cursor: pointer; }
 .filter-control { display: grid; gap: 5px; min-width: 115px; }
 .filter-control > span:first-child { color: var(--muted); font-size: 10px; font-weight: 650; letter-spacing: 0.02em; }
 .select-wrap { position: relative; display: flex; align-items: center; }
@@ -228,6 +231,27 @@ a { color: inherit; }
 .position-stat { display: grid; gap: 2px; }
 .position-stat strong { color: var(--navy); font: 11px "SFMono-Regular", Consolas, monospace; }
 .position-stat small { color: var(--muted); font-size: 9px; white-space: nowrap; }
+.weekly-model-list { display: grid; gap: 1px; margin: 0 19px 14px; border: 1px solid var(--line-light); border-radius: 7px; overflow: hidden; background: var(--line-light); }
+.weekly-model-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 38px; padding: 6px 10px; background: #fff; }
+.weekly-model-position { display: flex; align-items: center; gap: 8px; min-width: 0; color: var(--navy); font-size: 10px; }
+.weekly-model-position .position-chip { flex: 0 0 auto; }
+.weekly-model-row .methodology-model-badge { flex: 0 0 auto; }
+.overview-scope-list { display: grid; gap: 0; padding: 0 12px; }
+.overview-scope-list > div { display: grid; grid-template-columns: 28px 1fr auto; align-items: center; gap: 8px; min-height: 55px; padding: 8px 7px; border-bottom: 1px solid var(--line-light); }
+.overview-scope-list > div:last-child { border-bottom: 0; }
+.weekly-metrics-table { width: 100%; min-width: 670px; border-collapse: collapse; }
+.weekly-metrics-table th, .weekly-metrics-table td { padding: 10px 12px; border-bottom: 1px solid var(--line-light); color: var(--muted); font-size: 11px; text-align: left; white-space: nowrap; }
+.weekly-metrics-table thead th { background: #fbfcfd; color: var(--muted); font-size: 10px; font-weight: 730; }
+.weekly-metrics-table thead th:first-child, .weekly-metrics-table tbody th:first-child { padding-left: 19px; }
+.weekly-metrics-table thead th:last-child, .weekly-metrics-table tbody td:last-child { padding-right: 19px; }
+.weekly-metrics-table tbody tr:nth-child(even) td, .weekly-metrics-table tbody tr:nth-child(even) th { background: #fcfdfe; }
+.weekly-metrics-table tbody tr:last-child th, .weekly-metrics-table tbody tr:last-child td { border-bottom: 0; }
+.weekly-metrics-table tbody th { color: var(--navy); font-weight: 650; }
+.weekly-metrics-table tbody th > span:last-child { margin-left: 5px; }
+.weekly-readout-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; margin: 0 19px 14px; border: 1px solid var(--line-light); border-radius: 7px; overflow: hidden; background: var(--line-light); }
+.weekly-readout-grid > div { display: grid; gap: 5px; min-height: 94px; padding: 12px 11px; background: #fff; }
+.weekly-readout-grid span, .weekly-readout-grid small { color: var(--muted); font-size: 9px; line-height: 1.35; }
+.weekly-readout-grid strong { color: var(--navy); font-size: 18px; letter-spacing: -0.02em; }
 .loop-list { padding: 0 12px 9px; }
 .loop-step { width: 100%; display: flex; align-items: center; gap: 9px; min-height: 38px; padding: 7px; border: 0; border-bottom: 1px solid var(--line-light); background: transparent; color: var(--navy); text-align: left; }
 .loop-step:hover { background: var(--blue-pale); }
@@ -528,10 +552,17 @@ a { color: inherit; }
 .run-model-card strong { color: var(--navy); font-size: 11px; }
 .run-model-card span { color: var(--muted); font-size: 9px; }
 .run-settings { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; margin: 0 19px 17px; border: 1px solid var(--line-light); border-radius: 7px; overflow: hidden; }
-.run-settings > div { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px; background: #fff; }
+.run-settings > div, .run-settings > label { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px; background: #fff; }
 .run-settings span { color: var(--muted); font-size: 10px; }
 .run-settings strong { display: flex; align-items: center; gap: 5px; color: var(--navy); font: 10px "SFMono-Regular", Consolas, monospace; }
 .run-settings em { color: var(--muted); font: 9px ui-sans-serif, system-ui, sans-serif; font-style: normal; }
+.simulation-count-field { display: inline-flex; align-items: center; gap: 4px; }
+.simulation-count-field input { width: 68px; min-height: 25px; padding: 0 5px; border: 1px solid var(--line); border-radius: 5px; outline: none; color: var(--navy); font: 10px "SFMono-Regular", Consolas, monospace; text-align: right; }
+.simulation-count-field input:focus { border-color: #73afd1; box-shadow: 0 0 0 3px rgba(18, 100, 163, .12); }
+.simulation-count-field input[aria-invalid="true"] { border-color: #d87945; background: #fff9f5; }
+.simulation-count-field input:disabled { cursor: not-allowed; opacity: .65; }
+.simulation-count-field em { white-space: nowrap; }
+.run-setting-help { margin: -9px 19px 14px; color: var(--muted); font-size: 9px; line-height: 1.35; }
 .run-action { margin: 0 19px 14px; }
 .run-action > span { display: block; margin-top: 7px; color: var(--muted); font-size: 9px; line-height: 1.35; }
 .run-progress { margin: 0 19px 14px; padding: 10px; border: 1px solid #c5dbe8; border-radius: 7px; background: var(--blue-pale); }

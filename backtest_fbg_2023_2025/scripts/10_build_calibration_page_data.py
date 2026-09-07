@@ -15,6 +15,7 @@ SCORING_FORMAT = "PPR"
 SCORING_CONTRACT_VERSION = "ppr_v1"
 POSITIONS = ("QB", "RB", "WR", "TE")
 SEASONS = (2024, 2025)
+OOS_WEEKS = (14, 15, 16, 17)
 MODEL_LABELS = {"simulation_baseline": "ffsimulator", "xgb_projection": "XGBoost"}
 
 
@@ -210,6 +211,78 @@ def build_data() -> dict[str, Any]:
         selected_rows["actual_score"].to_numpy(), selected_rows["prediction"].to_numpy()
     )
 
+    weekly = xgb_predictions[
+        xgb_predictions["season"].eq(2025) & xgb_predictions["week"].isin(OOS_WEEKS)
+    ].copy()
+    if set(weekly["week"].unique()) != set(OOS_WEEKS):
+        raise ValueError("The page requires 2025 OOS rows for Weeks 14 through 17.")
+
+    weekly_position_metrics = []
+    for (week, position), group in weekly.groupby(["week", "position"], sort=True):
+        position_name = str(position)
+        selected_model = selected_by_position[position_name]
+        prediction_column = "baseline_p85" if selected_model == "ffsimulator" else "xgb_p85"
+        values = p85_metrics(
+            group["actual_score"].to_numpy(), group[prediction_column].to_numpy()
+        )
+        weekly_position_metrics.append(
+            clean(
+                {
+                    "season": 2025,
+                    "week": int(week),
+                    "position": position_name,
+                    "model": selected_model,
+                    "n": values["n"],
+                    "coverage": values["p85_coverage"],
+                    "pinballLoss": values["p85_pinball_loss"],
+                    "p85Mae": values["p85_mae"],
+                    "p85Rmse": values["p85_rmse"],
+                    "highSideMissRate": values["high_side_miss_rate"],
+                    "meanScoreAboveP85": values["mean_score_above_p85"],
+                    "averageTailExcess": values["average_tail_excess"],
+                    "nAboveP85": values["n_above_p85"],
+                    "rankSpearman": values["p85_rank_spearman"],
+                    "scoringFormat": SCORING_FORMAT,
+                }
+            )
+        )
+    if len(weekly_position_metrics) != len(OOS_WEEKS) * len(POSITIONS):
+        raise ValueError("The page requires one selected model row for every OOS week and position.")
+
+    weekly_summaries = []
+    for week, group in weekly.groupby("week", sort=True):
+        selected_parts = []
+        for position, selected_model in selected_by_position.items():
+            prediction_column = "baseline_p85" if selected_model == "ffsimulator" else "xgb_p85"
+            selected_parts.append(
+                group[group["position"].eq(position)][["actual_score", prediction_column]].rename(
+                    columns={prediction_column: "prediction"}
+                )
+            )
+        selected_week = pd.concat(selected_parts, ignore_index=True)
+        values = p85_metrics(
+            selected_week["actual_score"].to_numpy(), selected_week["prediction"].to_numpy()
+        )
+        weekly_summaries.append(
+            clean(
+                {
+                    "season": 2025,
+                    "week": int(week),
+                    "n": values["n"],
+                    "coverage": values["p85_coverage"],
+                    "pinballLoss": values["p85_pinball_loss"],
+                    "p85Mae": values["p85_mae"],
+                    "p85Rmse": values["p85_rmse"],
+                    "highSideMissRate": values["high_side_miss_rate"],
+                    "meanScoreAboveP85": values["mean_score_above_p85"],
+                    "averageTailExcess": values["average_tail_excess"],
+                    "nAboveP85": values["n_above_p85"],
+                    "rankSpearman": values["p85_rank_spearman"],
+                    "scoringFormat": SCORING_FORMAT,
+                }
+            )
+        )
+
     bins = pd.read_csv(xgb_output / "p85_calibration.csv")
     require_ppr(bins, "XGBoost p85 calibration")
     bins = bins[bins["n"].ge(30)].copy()
@@ -361,6 +434,8 @@ def build_data() -> dict[str, Any]:
                 if MODEL_LABELS[str(row["model"])] == selected_by_position[str(row["position"])]
             ],
             "oosSeasonSummaries": season_summaries,
+            "oosWeeklyPositionMetrics": weekly_position_metrics,
+            "oosWeeklySummaries": weekly_summaries,
             "modelFits": model_fits,
             "featureFamilies": [
                 {"name": "Rank summaries", "detail": "Week, consensus rank, rank spread, projector count, and rank limits."},
@@ -409,6 +484,8 @@ def write_typescript(data: dict[str, Any]) -> None:
         "overallMetrics",
         "oosSeasonPositionMetrics",
         "oosSeasonSummaries",
+        "oosWeeklyPositionMetrics",
+        "oosWeeklySummaries",
         "modelFits",
         "featureFamilies",
         "calibrationBinMinimum",

@@ -47,6 +47,8 @@ import {
   calibrationBinMinimum,
   calibrationModel,
   oosSeasonPositionMetrics,
+  oosWeeklyPositionMetrics,
+  oosWeeklySummaries,
   positionModelSelections,
   scoringContract,
   selectedCalibrationBins,
@@ -56,9 +58,9 @@ import {
 import {
   demoForecasts,
   demoUploadReport,
-  positionSummaries,
 } from "@/lib/project-data";
 import { applyOverride, calculateDemoSummary, clampFactor, formatNumber, validateRange } from "@/lib/metrics";
+import { DEFAULT_SIMULATION_COUNT, MAX_SIMULATIONS, MIN_SIMULATIONS, SIMULATION_STEP, isValidSimulationCount } from "@/lib/simulation-config";
 import type { ForecastRow, OverrideSpec, RangeValues, RunState, TabId, UploadReport, ViewMode } from "@/lib/types";
 import type { EChartsOption } from "echarts";
 
@@ -71,6 +73,15 @@ const navItems: Array<{ id: TabId; label: string; description: string; icon: typ
 ];
 
 const positionOptions = ["All", "QB", "RB", "WR", "TE"] as const;
+const monitoringSeasonOptions = ["2025"] as const;
+const monitoringWeekOptions = ["14", "15", "16", "17"] as const;
+const monitoringPositionOrder = ["QB", "RB", "WR", "TE"] as const;
+const positionDisplayNames: Record<(typeof monitoringPositionOrder)[number], string> = {
+  QB: "Quarterback",
+  RB: "Running back",
+  WR: "Wide receiver",
+  TE: "Tight end",
+};
 const runStates: RunState[] = ["Empty", "Checking upload", "Ready", "Queued", "Running", "Complete", "Failed", "Canceled"];
 type OverrideHistoryEntry = { id: string; label: string; detail: string; time: string; tone: "blue" | "orange" | "gray"; previous?: RangeValues; next?: RangeValues };
 
@@ -176,11 +187,11 @@ function DataTable<T extends object>({ data, columns, empty = "No rows match the
   );
 }
 
-function ContextStrip({ season, week, metricDefinition, onSeason, onWeek, onMetricDefinition }: { season: string; week: string; metricDefinition: string; onSeason: (value: string) => void; onWeek: (value: string) => void; onMetricDefinition: (value: string) => void }) {
+function ContextStrip({ season, week, metricDefinition, onSeason, onWeek, onMetricDefinition, onNavigateOverview }: { season: string; week: string; metricDefinition: string; onSeason: (value: string) => void; onWeek: (value: string) => void; onMetricDefinition: (value: string) => void; onNavigateOverview: () => void }) {
   return (
-    <div className="context-strip">
-      <FilterSelect label="Season" value={season} options={["2026", "2025", "2024"]} onChange={onSeason} compact />
-      <FilterSelect label="Week" value={week} options={["1", "2", "3", "4", "Season to date"]} onChange={onWeek} compact />
+    <div className="context-strip" role="link" tabIndex={0} aria-label="Open Overview model performance" title="Open Overview model performance" onClick={(event) => { const target = event.target as HTMLElement; if (target.closest?.("label")) return; onNavigateOverview(); }} onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onNavigateOverview(); } }}>
+      <FilterSelect label="Season" value={season} options={monitoringSeasonOptions} onChange={onSeason} compact />
+      <FilterSelect label="Week" value={week} options={monitoringWeekOptions} onChange={onWeek} compact />
       <FilterSelect label="Metric" value={metricDefinition} options={["Outcome metric v1.0"]} onChange={onMetricDefinition} compact />
       <div className="context-divider" />
       <div className="context-meta"><span className="live-dot" /> Source refresh <strong>Aug 31, 2026</strong></div>
@@ -188,10 +199,6 @@ function ContextStrip({ season, week, metricDefinition, onSeason, onWeek, onMetr
       <StatusPill label="Bundled output" tone="blue" />
     </div>
   );
-}
-
-function MiniBar({ value, max = 1, color = "blue" }: { value: number; max?: number; color?: "blue" | "orange" | "green" }) {
-  return <span className="mini-bar"><span className={`mini-bar-fill ${color}`} style={{ width: `${Math.min(100, (value / max) * 100)}%` }} /></span>;
 }
 
 function SectionIntro({ eyebrow, title, children, status, action }: { eyebrow: string; title: string; children: React.ReactNode; status?: React.ReactNode; action?: React.ReactNode }) {
@@ -208,8 +215,8 @@ function ForecastRange({ row, override, onSelect }: { row: ForecastRow; override
 
 export function FloorCeilingApp() {
   const [activeTab, setActiveTab] = useState<TabId>("overview");
-  const [season, setSeason] = useState("2026");
-  const [week, setWeek] = useState("1");
+  const [season, setSeason] = useState("2025");
+  const [week, setWeek] = useState("17");
   const [metricDefinition, setMetricDefinition] = useState("Outcome metric v1.0");
   const [workspaceId, setWorkspaceId] = useState("ws_w1_2026_7f3a1c");
   const [expiresAt, setExpiresAt] = useState("2026-09-07T10:00:00.000Z");
@@ -218,6 +225,7 @@ export function FloorCeilingApp() {
   const [upload, setUpload] = useState<UploadReport>(demoUploadReport);
   const [runState, setRunState] = useState<RunState>("Complete");
   const [runId, setRunId] = useState("run_w1_2026_7f3a");
+  const [simulationCount, setSimulationCount] = useState(String(DEFAULT_SIMULATION_COUNT));
   const [viewMode, setViewMode] = useState<ViewMode>("original");
   const [projectionSearch, setProjectionSearch] = useState("");
   const [projectionPosition, setProjectionPosition] = useState("All");
@@ -280,12 +288,28 @@ export function FloorCeilingApp() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
+  function updateContextSeason(value: string) {
+    setSeason(value);
+    if (activeTab !== "overview") navigate("overview");
+  }
+
+  function updateContextWeek(value: string) {
+    setWeek(value);
+    if (activeTab !== "overview") navigate("overview");
+  }
+
+  function updateContextMetric(value: string) {
+    setMetricDefinition(value);
+    if (activeTab !== "overview") navigate("overview");
+  }
+
   function resetWorkspace() {
     setOverrides({});
     setOverrideHistory([]);
     setUpload(demoUploadReport);
     setRunState("Complete");
     setRunId("run_w1_2026_7f3a");
+    setSimulationCount(String(DEFAULT_SIMULATION_COUNT));
     setProjectionSearch("");
     setToast("The temporary workspace now shows the public demonstration.");
     setSessionMenuOpen(false);
@@ -328,6 +352,11 @@ export function FloorCeilingApp() {
       setToast("Resolve the upload rows before starting a run.");
       return;
     }
+    const numericSimulationCount = Number(simulationCount);
+    if (!isValidSimulationCount(numericSimulationCount)) {
+      setToast(`Enter a simulation count from ${MIN_SIMULATIONS.toLocaleString()} to ${MAX_SIMULATIONS.toLocaleString()} in steps of ${SIMULATION_STEP}.`);
+      return;
+    }
     setRunState("Checking upload");
     const numericWeek = Number.parseInt(week, 10) || 1;
     const submissionToken = crypto.randomUUID().replaceAll("-", "").slice(0, 24);
@@ -339,7 +368,7 @@ export function FloorCeilingApp() {
           season: Number(season),
           week: numericWeek,
           metricDefinitionVersion: metricDefinition,
-          simulationCount: 100,
+          simulationCount: numericSimulationCount,
           acceptedRows: upload.accepted,
           inputRevision: `${upload.fileName}:${upload.accepted}:${upload.rows}`,
           submissionToken,
@@ -441,12 +470,12 @@ export function FloorCeilingApp() {
       {mobileNavOpen ? <button className="nav-scrim" type="button" onClick={() => setMobileNavOpen(false)} aria-label="Close navigation" /> : null}
       <main className="main-area">
         <header className={cx("topbar", activeTab === "projection" && "projection-topbar")}><div className="mobile-brand"><button type="button" className="menu-button" onClick={() => setMobileNavOpen(true)} aria-label="Open navigation"><Menu size={20} /></button><span>Floor &amp; Ceiling</span></div><div className="topbar-context"><span className="topbar-kicker">{activeTab === "calibration" ? "Model check" : "Forecast workspace"}</span><span className="topbar-separator">/</span><strong>{activeTab === "calibration" ? calibrationModel.shortName : `${season} · Week ${week}`}</strong></div><div className="topbar-actions"><span className="saved-state"><span className="saved-dot" /> Saved locally</span><button type="button" className="session-button" onClick={() => setSessionMenuOpen((open) => !open)}><span className="session-avatar"><UserRound size={14} /></span><span>{shortId(workspaceId)}</span><ChevronDown size={14} /></button>{sessionMenuOpen ? <div className="session-menu"><div className="session-menu-heading"><span className="session-avatar large"><UserRound size={16} /></span><div><strong>Temporary workspace</strong><span>{shortId(workspaceId)}</span></div></div><div className="session-menu-row"><Clock3 size={15} /><span>Expires {formatRelativeTime(expiresAt)}</span></div><div className="session-menu-row"><ShieldCheck size={15} /><span>Private to this browser</span></div><div className="session-menu-divider" /><Button variant="quiet" onClick={resetWorkspace} icon={<RotateCcw size={15} />}>Reset workspace</Button><p>Download work before the session expires. Lost or expired data cannot be recovered.</p></div> : null}</div></header>
-        {activeTab !== "calibration" && activeTab !== "projection" ? <ContextStrip season={season} week={week} metricDefinition={metricDefinition} onSeason={setSeason} onWeek={setWeek} onMetricDefinition={setMetricDefinition} /> : null}
+        {activeTab !== "calibration" && activeTab !== "projection" ? <ContextStrip season={season} week={week} metricDefinition={metricDefinition} onSeason={updateContextSeason} onWeek={updateContextWeek} onMetricDefinition={updateContextMetric} onNavigateOverview={() => navigate("overview")} /> : null}
         <div className="page-content">
-          {activeTab === "overview" ? <OverviewPage navigate={navigate} /> : null}
+          {activeTab === "overview" ? <OverviewPage navigate={navigate} season={season} week={week} /> : null}
           {activeTab === "methodology" ? <MethodologyPage navigate={navigate} /> : null}
           {activeTab === "calibration" ? <CalibrationPage /> : null}
-          {activeTab === "projection" ? <ProjectionPage upload={upload} uploadErrors={uploadErrors} runState={runState} runId={runId} viewMode={viewMode} onViewMode={setViewMode} rows={filteredForecasts} allRows={demoForecasts} overrides={overrides} search={projectionSearch} position={projectionPosition} team={projectionTeam} sort={projectionSort} teams={teams} onSearch={setProjectionSearch} onPosition={setProjectionPosition} onTeam={setProjectionTeam} onSort={setProjectionSort} onFile={handleFile} onUseDemo={useDemoSample} onResetUpload={resetUpload} onStartRun={startRun} onExport={(scope) => exportForecasts(scope === "filtered" ? filteredForecasts : demoForecasts, scope)} onSelectPlayer={(row) => setSelectedPlayerId(row.id)} onOpenOverrides={(row) => { setSelectedPlayerId(row.id); setActiveTab("overrides"); }} /> : null}
+          {activeTab === "projection" ? <ProjectionPage upload={upload} uploadErrors={uploadErrors} runState={runState} runId={runId} simulationCount={simulationCount} onSimulationCount={setSimulationCount} viewMode={viewMode} onViewMode={setViewMode} rows={filteredForecasts} allRows={demoForecasts} overrides={overrides} search={projectionSearch} position={projectionPosition} team={projectionTeam} sort={projectionSort} teams={teams} onSearch={setProjectionSearch} onPosition={setProjectionPosition} onTeam={setProjectionTeam} onSort={setProjectionSort} onFile={handleFile} onUseDemo={useDemoSample} onResetUpload={resetUpload} onStartRun={startRun} onExport={(scope) => exportForecasts(scope === "filtered" ? filteredForecasts : demoForecasts, scope)} onSelectPlayer={(row) => setSelectedPlayerId(row.id)} onOpenOverrides={(row) => { setSelectedPlayerId(row.id); setActiveTab("overrides"); }} /> : null}
           {activeTab === "overrides" ? <OverridesPage rows={demoForecasts} overrides={overrides} history={overrideHistory} selectedRow={selectedRow} selectedPlayerId={selectedPlayerId} onSelectRow={(row) => setSelectedPlayerId(row.id)} onSave={saveOverride} onResetPlayer={resetPlayer} onResetAll={resetAllOverrides} onCopy={() => { setToast("Copy prior overrides creates a reviewable draft inside this session."); addHistory("Copied prior overrides", "No unmatched players in the current run.", "blue"); }} /> : null}
         </div>
         <footer className="app-footer"><span><Database size={14} /> Public evidence build · v0.1</span><span>Last data check Aug 31, 2026</span><a href="#methodology" onClick={(event) => { event.preventDefault(); navigate("methodology"); }}>How to read this site <ChevronRight size={13} /></a></footer>
@@ -456,42 +485,79 @@ export function FloorCeilingApp() {
   );
 }
 
-function OverviewPage({ navigate }: { navigate: (tab: TabId) => void }) {
-  const totalRows = demoForecasts.length;
-  const averageMedian = demoForecasts.reduce((sum, row) => sum + row.original.median, 0) / Math.max(totalRows, 1);
-  const averageWidth = demoForecasts.reduce((sum, row) => sum + row.original.ceiling - row.original.floor, 0) / Math.max(totalRows, 1);
-  const simulationCounts = Array.from(new Set(demoForecasts.map((row) => row.nSimulations)));
-  const summaryItems = [
-    ["Loaded rows", totalRows.toLocaleString(), "Week 1 player range output"],
-    ["Simulation draws", simulationCounts.length === 1 ? simulationCounts[0].toLocaleString() : "Mixed", "Stored on each output row"],
-    ["Average median", formatNumber(averageMedian), "Across loaded player rows"],
-    ["Average width", formatNumber(averageWidth), "Average ceiling minus floor"],
-  ];
+function OverviewPage({ navigate, season, week }: { navigate: (tab: TabId) => void; season: string; week: string }) {
+  const selectedSeason = Number(season);
+  const selectedWeek = Number(week);
+  const selectedSummary = oosWeeklySummaries.find((row) => row.season === selectedSeason && row.week === selectedWeek);
+  const selectedPositionRows = monitoringPositionOrder
+    .map((position) => oosWeeklyPositionMetrics.find((row) => row.season === selectedSeason && row.week === selectedWeek && row.position === position))
+    .filter((row): row is (typeof oosWeeklyPositionMetrics)[number] => Boolean(row));
+  const trendRows = oosWeeklySummaries.filter((row) => row.season === selectedSeason);
+
+  const coverageOption = useMemo<EChartsOption>(() => ({
+    animation: false,
+    grid: { left: 46, right: 16, top: 40, bottom: 48, containLabel: true },
+    legend: { top: 0, textStyle: { color: "#50687A", fontSize: 10 } },
+    tooltip: { trigger: "axis" },
+    xAxis: {
+      type: "category",
+      data: trendRows.map((row) => `Week ${row.week}`),
+      axisLabel: { color: "#73889A", fontSize: 10 },
+      axisLine: { lineStyle: { color: "#CBD7DE" } },
+    },
+    yAxis: {
+      type: "value",
+      min: 0.6,
+      max: 1,
+      axisLabel: { color: "#73889A", fontSize: 9, formatter: (value: number) => Math.round(value * 100) + "%" },
+      splitLine: { lineStyle: { color: "#E8EEF2" } },
+    },
+    series: [
+      {
+        name: "Selected model mix",
+        type: "bar",
+        data: trendRows.map((row) => ({
+          value: row.coverage,
+          itemStyle: { color: row.week === selectedWeek ? "#1264A3" : "#B9D5E5", borderRadius: [4, 4, 0, 0] },
+        })),
+        barMaxWidth: 36,
+      },
+      {
+        name: "85% target",
+        type: "line",
+        data: trendRows.map(() => 0.85),
+        symbol: "none",
+        lineStyle: { color: "#D87945", type: "dashed", width: 2 },
+      },
+    ],
+  }), [selectedWeek, trendRows]);
+
+  if (!selectedSummary || selectedPositionRows.length !== monitoringPositionOrder.length) {
+    return <EmptyState icon={<Database size={22} />} title="No OOS results for this filter" body="Choose one of the available 2025 weeks from the context strip." />;
+  }
+
+  const selectedCoverage = formatCalibrationPercent(selectedSummary.coverage);
+  const selectedMissRate = formatCalibrationPercent(selectedSummary.highSideMissRate);
 
   return (
     <>
-      <SectionIntro eyebrow="Weekly monitoring" title="Read the current forecast output" status={<StatusPill label="Output loaded" tone="good" />} action={<Button variant="primary" onClick={() => navigate("projection")} icon={<Upload size={16} />}>Open forecast workflow</Button>}>This view shows the stored Week 1 ranges and the checks that are available now. Historical accuracy stays empty until completed outcomes are loaded.</SectionIntro>
+      <SectionIntro eyebrow="Weekly monitoring" title={`${season} · Week ${week} model performance`} status={<StatusPill label="OOS results" tone="good" />} action={<Button variant="secondary" onClick={() => navigate("calibration")} icon={<Target size={15} />}>Review model selection</Button>}>This view uses completed out-of-sample scores. Change the week above to compare the fixed best model for each position.</SectionIntro>
       <div className="overview-hero-grid">
-        <Panel className="latest-panel" eyebrow="Current output" title="2026 · Week 1" action={<button type="button" className="icon-button" aria-label="Open output details" onClick={() => navigate("projection")}><MoreHorizontal size={18} /></button>}>
-          <div className="latest-status"><StatusPill label="Stored output" tone="good" /><span>{totalRows.toLocaleString()} player rows · 4 positions</span></div>
-          <div className="latest-big-number">{totalRows.toLocaleString()} <small>player range rows</small></div>
-          <div className="latest-detail-grid"><div><span>Lower marker</span><strong>p15</strong><small>Loaded</small></div><div><span>Median</span><strong>p50</strong><small>Loaded</small></div><div><span>Upper marker</span><strong>p85</strong><small>Loaded</small></div><div><span>Completed outcomes</span><strong>Pending</strong><small>Needed for evaluation</small></div></div>
-          <div className="latest-foot"><span><Clock3 size={14} /> Source timestamp: Aug 31, 2026</span><button type="button" className="text-button" onClick={() => navigate("projection")}>Inspect rows <ArrowUpRight size={14} /></button></div>
+        <Panel className="latest-panel" eyebrow="Selected OOS week" title={`${season} · Week ${week}`} action={<button type="button" className="icon-button" aria-label="Open model check" onClick={() => navigate("calibration")}><MoreHorizontal size={18} /></button>}>
+          <div className="latest-status"><StatusPill label="Held-out result" tone="good" /><span>{selectedSummary.n.toLocaleString()} matched player outcomes · PPR</span></div>
+          <div className="latest-big-number">{selectedCoverage} <small>at or below p85</small></div>
+          <div className="latest-detail-grid"><div><span>P85 coverage</span><strong>{selectedCoverage}</strong><small>Target: 85%</small></div><div><span>P85 loss</span><strong>{formatCalibrationMetric(selectedSummary.pinballLoss)}</strong><small>Lower is better</small></div><div><span>P85 MAE</span><strong>{formatCalibrationMetric(selectedSummary.p85Mae)}</strong><small>Fantasy points</small></div><div><span>Scores checked</span><strong>{selectedSummary.n.toLocaleString()}</strong><small>Completed outcomes</small></div></div>
+          <div className="latest-foot"><span><Database size={14} /> Frozen predictions vs final scores</span><button type="button" className="text-button" onClick={() => navigate("calibration")}>Open model check <ArrowUpRight size={14} /></button></div>
         </Panel>
-        <Panel className="next-forecast-panel" eyebrow="Evaluation status" title="Waiting for outcomes"><div className="forecast-readiness"><div className="readiness-icon"><Clock3 size={22} /></div><div><strong>Forecast rows are ready</strong><span>Completed outcome rows are not loaded</span></div></div><div className="readiness-list"><div><span>Accuracy checks</span><strong>Pending</strong></div><div><span>Coverage</span><strong>Pending</strong></div><div><span>Quantile loss</span><strong>Pending</strong></div><div><span>Next action</span><strong>Load outcomes</strong></div></div><Button variant="secondary" onClick={() => navigate("calibration")} className="full-width" icon={<Target size={15} />}>Open evaluation</Button></Panel>
+        <Panel className="next-forecast-panel" eyebrow="Best model mix" title="Fixed by position"><div className="weekly-model-list">{selectedPositionRows.map((row) => <div className="weekly-model-row" key={row.position}><div className="weekly-model-position"><span className="position-chip">{row.position}</span><span>{positionDisplayNames[row.position]}</span></div><span className={cx("methodology-model-badge", row.model === "ffsimulator" ? "methodology-model-badge-simulation" : "methodology-model-badge-xgboost")}>{row.model}</span></div>)}</div><Explainer>QB uses ffsimulator. RB, WR, and TE use XGBoost.</Explainer></Panel>
       </div>
-      <div className="metric-grid">{summaryItems.map(([label, value, detail], index) => <MetricCard key={label} label={label} value={value} detail={detail} tone={index < 2 ? "good" : "neutral"} icon={index === 0 ? <Users size={17} /> : index === 1 ? <Gauge size={17} /> : index === 2 ? <Activity size={17} /> : <Target size={17} />} />)}<MetricCard label="Held-out evaluation" value="Pending" detail="Completed outcomes are required" tone="neutral" icon={<Link2 size={17} />} /></div>
+      <div className="metric-grid"><MetricCard label="Scores at or below ceiling" value={selectedCoverage} detail="Target: about 85 of 100 scores" tone="good" icon={<Target size={17} />} /><MetricCard label="Scores above ceiling" value={selectedMissRate} detail="The final score beat p85" tone="warn" icon={<ArrowUpRight size={17} />} /><MetricCard label="P85 pinball loss" value={formatCalibrationMetric(selectedSummary.pinballLoss)} detail="Lower is better" tone="good" icon={<Gauge size={17} />} /><MetricCard label="P85 mean absolute error" value={formatCalibrationMetric(selectedSummary.p85Mae)} detail="Average distance from the final score" tone="neutral" icon={<Activity size={17} />} /><MetricCard label="Rank correlation" value={selectedSummary.rankSpearman.toFixed(2)} detail="Forecast order versus final score order" tone="neutral" icon={<Link2 size={17} />} /></div>
       <div className="two-column-grid overview-main-grid">
-        <Panel className="chart-panel" eyebrow="Forecast performance" title="Historical evaluation is empty"><div className="empty-chart-state"><Database size={22} /><strong>Completed outcomes are required</strong><span>The current artifact contains ranges only. Coverage, loss, and error charts will appear after matching outcome rows are loaded.</span><Button variant="secondary" onClick={() => navigate("calibration")}>Open evaluation</Button></div></Panel>
-        <Panel className="inspect-panel" eyebrow="Available checks" title="Review the current output"><div className="inspect-list">{[
-          ["Loaded player rows", "The site loaded every row from the Week 1 player range output.", "Open output", "projection"],
-          ["Range fields", "Each row includes a floor, median, and ceiling.", "Open output", "projection"],
-          ["Stored run count", "Each row records the number of simulation draws.", "Open methodology", "methodology"],
-          ["Evaluation boundary", "Accuracy claims wait for completed outcome rows.", "Open evaluation", "calibration"],
-        ].map(([label, detail, value, tab]) => <button type="button" className="inspect-item" key={label} onClick={() => navigate(tab as TabId)}><span className="inspect-item-icon inspect-good"><CheckCircle2 size={16} /></span><span className="inspect-copy"><strong>{label}</strong><small>{detail}</small></span><span className="inspect-value">{value}</span><ChevronRight size={15} /></button>)}</div><Explainer>These checks describe data state. They do not alter the stored output.</Explainer></Panel>
+        <Panel className="chart-panel" eyebrow="OOS performance" title="Coverage across Weeks 14 to 17"><EChart option={coverageOption} height={300} ariaLabel="Selected model coverage across the 2025 out-of-sample weeks" /><Explainer>The selected bar shows the current week. The dashed line marks the 85% ceiling target.</Explainer></Panel>
+        <Panel className="inspect-panel" eyebrow="Selected slice" title={`${season} · Week ${week}`}><div className="overview-scope-list"><div><span className="inspect-item-icon inspect-good"><CheckCircle2 size={16} /></span><span className="inspect-copy"><strong>Evaluation window</strong><small>2025 Weeks 14 through 17 are the OOS weeks.</small></span><span className="inspect-value">OOS</span></div><div><span className="inspect-item-icon inspect-good"><CheckCircle2 size={16} /></span><span className="inspect-copy"><strong>Model selection</strong><small>Each position keeps its validated best model.</small></span><span className="inspect-value">Fixed</span></div><div><span className="inspect-item-icon inspect-blue"><Target size={16} /></span><span className="inspect-copy"><strong>Scoring contract</strong><small>Each reception counts for one PPR point.</small></span><span className="inspect-value">PPR</span></div><div><span className="inspect-item-icon inspect-good"><CheckCircle2 size={16} /></span><span className="inspect-copy"><strong>Matched outcomes</strong><small>Predictions and final scores share the same player-week keys.</small></span><span className="inspect-value">{selectedSummary.n}</span></div></div><Explainer>Use the context strip to move between the four held-out weeks.</Explainer></Panel>
       </div>
-      <Panel className="input-change-panel" eyebrow="Input changes" title="What is loaded now?" action={<div className="panel-actions"><StatusPill label="Source checked" tone="good" /><button type="button" className="text-button" onClick={() => navigate("projection")}>Open output <ArrowUpRight size={14} /></button></div>}><div className="input-summary-grid"><div className="input-summary-item"><div className="input-summary-top"><span>Player rows</span><strong>{totalRows.toLocaleString()}</strong></div><MiniBar value={Math.min(1, totalRows / 300)} color="blue" /><small>Week 1 stored range output</small></div><div className="input-summary-item"><div className="input-summary-top"><span>Range fields</span><strong>3</strong></div><MiniBar value={0.75} color="green" /><small>p15, p50, and p85</small></div><div className="input-summary-item"><div className="input-summary-top"><span>Identity fields</span><strong>Present</strong></div><MiniBar value={1} color="green" /><small>Player ID and name are loaded</small></div><div className="input-summary-item"><div className="input-summary-top"><span>Outcome rows</span><strong>Pending</strong></div><MiniBar value={0} color="orange" /><small>Required for historical checks</small></div></div><Explainer>Upload a new file to create a local run. The stored output remains unchanged until you start that run.</Explainer></Panel>
-      <div className="two-column-grid lower-overview-grid"><Panel eyebrow="Position breakdown" title="Stored range summary"><div className="position-breakdown">{positionSummaries.map((row) => <div className="position-line" key={row.position}><span className="position-chip">{row.position}</span><span className="position-name">{row.position === "QB" ? "Quarterback" : row.position === "RB" ? "Running back" : row.position === "WR" ? "Wide receiver" : "Tight end"}</span><span className="position-stat"><strong>{row.rows.toLocaleString()}</strong><small>rows</small></span><MiniBar value={row.rows / Math.max(...positionSummaries.map((item) => item.rows))} color={row.position === "QB" ? "orange" : "blue"} /><span className="position-stat"><strong>{formatNumber(row.averageMedian)}</strong><small>average median</small></span></div>)}</div><Explainer>These values summarize the stored Week 1 rows. They do not measure accuracy.</Explainer></Panel><Panel eyebrow="Weekly loop" title="From output to evidence"><div className="loop-list">{["Load model output", "Inspect input changes", "Review stored ranges", "Record manual changes", "Freeze before kickoff", "Load completed outcomes", "Inspect the evaluation"].map((item, index) => <button type="button" className={cx("loop-step", index === 2 && "loop-step-current")} key={item} onClick={() => index < 4 ? navigate("projection") : navigate("calibration")}><span>{String(index + 1).padStart(2, "0")}</span><strong>{item}</strong>{index === 2 ? <StatusPill label="Current" tone="blue" /> : <ChevronRight size={14} />}</button>)}</div></Panel></div>
+      <Panel className="input-change-panel" eyebrow="Position performance" title={`Best model results for ${season} · Week ${week}`} action={<span className="calibration-panel-note">{selectedSummary.n.toLocaleString()} scores checked</span>}><div className="table-scroll"><table className="weekly-metrics-table"><thead><tr><th scope="col">Position</th><th scope="col">Selected model</th><th scope="col">P85 coverage</th><th scope="col">P85 loss</th><th scope="col">P85 MAE</th><th scope="col">Scores</th></tr></thead><tbody>{selectedPositionRows.map((row) => <tr key={row.position}><th scope="row"><span className="position-chip">{row.position}</span><span>{positionDisplayNames[row.position]}</span></th><td><span className={cx("methodology-model-badge", row.model === "ffsimulator" ? "methodology-model-badge-simulation" : "methodology-model-badge-xgboost")}>{row.model}</span></td><td>{formatCalibrationPercent(row.coverage)}</td><td>{formatCalibrationMetric(row.pinballLoss)}</td><td>{formatCalibrationMetric(row.p85Mae)}</td><td>{row.n.toLocaleString()}</td></tr>)}</tbody></table></div><Explainer>The values use the fixed best model for each position. The model names come from the held-out selection scorecard.</Explainer></Panel>
+      <div className="two-column-grid lower-overview-grid"><Panel eyebrow="Week readout" title={`What Week ${week} shows`}><div className="weekly-readout-grid"><div><span>Best position coverage</span><strong>{formatCalibrationPercent(Math.max(...selectedPositionRows.map((row) => row.coverage)))}</strong><small>{selectedPositionRows.find((row) => row.coverage === Math.max(...selectedPositionRows.map((item) => item.coverage)))?.position} had the highest coverage.</small></div><div><span>Largest p85 loss</span><strong>{formatCalibrationMetric(Math.max(...selectedPositionRows.map((row) => row.pinballLoss)))}</strong><small>{selectedPositionRows.find((row) => row.pinballLoss === Math.max(...selectedPositionRows.map((item) => item.pinballLoss)))?.position} had the highest loss.</small></div></div><Explainer>Coverage and loss vary by position because the selected models see different score patterns.</Explainer></Panel><Panel eyebrow="Next step" title="Continue the weekly loop"><div className="loop-list"><button type="button" className="loop-step loop-step-current" onClick={() => navigate("calibration")}><span>01</span><strong>Review model selection</strong><StatusPill label="Current" tone="blue" /></button><button type="button" className="loop-step" onClick={() => navigate("methodology")}><span>02</span><strong>Read the model method</strong><ChevronRight size={14} /></button><button type="button" className="loop-step" onClick={() => navigate("projection")}><span>03</span><strong>Open forecast workflow</strong><ChevronRight size={14} /></button></div></Panel></div>
     </>
   );
 }
@@ -848,6 +914,8 @@ type ProjectionPageProps = {
   uploadErrors: UploadReport["errors"];
   runState: RunState;
   runId: string;
+  simulationCount: string;
+  onSimulationCount: (value: string) => void;
   viewMode: ViewMode;
   onViewMode: (value: ViewMode) => void;
   rows: ForecastRow[];
@@ -871,10 +939,14 @@ type ProjectionPageProps = {
   onOpenOverrides: (row: ForecastRow) => void;
 };
 
-function ProjectionPage({ upload, uploadErrors, runState, runId, viewMode, onViewMode, rows, allRows, overrides, search, position, team, sort, teams, onSearch, onPosition, onTeam, onSort, onFile, onUseDemo, onResetUpload, onStartRun, onExport, onSelectPlayer, onOpenOverrides }: ProjectionPageProps) {
+function ProjectionPage({ upload, uploadErrors, runState, runId, simulationCount, onSimulationCount, viewMode, onViewMode, rows, allRows, overrides, search, position, team, sort, teams, onSearch, onPosition, onTeam, onSort, onFile, onUseDemo, onResetUpload, onStartRun, onExport, onSelectPlayer, onOpenOverrides }: ProjectionPageProps) {
   const [detailRow, setDetailRow] = useState<ForecastRow | null>(null);
   const inputId = "projection-csv-input";
   const progress = runState === "Checking upload" ? 20 : runState === "Queued" ? 42 : runState === "Running" ? 72 : runState === "Complete" ? 100 : runState === "Ready" ? 8 : 0;
+  const numericSimulationCount = Number(simulationCount);
+  const simulationCountValid = isValidSimulationCount(numericSimulationCount);
+  const simulationProfile = numericSimulationCount === MIN_SIMULATIONS ? "Preview" : "Standard";
+  const simulationCountDisabled = runState === "Checking upload" || runState === "Queued" || runState === "Running";
   const hasCompletedResult = runState === "Complete";
   const statusTone = runState === "Complete" ? "good" : runState === "Failed" ? "warn" : runState === "Ready" ? "blue" : "neutral";
   const activeFilteredCount = rows.filter((row) => !overrides[row.id]?.exclude).length;
@@ -902,7 +974,7 @@ function ProjectionPage({ upload, uploadErrors, runState, runId, viewMode, onVie
   return (
     <>
       <SectionIntro eyebrow="Projection to sim" title="Turn a projection file into ranges" status={<StatusPill label={runState} tone={statusTone as "good" | "warn" | "neutral" | "blue"} />} action={<div className="action-group"><Button variant="secondary" onClick={onResetUpload} icon={<RotateCcw size={15} />}>Reset upload</Button><Button variant="quiet" icon={<CircleHelp size={15} />}>Input guide</Button></div>}>The baseline run uses fixed artifacts and an outcome pool. Uploads do not train a model. Every run stores its input revision, seed, count, metric definition, and model version.</SectionIntro>
-      <div className="projection-workflow-grid"><Panel className="upload-panel" eyebrow="1 · Upload and preview" title="Player outcome projections" action={<StatusPill label={`${upload.accepted.toLocaleString()} accepted`} tone={uploadErrors.length ? "warn" : "good"} />}><div className="upload-dropzone"><div className="upload-icon"><Upload size={20} /></div><div><strong>Drop a CSV here, or browse</strong><span>10 MB maximum · 50,000 rows · QB, RB, WR, TE</span></div><label htmlFor={inputId} className="button button-secondary">Browse file<input id={inputId} type="file" accept=".csv,text/csv" onChange={(event) => { const file = event.target.files?.[0]; if (file) void onFile(file); event.currentTarget.value = ""; }} /></label></div><button type="button" className="sample-link" onClick={onUseDemo}><Sparkles size={14} /> Use the bundled Week 1 output</button><div className="upload-file-card"><div className="file-icon"><FileText size={17} /></div><div className="file-copy"><strong>{upload.fileName}</strong><span>Loaded {upload.sourceTimestamp === demoUploadReport.sourceTimestamp ? "Aug 31, 2026 at 09:14 ET" : "just now"}</span></div><StatusPill label={uploadErrors.length ? "Needs review" : "Checked"} tone={uploadErrors.length ? "warn" : "good"} /></div><div className="upload-stats"><div><span>Rows</span><strong>{upload.rows.toLocaleString()}</strong></div><div><span>Accepted</span><strong className="text-green">{upload.accepted.toLocaleString()}</strong></div><div><span>Excluded</span><strong className={upload.excluded ? "text-orange" : ""}>{upload.excluded.toLocaleString()}</strong></div><div><span>Unresolved</span><strong className={upload.unresolved ? "text-orange" : ""}>{upload.unresolved.toLocaleString()}</strong></div></div><div className="set-select-row"><FilterSelect label="Projection set" value={upload.sets.find((set) => set.id === upload.selectedSet)?.label ?? upload.selectedSet} options={upload.sets.map((set) => set.label)} onChange={() => undefined} /><span className="set-note"><Info size={13} /> {upload.sets.find((set) => set.id === upload.selectedSet)?.rows ?? upload.rows} rows in selected set</span></div>{upload.sourceOrderUsed ? <Explainer>The file has no explicit rank field. The adapter preserves source order within each position.</Explainer> : null}{uploadErrors.length ? <div className="error-report"><div className="error-report-title"><AlertTriangle size={15} /><strong>Row report</strong><span>{uploadErrors.length} errors</span></div><div className="error-list">{uploadErrors.slice(0, 5).map((error) => <div key={`${error.row}-${error.field}-${error.message}`}><code>Row {error.row || "file"}</code><span><strong>{error.field}</strong> {error.message}</span></div>)}</div>{uploadErrors.length > 5 ? <small>Showing 5 of {uploadErrors.length} errors.</small> : null}</div> : null}</Panel><Panel className="run-panel" eyebrow="2 · Run the baseline" title="Update Floor/Ceiling" action={<span className="run-version">sim-2026.1</span>}><div className="run-model-card"><div className="model-symbol"><Activity size={20} /></div><div><strong>Independent rank-conditioned simulation</strong><span>Complete p15, p50, and p85 range · Baseline</span></div><StatusPill label="Available" tone="good" /></div><div className="run-settings"><div><span>Simulation count</span><strong>1,000 <em>standard</em></strong></div><div><span>Preview count</span><strong>100 <em>preview</em></strong></div><div><span>Seed policy</span><strong>Stored per run</strong></div><div><span>Input checks</span><strong>Pass <Check size={14} className="text-green" /></strong></div></div><div className="run-action"><Button variant="primary" onClick={onStartRun} disabled={runState === "Checking upload" || runState === "Queued" || runState === "Running" || uploadErrors.length > 0 || upload.accepted === 0} className="full-width" icon={runState === "Running" ? <RefreshCcw size={15} className="spin" /> : <Play size={15} />}>{runState === "Complete" ? "Run again" : runState === "Failed" ? "Retry run" : runState === "Running" ? "Simulation running" : "Update Floor/Ceiling"}</Button><span>Repeat clicks return the active job. A changed upload creates a new run.</span></div>{runState !== "Empty" && runState !== "Ready" && runState !== "Complete" ? <div className="run-progress"><div className="run-progress-top"><span>{runState}</span><strong>{progress}%</strong></div><span className="progress-track"><span style={{ width: `${progress}%` }} /></span><small>Job {shortId(runId)} · The page can be refreshed while the worker runs.</small></div> : null}<div className="run-state-row">{runStates.map((state) => <span key={state} className={cx(runState === state && "run-state-active", runState === "Failed" && state === "Failed" && "run-state-failed")}>{runState === state ? <Check size={12} /> : null}{state}</span>)}</div><Explainer>A 100-simulation run is a preview. It cannot become an official forecast.</Explainer></Panel></div>
+      <div className="projection-workflow-grid"><Panel className="upload-panel" eyebrow="1 · Upload and preview" title="Player outcome projections" action={<StatusPill label={`${upload.accepted.toLocaleString()} accepted`} tone={uploadErrors.length ? "warn" : "good"} />}><div className="upload-dropzone"><div className="upload-icon"><Upload size={20} /></div><div><strong>Drop a CSV here, or browse</strong><span>10 MB maximum · 50,000 rows · QB, RB, WR, TE</span></div><label htmlFor={inputId} className="button button-secondary">Browse file<input id={inputId} type="file" accept=".csv,text/csv" onChange={(event) => { const file = event.target.files?.[0]; if (file) void onFile(file); event.currentTarget.value = ""; }} /></label></div><button type="button" className="sample-link" onClick={onUseDemo}><Sparkles size={14} /> Use the bundled Week 1 output</button><div className="upload-file-card"><div className="file-icon"><FileText size={17} /></div><div className="file-copy"><strong>{upload.fileName}</strong><span>Loaded {upload.sourceTimestamp === demoUploadReport.sourceTimestamp ? "Aug 31, 2026 at 09:14 ET" : "just now"}</span></div><StatusPill label={uploadErrors.length ? "Needs review" : "Checked"} tone={uploadErrors.length ? "warn" : "good"} /></div><div className="upload-stats"><div><span>Rows</span><strong>{upload.rows.toLocaleString()}</strong></div><div><span>Accepted</span><strong className="text-green">{upload.accepted.toLocaleString()}</strong></div><div><span>Excluded</span><strong className={upload.excluded ? "text-orange" : ""}>{upload.excluded.toLocaleString()}</strong></div><div><span>Unresolved</span><strong className={upload.unresolved ? "text-orange" : ""}>{upload.unresolved.toLocaleString()}</strong></div></div><div className="set-select-row"><FilterSelect label="Projection set" value={upload.sets.find((set) => set.id === upload.selectedSet)?.label ?? upload.selectedSet} options={upload.sets.map((set) => set.label)} onChange={() => undefined} /><span className="set-note"><Info size={13} /> {upload.sets.find((set) => set.id === upload.selectedSet)?.rows ?? upload.rows} rows in selected set</span></div>{upload.sourceOrderUsed ? <Explainer>The file has no explicit rank field. The adapter preserves source order within each position.</Explainer> : null}{uploadErrors.length ? <div className="error-report"><div className="error-report-title"><AlertTriangle size={15} /><strong>Row report</strong><span>{uploadErrors.length} errors</span></div><div className="error-list">{uploadErrors.slice(0, 5).map((error) => <div key={`${error.row}-${error.field}-${error.message}`}><code>Row {error.row || "file"}</code><span><strong>{error.field}</strong> {error.message}</span></div>)}</div>{uploadErrors.length > 5 ? <small>Showing 5 of {uploadErrors.length} errors.</small> : null}</div> : null}</Panel><Panel className="run-panel" eyebrow="2 · Run the baseline" title="Update Floor/Ceiling" action={<span className="run-version">sim-2026.1</span>}><div className="run-model-card"><div className="model-symbol"><Activity size={20} /></div><div><strong>Independent rank-conditioned simulation</strong><span>Complete p15, p50, and p85 range · Baseline</span></div><StatusPill label="Available" tone="good" /></div><div className="run-settings"><label className="run-setting-input"><span>Simulation count</span><span className="simulation-count-field"><input type="number" min={MIN_SIMULATIONS} max={MAX_SIMULATIONS} step={SIMULATION_STEP} value={simulationCount} onChange={(event) => onSimulationCount(event.target.value)} disabled={simulationCountDisabled} aria-label="Simulation count" aria-invalid={!simulationCountValid} aria-describedby="simulation-count-help" /><em>sims</em></span></label><div><span>Run profile</span><strong>{simulationCountValid ? simulationProfile : "Check count"}</strong></div><div><span>Seed policy</span><strong>Stored per run</strong></div><div><span>Input checks</span><strong>Pass <Check size={14} className="text-green" /></strong></div></div><div id="simulation-count-help" className="run-setting-help">Use 100 to 1,000 simulations in steps of 100. A 100-simulation run is a preview; higher counts are standard runs.</div><div className="run-action"><Button variant="primary" onClick={onStartRun} disabled={runState === "Checking upload" || runState === "Queued" || runState === "Running" || uploadErrors.length > 0 || upload.accepted === 0 || !simulationCountValid} className="full-width" icon={runState === "Running" ? <RefreshCcw size={15} className="spin" /> : <Play size={15} />}>{runState === "Complete" ? "Run again" : runState === "Failed" ? "Retry run" : runState === "Running" ? "Simulation running" : "Update Floor/Ceiling"}</Button><span>Repeat clicks return the active job. A changed upload or simulation count creates a new run.</span></div>{runState !== "Empty" && runState !== "Ready" && runState !== "Complete" ? <div className="run-progress"><div className="run-progress-top"><span>{runState}</span><strong>{progress}%</strong></div><span className="progress-track"><span style={{ width: `${progress}%` }} /></span><small>Job {shortId(runId)} · {numericSimulationCount.toLocaleString()} simulations · The page can be refreshed while the worker runs.</small></div> : null}<div className="run-state-row">{runStates.map((state) => <span key={state} className={cx(runState === state && "run-state-active", runState === "Failed" && state === "Failed" && "run-state-failed")}>{runState === state ? <Check size={12} /> : null}{state}</span>)}</div><Explainer>Counts from 100 to 1,000 reduce random sampling noise. The 100-simulation option remains a preview.</Explainer></Panel></div>
       <Panel className="forecast-output-panel" eyebrow="3 · Inspect the result" title="Player ranges" action={<div className="panel-actions"><div className="view-toggle"><button type="button" className={viewMode === "original" ? "active" : ""} onClick={() => onViewMode("original")}>Original</button><button type="button" className={viewMode === "adjusted" ? "active" : ""} onClick={() => onViewMode("adjusted")}>Adjusted {Object.keys(overrides).length ? `(${Object.keys(overrides).length})` : ""}</button></div><StatusPill label={`${rows.length} shown`} tone="neutral" /></div>}>{hasCompletedResult ? <><div className="projection-toolbar"><SearchField value={search} onChange={onSearch} placeholder="Search by player or team" /><FilterSelect label="Position" value={position} options={positionOptions} onChange={onPosition} compact /><FilterSelect label="Team" value={team} options={teams} onChange={onTeam} compact /><FilterSelect label="Sort by" value={sort} options={["ceiling", "median", "floor", "name"]} onChange={onSort} compact /><div className="toolbar-spacer" /><div className="download-menu"><Button variant="secondary" icon={<Download size={15} />} onClick={() => onExport("filtered")}>Download filtered ({activeFilteredCount})</Button><Button variant="quiet" onClick={() => onExport("all")}>All {allRows.length}</Button></div></div><div className="range-chart-card"><div className="range-chart-header"><div><strong>Floor to ceiling</strong><span>Showing the first 25 rows · select a player for details</span></div><div className="range-chart-legend"><span><i className="legend-floor" /> Floor</span><span><i className="legend-median" /> Median</span><span><i className="legend-ceiling" /> Ceiling</span></div></div><div className="range-list">{rows.length ? rows.slice(0, 25).map((row) => <ForecastRange key={row.id} row={row} override={viewMode === "adjusted" ? overrides[row.id] : undefined} onSelect={selectPlayer} />) : <EmptyState icon={<Search size={24} />} title="No matching players" body="Change the search or filters to restore rows." />}</div><div className="range-chart-footer"><span>Player count limit: 25 of {rows.length}</span><span>Values display one decimal. Sorting and exports use full precision.</span></div></div><div className="linked-chart-grid"><Panel eyebrow="Median vs ceiling" title="Where is the upside?" className="small-range-panel"><div className="median-ceiling-chart">{rows.slice(0, 12).map((row, index) => { const values = viewMode === "adjusted" ? applyOverride(row, overrides[row.id]) : row.original; return <button type="button" className="median-ceiling-dot" key={row.id} style={{ left: `${Math.min(93, (values.median / 35) * 100)}%`, bottom: `${Math.min(86, (values.ceiling / 40) * 100)}%`, background: ["#1264A3", "#2E8B73", "#D87945", "#7C5BAA"][index % 4] }} onClick={() => selectPlayer(row)} aria-label={`Open ${row.name}`} />; })}<span className="axis-label-x">Median</span><span className="axis-label-y">Ceiling</span></div><Explainer>The dot uses the same player selection as the range chart and table.</Explainer></Panel><Panel eyebrow="Source and range" title="Current output"><div className="output-summary-list"><div><span>Average median</span><strong>{formatNumber(calculateDemoSummary(rows, overrides).averageMedian)}</strong></div><div><span>Average range width</span><strong>{formatNumber(calculateDemoSummary(rows, overrides).averageWidth)}</strong></div><div><span>Model version</span><strong>sim-2026.1</strong></div><div><span>Run ID</span><strong className="mono">{shortId(runId)}</strong></div></div><Explainer>The bar runs from the estimated floor to the ceiling. The dot marks the median. Observed outcomes can fall outside the range.</Explainer></Panel></div><DataTable data={forecastTableRows} columns={columns} onRowClick={selectPlayer} /></> : <EmptyState icon={runState === "Failed" ? <AlertTriangle size={24} /> : <Play size={15} />} title={runState === "Failed" ? "The run needs attention" : runState === "Ready" ? "Ready to run" : "Waiting for a result"} body={runState === "Failed" ? "Read the row report above, correct the input, and retry the same submission." : runState === "Ready" ? "The upload passed the baseline input checks. Start a simulation to create ranges." : "The worker result will appear here when the run completes."} action={runState === "Ready" ? <Button variant="primary" onClick={onStartRun} icon={<Play size={15} />}>Update Floor/Ceiling</Button> : undefined} />}</Panel>
       <div className="projection-footnotes"><span><LockKeyhole size={14} /> Raw source uploads remain private and expire with this temporary workspace.</span><span><Database size={14} /> Results use Outcome metric v1.0 · {runId}</span></div>
       <PlayerDetailDrawer row={detailRow} override={detailRow ? overrides[detailRow.id] : undefined} onClose={() => setDetailRow(null)} onOpenOverrides={() => { if (detailRow) onOpenOverrides(detailRow); setDetailRow(null); }} />

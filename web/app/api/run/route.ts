@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { hasValidCsrfToken, readSession } from "@/lib/server/session";
+import { isValidSimulationCount, MAX_SIMULATIONS, MIN_SIMULATIONS, SIMULATION_STEP } from "@/lib/simulation-config";
 
 const MAX_ROWS = 50_000;
-const MAX_SIMULATIONS = 1_000;
 const queuedRuns = new Map<string, { runId: string; createdAt: string; state: "Queued" }>();
 
 type RunRequest = {
@@ -37,7 +37,7 @@ export async function POST(request: Request) {
   const acceptedRows = Number(body.acceptedRows);
   if (!Number.isInteger(season) || season < 2020 || season > 2100) return badRequest("Select a supported season.");
   if (!Number.isInteger(week) || week < 1 || week > 18) return badRequest("Select a week from 1 through 18.");
-  if (![100, MAX_SIMULATIONS].includes(simulationCount)) return badRequest("Use the 100-simulation preview or the 1,000-simulation standard run.");
+  if (!isValidSimulationCount(simulationCount)) return badRequest(`Use an integer from ${MIN_SIMULATIONS.toLocaleString()} to ${MAX_SIMULATIONS.toLocaleString()} in steps of ${SIMULATION_STEP}.`);
   if (!Number.isInteger(acceptedRows) || acceptedRows < 1 || acceptedRows > MAX_ROWS) return badRequest("The upload must contain between 1 and 50,000 accepted rows.");
   if (!body.metricDefinitionVersion || body.metricDefinitionVersion.length > 80) return badRequest("The metric definition version is required.");
   if (!body.inputRevision || body.inputRevision.length > 128) return badRequest("The input revision is required.");
