@@ -516,6 +516,13 @@ function MethodologyPage() {
 
 const calibrationSeasonOptions = ["All held-out seasons", "2024", "2025"] as const;
 const calibrationPositionOptions = ["All positions", "QB", "RB", "WR", "TE"] as const;
+const calibrationPositionOrder = ["QB", "RB", "WR", "TE"] as const;
+const calibrationPositionColors: Record<(typeof calibrationPositionOrder)[number], string> = {
+  QB: "#7C5BAA",
+  RB: "#1264A3",
+  WR: "#2E8B73",
+  TE: "#D87945",
+};
 
 function formatCalibrationPercent(value: number, digits = 1) {
   return (value * 100).toFixed(digits) + "%";
@@ -539,26 +546,20 @@ function CalibrationPage() {
   );
 
   const chartGroups = useMemo(() => {
-    const groups = new Map<string, { label: string; rows: Array<(typeof selectedCalibrationBins)[number]> }>();
+    const groups = new Map<string, { position: (typeof calibrationPositionOrder)[number]; label: string; rows: Array<(typeof selectedCalibrationBins)[number]> }>();
     filteredBins.forEach((row) => {
-      const groupKey = [
-        row.position,
-        row.model,
-        seasonFilter === "All held-out seasons" ? String(row.season) : "selected-season",
-      ].join("-");
+      const groupKey = row.position;
       const current = groups.get(groupKey);
       if (current) {
         current.rows.push(row);
       } else {
-        const labelParts = [
-          row.position + " · " + row.model,
-          seasonFilter === "All held-out seasons" ? String(row.season) : null,
-        ].filter(Boolean);
-        groups.set(groupKey, { label: labelParts.join(" · ") || "Selected data", rows: [row] });
+        groups.set(groupKey, { position: row.position, label: row.position + " · " + row.model, rows: [row] });
       }
     });
-    return Array.from(groups.values());
-  }, [filteredBins, seasonFilter]);
+    return calibrationPositionOrder
+      .map((position) => groups.get(position))
+      .filter((group): group is NonNullable<typeof group> => Boolean(group));
+  }, [filteredBins]);
 
   const chartMax = useMemo(() => {
     const values = filteredBins.flatMap((row) => [row.predicted, row.observed]);
@@ -567,7 +568,6 @@ function CalibrationPage() {
 
   const reliabilityOption = useMemo<EChartsOption>(() => ({
     animation: false,
-    color: ["#1264A3", "#2E8B73", "#D87945", "#7C5BAA", "#496A81", "#B35C66", "#748C3B", "#A26A38"],
     grid: { left: 52, right: 18, top: 42, bottom: 48, containLabel: true },
     legend: { top: 0, type: "scroll", textStyle: { color: "#50687A", fontSize: 10 } },
     tooltip: { trigger: "item" },
@@ -606,7 +606,10 @@ function CalibrationPage() {
         type: "scatter" as const,
         data: group.rows.map((row) => [row.predicted, row.observed, row.n]),
         symbolSize: 10,
-        itemStyle: { opacity: 0.88 },
+        itemStyle: {
+          color: calibrationPositionColors[group.position],
+          opacity: 0.88,
+        },
       })),
     ],
   }), [chartGroups, chartMax]);
