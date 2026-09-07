@@ -80,3 +80,23 @@ chosen week.
 
 No durable field-guide update was needed. The existing web, architecture, and
 testing guidance covered this implementation.
+
+## Follow-up: Overview chart layout
+
+The Overview follow-up changed the OOS performance pane to `Last 4 Weeks` and
+changed its aggregate coverage chart from bars to a line chart titled
+`Ceiling Model Calibration, Last 4 Weeks`. Both Overview charts now use a 70%
+lower y-axis bound.
+
+The `Selected slice` pane was removed. Its space now contains an interactive
+position chart with separate QB, RB, WR, and TE lines. The legend supports
+series focus, tooltips show weekly values, and clicking a point changes the
+active week in the Overview context.
+
+Verification for the follow-up:
+
+- `npm run typecheck` in `web` - passed.
+- `npm run lint` in `web` - passed.
+- `npm run build` in `web` - passed.
+- T3 preview - confirmed both chart panes, the 70% axis floor, no `Selected
+  slice` pane, and point-click navigation from Week 17 to Week 14.
