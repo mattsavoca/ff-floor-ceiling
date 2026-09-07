@@ -203,7 +203,8 @@ export function parseProjectionCsv(text: string, fileName: string, options: Proj
   const explicitRankHeader = headers.some((header) => ["rank", "ecr", "consensus_rank", "positional_rank", "pos_rank"].includes(header));
   const seenIds = new Set<string>();
   const acceptedRows: ParsedProjectionRow[] = [];
-  const positionCounts = new Map<string, number>();
+  const positionCounts: UploadReport["positionCounts"] = { QB: 0, RB: 0, WR: 0, TE: 0 };
+  const rankCounts = new Map<string, number>();
 
   selectedRows.forEach(({ raw, line }) => {
     const stablePlayerId = valueFor(raw, ["id", "player_id", "fbg_id", "stable_player_id"]);
@@ -241,13 +242,15 @@ export function parseProjectionCsv(text: string, fileName: string, options: Proj
     }
 
     const explicitRank = valueFor(raw, ["rank", "ecr", "consensus_rank", "positional_rank", "pos_rank"]);
-    const rank = explicitRankHeader && explicitRank ? Number(explicitRank) : (positionCounts.get(position) ?? 0) + 1;
+    const hasExplicitRank = Boolean(explicitRankHeader && explicitRank);
+    const rank = hasExplicitRank ? Number(explicitRank) : (rankCounts.get(position) ?? 0) + 1;
     if (!Number.isFinite(rank) || rank < 1) {
       errors.push({ row: line, field: "rank", message: "The positional rank must be a positive number.", value: explicitRank });
       return;
     }
     const sourceRowOrder = line;
-    if (!explicitRankHeader || !explicitRank) positionCounts.set(position, rank);
+    rankCounts.set(position, Math.max(rankCounts.get(position) ?? 0, rank));
+    positionCounts[position as keyof typeof positionCounts] += 1;
     acceptedRows.push({
       raw,
       stablePlayerId,
@@ -277,6 +280,7 @@ export function parseProjectionCsv(text: string, fileName: string, options: Proj
       accepted: acceptedRows.length,
       excluded: Math.max(0, selectedRows.length - acceptedRows.length),
       unresolved: 0,
+      positionCounts,
       selectedSet: selectedSetId,
       selectedSetId,
       selectedSetLabel: selectedSetName,

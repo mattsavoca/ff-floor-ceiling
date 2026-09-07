@@ -252,6 +252,12 @@ export const demoUploadReport = {
   accepted: 242,
   excluded: 0,
   unresolved: 0,
+  positionCounts: {
+    QB: demoForecasts.filter((row) => row.position === "QB").length,
+    RB: demoForecasts.filter((row) => row.position === "RB").length,
+    WR: demoForecasts.filter((row) => row.position === "WR").length,
+    TE: demoForecasts.filter((row) => row.position === "TE").length,
+  },
   selectedSet: "week1_2026_output",
   sets: [
     { id: "week1_2026_output", label: "Week 1 model output", rows: 242 },

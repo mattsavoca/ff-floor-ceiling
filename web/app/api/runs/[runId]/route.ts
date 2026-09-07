@@ -28,7 +28,7 @@ export async function GET(_request: Request, context: { params: Promise<{ runId:
     failure: run.failure,
     externalModelCalls: run.externalModelCalls,
     runtime: run.runtime,
+    positionCounts: run.result?.metadata.positionCounts ?? null,
     lastCompleteRunId: lastComplete?.runId ?? null,
   }, { headers: { "Cache-Control": "no-store" } });
 }
-

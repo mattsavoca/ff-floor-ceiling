@@ -96,6 +96,7 @@ export type UploadReport = {
   accepted: number;
   excluded: number;
   unresolved: number;
+  positionCounts: Record<"QB" | "RB" | "WR" | "TE", number>;
   selectedSet: string;
   selectedSetLabel?: string;
   selectedSetId?: string;
@@ -191,6 +192,7 @@ export type ForecastResult = {
     completedAt: string;
     acceptedRowCount: number;
     excludedRowCount: number;
+    positionCounts: Record<"QB" | "RB" | "WR" | "TE", number>;
     outputRowCount: number;
     rankRule: string;
     rankSourceOrder: "preserved";

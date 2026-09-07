@@ -312,7 +312,6 @@ a { color: inherit; }
 .metric-definition-rules span { display: flex; align-items: center; gap: 6px; }
 .metric-definition-rules svg { color: var(--green); }
 .method-source-panel { margin-bottom: 14px; }
-.source-status { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 10px; }
 .source-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; margin: 0 19px 17px; border: 1px solid var(--line-light); border-radius: 7px; overflow: hidden; }
 .source-grid > div { display: grid; gap: 5px; padding: 13px; border-right: 1px solid var(--line-light); background: #fff; }
 .source-grid > div:last-child { border-right: 0; }
@@ -324,11 +323,8 @@ a { color: inherit; }
 .source-map-box strong { color: var(--navy); font-size: 11px; }
 .source-map-box p { margin: 4px 0 0; color: var(--muted); font-size: 10px; line-height: 1.45; }
 .source-map-box .text-button { margin-left: auto; }
-.methodology-range-summary { display: grid; grid-template-columns: minmax(220px, .72fr) minmax(0, 1.28fr); gap: 18px; align-items: stretch; margin-bottom: 14px; padding: 18px 19px; border: 1px solid #cbdde7; border-radius: 9px; background: linear-gradient(135deg, #f8fbfd 0%, #eef6fa 100%); box-shadow: var(--shadow); }
-.methodology-range-summary-copy { display: grid; align-content: center; gap: 6px; }
-.methodology-range-summary-copy h2 { margin: 1px 0 0; color: var(--navy); font-size: 21px; letter-spacing: -0.03em; }
-.methodology-range-summary-copy p { max-width: 390px; margin: 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
-.methodology-range-markers { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; background: var(--line); }
+.methodology-range-markers { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; margin-bottom: 8px; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; background: var(--line); }
+.methodology-range-caveat { margin: 0 2px 14px; color: var(--muted); font-size: 10px; line-height: 1.45; }
 .methodology-range-marker { display: grid; align-content: center; gap: 4px; min-width: 0; padding: 13px 12px; background: #fff; }
 .methodology-range-marker strong { color: var(--navy); font: 21px "SFMono-Regular", Consolas, monospace; letter-spacing: -0.06em; }
 .methodology-range-marker span { color: var(--navy); font-size: 10px; font-weight: 750; text-transform: uppercase; }
@@ -347,6 +343,8 @@ a { color: inherit; }
 .methodology-model-icon-floor { background: var(--orange-soft); color: var(--orange); }
 .methodology-model-heading h2 { margin: 4px 0 5px; color: var(--navy); font-size: 18px; line-height: 1.1; letter-spacing: -0.03em; }
 .methodology-model-heading p { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.45; }
+.methodology-path-summary { margin: 0 19px 14px; color: var(--navy); font-size: 11px; line-height: 1.45; }
+.methodology-path-explainer { margin: 0 19px 18px; }
 .methodology-detail-block { padding: 14px 19px; border-top: 1px solid var(--line-light); }
 .methodology-detail-label { display: block; margin-bottom: 8px; color: var(--muted); font: 10px 750 "SFMono-Regular", Consolas, monospace; text-transform: uppercase; }
 .methodology-pill-list { display: flex; flex-wrap: wrap; gap: 5px; }
@@ -415,21 +413,19 @@ a { color: inherit; }
 .methodology-limit > svg { flex: 0 0 auto; margin-top: 1px; color: var(--orange); }
 .methodology-limit strong { display: block; margin-bottom: 3px; color: #814b2d; font-size: 11px; }
 .methodology-limit p { margin: 0; }
-.methodology-contract-panel, .methodology-choice-panel, .methodology-sources-panel { margin-bottom: 14px; }
-.methodology-contract-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 1px; margin: 0 19px 15px; border: 1px solid var(--line-light); border-radius: 7px; overflow: hidden; background: var(--line-light); }
-.methodology-contract-grid > div { display: grid; align-content: start; gap: 5px; min-width: 0; padding: 12px 10px; background: #fff; }
-.methodology-contract-grid span { color: var(--muted); font-size: 9px; }
-.methodology-contract-grid strong { color: var(--navy); font-size: 11px; line-height: 1.25; }
-.methodology-contract-grid small { color: var(--muted); font-size: 9px; line-height: 1.4; }
-.methodology-choice-layout { display: grid; grid-template-columns: minmax(0, 1.08fr) minmax(230px, .92fr); gap: 18px; margin: 0 19px 16px; }
+.methodology-output-map-panel, .methodology-choice-panel, .methodology-sources-panel { margin-bottom: 14px; }
+.methodology-output-map-wrap { margin: 0 19px 15px; overflow-x: auto; border: 1px solid var(--line-light); border-radius: 7px; }
+.methodology-output-map { width: 100%; min-width: 480px; border-collapse: collapse; color: var(--muted); font: 10px "SFMono-Regular", Consolas, monospace; }
+.methodology-output-map th, .methodology-output-map td { padding: 9px 10px; border-bottom: 1px solid var(--line-light); text-align: left; white-space: nowrap; }
+.methodology-output-map thead th { background: #fbfcfd; color: var(--navy); font-size: 9px; font-weight: 750; text-transform: uppercase; }
+.methodology-output-map tbody th { color: var(--navy); }
+.methodology-output-map tbody tr:last-child th, .methodology-output-map tbody tr:last-child td { border-bottom: 0; }
+.methodology-choice-copy { margin: 0 19px 16px; }
 .methodology-choice-copy p { margin: 0 0 11px; color: var(--muted); font-size: 11px; line-height: 1.5; }
 .methodology-choice-rules { display: grid; gap: 9px; margin: 0; padding-left: 19px; color: var(--muted); font-size: 10px; line-height: 1.45; }
 .methodology-choice-rules li::marker { color: var(--action); font-family: "SFMono-Regular", Consolas, monospace; }
 .methodology-choice-rules strong { color: var(--navy); }
-.methodology-choice-result { display: grid; align-content: start; gap: 6px; padding: 14px; border: 1px solid #c7dfd7; border-radius: 7px; background: #f6fcfa; }
-.methodology-choice-result .methodology-detail-label { margin-bottom: 0; color: #5b7a73; }
-.methodology-choice-result strong { color: #246b59; font-size: 13px; line-height: 1.35; }
-.methodology-choice-result p { margin: 0; color: #5b7a73; font-size: 10px; line-height: 1.45; }
+.methodology-choice-toggle { margin-left: 19px; margin-right: 19px; }
 .methodology-choice-table-wrap { margin: 0 19px 15px; overflow-x: auto; border: 1px solid var(--line-light); border-radius: 7px; }
 .methodology-choice-table { width: 100%; min-width: 650px; border-collapse: collapse; color: var(--muted); font: 10px "SFMono-Regular", Consolas, monospace; }
 .methodology-choice-table th, .methodology-choice-table td { padding: 9px 10px; border-bottom: 1px solid var(--line-light); text-align: right; white-space: nowrap; }
@@ -811,8 +807,6 @@ a { color: inherit; }
   .overview-hero-grid, .methodology-layout, .override-layout { grid-template-columns: 1fr; }
   .latest-panel, .next-forecast-panel { min-height: 0; }
   .methodology-layout { gap: 14px; }
-  .methodology-contract-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .methodology-choice-layout { grid-template-columns: 1fr; }
   .methodology-source-grid { grid-template-columns: 1fr; }
   .model-card-intro { grid-template-columns: 1fr; }
   .model-card-section-grid { grid-template-columns: 1fr; }
@@ -850,10 +844,11 @@ a { color: inherit; }
   .latest-detail-grid > div:nth-child(odd) { border-right: 1px solid var(--line-light); }
   .latest-foot, .chart-footer, .range-chart-footer, .projection-footnotes, .app-footer { align-items: flex-start; flex-direction: column; }
   .input-summary-grid { grid-template-columns: 1fr 1fr; gap: 14px; }
-  .methodology-range-summary { grid-template-columns: 1fr; }
   .methodology-model-grid { grid-template-columns: 1fr; }
-  .methodology-contract-grid { grid-template-columns: 1fr 1fr; }
   .methodology-range-markers { grid-template-columns: 1fr; }
+  .methodology-path-summary, .methodology-path-explainer, .methodology-choice-copy { margin-left: 15px; margin-right: 15px; }
+  .methodology-output-map-wrap { margin-left: 15px; margin-right: 15px; }
+  .methodology-choice-toggle { width: calc(100% - 30px); margin-left: 15px; margin-right: 15px; }
   .methodology-range-marker { grid-template-columns: auto auto 1fr; align-items: baseline; column-gap: 8px; }
   .methodology-range-marker strong { grid-row: span 2; }
   .methodology-model-card-summary { grid-template-columns: 34px minmax(0, 1fr) 18px; gap: 9px; padding: 14px 15px; }

@@ -1,10 +1,10 @@
-import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
 
 export const SESSION_COOKIE = "fc_session";
 export const CSRF_COOKIE = "fc_csrf";
 export const SESSION_AGE_SECONDS = 60 * 60 * 24;
-const localSecret = randomBytes(32).toString("base64url");
+const localSecret = "floor-ceiling-local-development-secret";
 
 type SessionToken = {
   workspaceId: string;

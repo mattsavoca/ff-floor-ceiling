@@ -301,7 +301,7 @@ function makeCombinedRows(rows: RankedProjectionRow[], ffsim: FfsimulatorRespons
       throw new ForecastError(`The combined result is incomplete for ${row.stablePlayerId}.`, { affectedPlayerIds: [row.stablePlayerId] });
     }
     if ((floor as number) > median || median > (ceiling as number)) {
-      throw new ForecastError(`The combined range order is invalid for ${row.stablePlayerId}.`, { affectedPlayerIds: [row.stablePlayerId] });
+      throw new ForecastError(`The combined range order is invalid for ${row.stablePlayerId}: floor=${floor}, median=${median}, ceiling=${ceiling}.`, { affectedPlayerIds: [row.stablePlayerId] });
     }
     const result: ForecastResultRow = {
       stablePlayerId: row.stablePlayerId,
@@ -423,6 +423,7 @@ export async function processRun(runId: string, workspaceId: string) {
         completedAt,
         acceptedRowCount: upload.report.accepted,
         excludedRowCount: upload.report.excluded,
+        positionCounts: upload.report.positionCounts,
         outputRowCount: combinedRows.length,
         rankRule: upload.report.sourceOrderUsed ? "positional source order from selected projection set" : "uploaded rank or ECR field",
         rankSourceOrder: "preserved",

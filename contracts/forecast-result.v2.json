@@ -14,7 +14,7 @@
     "metadata": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["season", "week", "scoringContractVersion", "metricDefinitionVersion", "simulationCount", "seed", "modelRelease", "rankReferenceSnapshot", "sourceInputRevision", "createdAt", "completedAt", "acceptedRowCount", "excludedRowCount", "outputRowCount", "rankRule", "rankSourceOrder"],
+      "required": ["season", "week", "scoringContractVersion", "metricDefinitionVersion", "simulationCount", "seed", "modelRelease", "rankReferenceSnapshot", "sourceInputRevision", "createdAt", "completedAt", "acceptedRowCount", "excludedRowCount", "positionCounts", "outputRowCount", "rankRule", "rankSourceOrder"],
       "properties": {
         "season": { "type": "integer", "minimum": 2020, "maximum": 2100 },
         "week": { "type": "integer", "minimum": 1, "maximum": 18 },
@@ -29,6 +29,17 @@
         "completedAt": { "type": "string", "format": "date-time" },
         "acceptedRowCount": { "type": "integer", "minimum": 0, "maximum": 50000 },
         "excludedRowCount": { "type": "integer", "minimum": 0, "maximum": 50000 },
+        "positionCounts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["QB", "RB", "WR", "TE"],
+          "properties": {
+            "QB": { "type": "integer", "minimum": 0, "maximum": 50000 },
+            "RB": { "type": "integer", "minimum": 0, "maximum": 50000 },
+            "WR": { "type": "integer", "minimum": 0, "maximum": 50000 },
+            "TE": { "type": "integer", "minimum": 0, "maximum": 50000 }
+          }
+        },
         "outputRowCount": { "type": "integer", "minimum": 0, "maximum": 50000 },
         "rankRule": { "type": "string", "minLength": 1, "maxLength": 256 },
         "rankSourceOrder": { "const": "preserved" }
