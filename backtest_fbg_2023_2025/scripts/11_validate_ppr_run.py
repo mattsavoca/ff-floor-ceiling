@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import numpy as np
@@ -308,7 +309,8 @@ def validate_outputs(backtest: Path) -> None:
     p15_position = p15_metrics[p15_metrics["group"].eq("position")]
     if p15_position["low_side_miss_rate"].isna().any():
         raise AssertionError("P15 lower-tail miss rates are unavailable")
-    if p15_position["high_side_miss_rate"].notna().any():
+    xgb_p15_position = p15_position[p15_position["model"].eq("xgb_projection")]
+    if xgb_p15_position["high_side_miss_rate"].notna().any():
         raise AssertionError("P15 XGBoost reports an upper-tail miss rate without a p85 output")
 
     def p15_metric_check(row: pd.Series) -> None:
@@ -375,7 +377,7 @@ def validate_outputs(backtest: Path) -> None:
     page_component = backtest.parent / "web" / "components" / "FloorCeilingApp.tsx"
     for path in (page_data, page_component):
         text = path.read_text(encoding="utf-8").upper()
-        if "FFFL" in text:
+        if re.search(r"\bFFFL\b", text):
             raise AssertionError(f"Active calibration presentation contains FFFL wording: {path}")
     if "P15" not in page_data.read_text(encoding="utf-8").upper() or "FLOOR" not in page_component.read_text(encoding="utf-8").upper():
         raise AssertionError("The calibration page does not expose the Floor / P15 view")

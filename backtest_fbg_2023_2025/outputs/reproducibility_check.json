@@ -6,8 +6,8 @@
     {
       "canonical": "player_predictions.parquet",
       "repeat": "player_predictions_repro.parquet",
-      "canonical_sha256": "251941f7dc54a47a96114eaf33d1d262f90284f53f1f44f8396f42e7f015c467",
-      "repeat_sha256": "251941f7dc54a47a96114eaf33d1d262f90284f53f1f44f8396f42e7f015c467",
+      "canonical_sha256": "6891859a3a9ab5960d886d469a00da32c7d27db7f85559a67ae76a332648fe4b",
+      "repeat_sha256": "6891859a3a9ab5960d886d469a00da32c7d27db7f85559a67ae76a332648fe4b",
       "match": true
     },
     {
@@ -141,6 +141,113 @@
       "repeat": "xgb_p85_repro_b\\models\\xgb_p85_wr_through_2024.json",
       "canonical_sha256": "eb68b1a49456f049af99c51f8d604fcf74456540c98af45e2e46b75a6071d951",
       "repeat_sha256": "eb68b1a49456f049af99c51f8d604fcf74456540c98af45e2e46b75a6071d951",
+      "match": true
+    }
+  ],
+  "xgb_p15_smoke_comparisons": [
+    {
+      "canonical": "xgb_p15_repro_a\\predictions.parquet",
+      "repeat": "xgb_p15_repro_b\\predictions.parquet",
+      "canonical_sha256": "958158beb06ca9dd13c492e95f8fabe772badd19e371ec7fdbadfc9b0d35cdf5",
+      "repeat_sha256": "958158beb06ca9dd13c492e95f8fabe772badd19e371ec7fdbadfc9b0d35cdf5",
+      "match": true
+    },
+    {
+      "canonical": "xgb_p15_repro_a\\selected_models.csv",
+      "repeat": "xgb_p15_repro_b\\selected_models.csv",
+      "canonical_sha256": "ca44eded918af540c42e4703f2dce56a9e8b38e9d1174de12015d8bae7b4409b",
+      "repeat_sha256": "ca44eded918af540c42e4703f2dce56a9e8b38e9d1174de12015d8bae7b4409b",
+      "match": true
+    },
+    {
+      "canonical": "xgb_p15_repro_a\\grid_results.csv",
+      "repeat": "xgb_p15_repro_b\\grid_results.csv",
+      "canonical_sha256": "1d1f66294cbac1f1b626480f2e4ac6f7496c51b91c1463058f6c00cd9e221cda",
+      "repeat_sha256": "1d1f66294cbac1f1b626480f2e4ac6f7496c51b91c1463058f6c00cd9e221cda",
+      "match": true
+    },
+    {
+      "canonical": "xgb_p15_repro_a\\feature_importance.csv",
+      "repeat": "xgb_p15_repro_b\\feature_importance.csv",
+      "canonical_sha256": "e374d7a24f0f505794bac91068dda17d7459d4a109b8d8acf5de4e8f6a698c82",
+      "repeat_sha256": "e374d7a24f0f505794bac91068dda17d7459d4a109b8d8acf5de4e8f6a698c82",
+      "match": true
+    },
+    {
+      "canonical": "xgb_p15_repro_a\\metrics.csv",
+      "repeat": "xgb_p15_repro_b\\metrics.csv",
+      "canonical_sha256": "861e73eb6b8796865e7f7c79e5a6f7729c1ad89b19b5247b64acf6e789e2d123",
+      "repeat_sha256": "861e73eb6b8796865e7f7c79e5a6f7729c1ad89b19b5247b64acf6e789e2d123",
+      "match": true
+    },
+    {
+      "canonical": "xgb_p15_repro_a\\bust_capture.csv",
+      "repeat": "xgb_p15_repro_b\\bust_capture.csv",
+      "canonical_sha256": "ef83f2c5899009a842944ae4af012c8964375d3870ebe688e2184b190968f1e7",
+      "repeat_sha256": "ef83f2c5899009a842944ae4af012c8964375d3870ebe688e2184b190968f1e7",
+      "match": true
+    },
+    {
+      "canonical": "xgb_p15_repro_a\\p15_calibration.csv",
+      "repeat": "xgb_p15_repro_b\\p15_calibration.csv",
+      "canonical_sha256": "f15464e9d42bc1f733b7b1a72c9ece0d2975763bb273b42a06c65bb4d9701719",
+      "repeat_sha256": "f15464e9d42bc1f733b7b1a72c9ece0d2975763bb273b42a06c65bb4d9701719",
+      "match": true
+    },
+    {
+      "canonical": "xgb_p15_repro_a\\models\\xgb_p15_qb_through_2023.json",
+      "repeat": "xgb_p15_repro_b\\models\\xgb_p15_qb_through_2023.json",
+      "canonical_sha256": "01cfa2905c2384f3f08e9d98a4d6939f6af95a15ff09725ee13527283005fed7",
+      "repeat_sha256": "01cfa2905c2384f3f08e9d98a4d6939f6af95a15ff09725ee13527283005fed7",
+      "match": true
+    },
+    {
+      "canonical": "xgb_p15_repro_a\\models\\xgb_p15_qb_through_2024.json",
+      "repeat": "xgb_p15_repro_b\\models\\xgb_p15_qb_through_2024.json",
+      "canonical_sha256": "42ddc3fca28992df59a553988c408c5e97f2726865f1dfaeda0d6f8bcef64c38",
+      "repeat_sha256": "42ddc3fca28992df59a553988c408c5e97f2726865f1dfaeda0d6f8bcef64c38",
+      "match": true
+    },
+    {
+      "canonical": "xgb_p15_repro_a\\models\\xgb_p15_rb_through_2023.json",
+      "repeat": "xgb_p15_repro_b\\models\\xgb_p15_rb_through_2023.json",
+      "canonical_sha256": "fc94e452fbdb5998ee388906ae946a2a07064cb33a307fc02b97905a85f7fb76",
+      "repeat_sha256": "fc94e452fbdb5998ee388906ae946a2a07064cb33a307fc02b97905a85f7fb76",
+      "match": true
+    },
+    {
+      "canonical": "xgb_p15_repro_a\\models\\xgb_p15_rb_through_2024.json",
+      "repeat": "xgb_p15_repro_b\\models\\xgb_p15_rb_through_2024.json",
+      "canonical_sha256": "f1e284ec7b054bdeb8bb9cebe7bbbe54e5812514f30178bf1d4860a6a370f67b",
+      "repeat_sha256": "f1e284ec7b054bdeb8bb9cebe7bbbe54e5812514f30178bf1d4860a6a370f67b",
+      "match": true
+    },
+    {
+      "canonical": "xgb_p15_repro_a\\models\\xgb_p15_te_through_2023.json",
+      "repeat": "xgb_p15_repro_b\\models\\xgb_p15_te_through_2023.json",
+      "canonical_sha256": "bb89fde538395897a10fd62872eb8bf1d1d834c612ea2458aca058599702df7a",
+      "repeat_sha256": "bb89fde538395897a10fd62872eb8bf1d1d834c612ea2458aca058599702df7a",
+      "match": true
+    },
+    {
+      "canonical": "xgb_p15_repro_a\\models\\xgb_p15_te_through_2024.json",
+      "repeat": "xgb_p15_repro_b\\models\\xgb_p15_te_through_2024.json",
+      "canonical_sha256": "98c4165408d5e466678a8f0862417781a7c32c3fb35b9c833d42cb66c9ca805a",
+      "repeat_sha256": "98c4165408d5e466678a8f0862417781a7c32c3fb35b9c833d42cb66c9ca805a",
+      "match": true
+    },
+    {
+      "canonical": "xgb_p15_repro_a\\models\\xgb_p15_wr_through_2023.json",
+      "repeat": "xgb_p15_repro_b\\models\\xgb_p15_wr_through_2023.json",
+      "canonical_sha256": "60d09cae0a4ef43357c4b5cf8b029710c1f10988a7db710f8a3e6b6b13d35670",
+      "repeat_sha256": "60d09cae0a4ef43357c4b5cf8b029710c1f10988a7db710f8a3e6b6b13d35670",
+      "match": true
+    },
+    {
+      "canonical": "xgb_p15_repro_a\\models\\xgb_p15_wr_through_2024.json",
+      "repeat": "xgb_p15_repro_b\\models\\xgb_p15_wr_through_2024.json",
+      "canonical_sha256": "4e431bb4198062a053a1df4e74f20a60c9ec303d6f7658f4ba94eaf305534e82",
+      "repeat_sha256": "4e431bb4198062a053a1df4e74f20a60c9ec303d6f7658f4ba94eaf305534e82",
       "match": true
     }
   ]

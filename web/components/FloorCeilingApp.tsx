@@ -75,7 +75,7 @@ import type { EChartsOption } from "echarts";
 const navItems: Array<{ id: TabId; label: string; description: string; icon: typeof LayoutDashboard }> = [
   { id: "overview", label: "Overview", description: "Weekly monitoring", icon: LayoutDashboard },
   { id: "methodology", label: "Methodology", description: "How ranges are derived", icon: GitBranch },
-  { id: "calibration", label: "Model check", description: "Compare with past scores", icon: Target },
+  { id: "calibration", label: "Calibration", description: "Compare with past scores", icon: Target },
   { id: "projection", label: "Forecast workflow", description: "Upload and run", icon: Zap },
   { id: "overrides", label: "Manual overrides", description: "Record judgment", icon: SlidersHorizontal },
 ];
@@ -476,14 +476,14 @@ export function FloorCeilingApp() {
         <div className="sidebar-label">Workspace</div>
         <nav className="primary-nav" aria-label="Primary navigation">{navItems.map((item) => { const Icon = item.icon; return <button type="button" key={item.id} onClick={() => navigate(item.id)} className={cx("nav-item", activeTab === item.id && "nav-item-active")}><Icon size={18} /><span><strong>{item.label}</strong><small>{item.description}</small></span>{activeTab === item.id ? <ChevronRight size={16} className="nav-arrow" /> : null}</button>; })}</nav>
         <div className="sidebar-divider" />
-        <div className="sidebar-label">{activeTab === "calibration" ? "Model check" : "Current run"}</div>
+        <div className="sidebar-label">{activeTab === "calibration" ? "Calibration" : "Current run"}</div>
         {activeTab === "calibration" ? <div className="sidebar-run-card calibration-sidebar-card"><div className="run-card-top"><span className="run-dot run-dot-good" />Past results<MoreHorizontal size={15} /></div><strong>{calibrationModel.shortName}</strong><span>{calibrationModel.oosRows.toLocaleString()} scores checked</span><span className="sidebar-run-id">2024 · 2025</span></div> : <div className="sidebar-run-card"><div className="run-card-top"><span className={cx("run-dot", runState === "Complete" ? "run-dot-good" : runState === "Failed" ? "run-dot-warn" : "run-dot-blue")} />{runState}<MoreHorizontal size={15} /></div><strong>Week {week} · {season}</strong><span>{upload.accepted.toLocaleString()} accepted rows</span><span className="sidebar-run-id">{shortId(runId)}</span></div>}
         <div className="sidebar-spacer" />
         <div className="sidebar-footer"><div className="owner-row"><span className="owner-avatar">MS</span><span><strong>Matt Savoca</strong><small>Owner workspace</small></span><Settings2 size={16} /></div><div className="privacy-note"><LockKeyhole size={13} /> Temporary data stays in this browser.</div></div>
       </aside>
       {mobileNavOpen ? <button className="nav-scrim" type="button" onClick={() => setMobileNavOpen(false)} aria-label="Close navigation" /> : null}
       <main className="main-area">
-        <header className={cx("topbar", activeTab === "projection" && "projection-topbar")}><div className="mobile-brand"><button type="button" className="menu-button" onClick={() => setMobileNavOpen(true)} aria-label="Open navigation"><Menu size={20} /></button><span>Floor &amp; Ceiling</span></div><div className="topbar-context"><span className="topbar-kicker">{activeTab === "calibration" ? "Model check" : "Forecast workspace"}</span><span className="topbar-separator">/</span><strong>{activeTab === "calibration" ? calibrationModel.shortName : `${season} · Week ${week}`}</strong></div><div className="topbar-actions"><span className="saved-state"><span className="saved-dot" /> Saved locally</span><button type="button" className="session-button" onClick={() => setSessionMenuOpen((open) => !open)}><span className="session-avatar"><UserRound size={14} /></span><span>{shortId(workspaceId)}</span><ChevronDown size={14} /></button>{sessionMenuOpen ? <div className="session-menu"><div className="session-menu-heading"><span className="session-avatar large"><UserRound size={16} /></span><div><strong>Temporary workspace</strong><span>{shortId(workspaceId)}</span></div></div><div className="session-menu-row"><Clock3 size={15} /><span>Expires {formatRelativeTime(expiresAt)}</span></div><div className="session-menu-row"><ShieldCheck size={15} /><span>Private to this browser</span></div><div className="session-menu-divider" /><Button variant="quiet" onClick={resetWorkspace} icon={<RotateCcw size={15} />}>Reset workspace</Button><p>Download work before the session expires. Lost or expired data cannot be recovered.</p></div> : null}</div></header>
+        <header className={cx("topbar", activeTab === "projection" && "projection-topbar")}><div className="mobile-brand"><button type="button" className="menu-button" onClick={() => setMobileNavOpen(true)} aria-label="Open navigation"><Menu size={20} /></button><span>Floor &amp; Ceiling</span></div><div className="topbar-context"><span className="topbar-kicker">{activeTab === "calibration" ? "Calibration" : "Forecast workspace"}</span><span className="topbar-separator">/</span><strong>{activeTab === "calibration" ? calibrationModel.shortName : `${season} · Week ${week}`}</strong></div><div className="topbar-actions"><span className="saved-state"><span className="saved-dot" /> Saved locally</span><button type="button" className="session-button" onClick={() => setSessionMenuOpen((open) => !open)}><span className="session-avatar"><UserRound size={14} /></span><span>{shortId(workspaceId)}</span><ChevronDown size={14} /></button>{sessionMenuOpen ? <div className="session-menu"><div className="session-menu-heading"><span className="session-avatar large"><UserRound size={16} /></span><div><strong>Temporary workspace</strong><span>{shortId(workspaceId)}</span></div></div><div className="session-menu-row"><Clock3 size={15} /><span>Expires {formatRelativeTime(expiresAt)}</span></div><div className="session-menu-row"><ShieldCheck size={15} /><span>Private to this browser</span></div><div className="session-menu-divider" /><Button variant="quiet" onClick={resetWorkspace} icon={<RotateCcw size={15} />}>Reset workspace</Button><p>Download work before the session expires. Lost or expired data cannot be recovered.</p></div> : null}</div></header>
         {activeTab !== "calibration" && activeTab !== "projection" ? <ContextStrip season={season} week={week} metricDefinition={metricDefinition} onSeason={updateContextSeason} onWeek={updateContextWeek} onMetricDefinition={updateContextMetric} onNavigateOverview={() => navigate("overview")} /> : null}
         <div className="page-content">
           {activeTab === "overview" ? <OverviewPage navigate={navigate} season={season} week={week} onWeekChange={setWeek} /> : null}
@@ -646,7 +646,7 @@ function MethodologyPage({ navigate }: MethodologyPageProps) {
 
   return (
     <>
-      <SectionIntro eyebrow="Methodology" title="How each model builds a range" status={<StatusPill label="Two model paths" tone="blue" />} action={<Button variant="secondary" onClick={() => navigate("calibration")} icon={<Target size={15} />}>View model check</Button>}>The site compares a rank-based simulation with a direct XGBoost ceiling model. Both use the same PPR score definition and are tested on player-week results that the model did not see.</SectionIntro>
+      <SectionIntro eyebrow="Methodology" title="How each model builds a range" status={<StatusPill label="Two model paths" tone="blue" />} action={<Button variant="secondary" onClick={() => navigate("calibration")} icon={<Target size={15} />}>View calibration</Button>}>The site compares a rank-based simulation with a direct XGBoost ceiling model. Both use the same PPR score definition and are tested on player-week results that the model did not see.</SectionIntro>
 
       <section className="methodology-range-summary" aria-labelledby="methodology-range-title">
         <div className="methodology-range-summary-copy">
@@ -905,7 +905,7 @@ function CeilingCalibrationPage() {
 
   return (
     <>
-      <SectionIntro eyebrow="Model check" title="Do the high estimates match past scores?" status={<StatusPill label="Near target" tone="good" />} action={<StatusPill label="PPR scoring" tone="blue" />}>We compare each high estimate with the final score from past weeks. The target is for about 85 of 100 scores to stay at or below the estimate.</SectionIntro>
+      <SectionIntro eyebrow="Calibration" title="Do the high estimates match past scores?" status={<StatusPill label="Near target" tone="good" />} action={<StatusPill label="PPR scoring" tone="blue" />}>We compare each high estimate with the final score from past weeks. The target is for about 85 of 100 scores to stay at or below the estimate.</SectionIntro>
 
       <section className="calibration-model-card">
         <div className="calibration-model-main">
@@ -1148,7 +1148,7 @@ function FloorCalibrationPage() {
 
   return (
     <>
-      <SectionIntro eyebrow="Model check" title="Do the low estimates match past scores?" status={<StatusPill label="Near target" tone="good" />} action={<StatusPill label="PPR scoring" tone="blue" />}>We compare each low estimate with the final score from past weeks. The target is for about 15 of 100 scores to stay at or below the estimate.</SectionIntro>
+      <SectionIntro eyebrow="Calibration" title="Do the low estimates match past scores?" status={<StatusPill label="Near target" tone="good" />} action={<StatusPill label="PPR scoring" tone="blue" />}>We compare each low estimate with the final score from past weeks. The target is for about 15 of 100 scores to stay at or below the estimate.</SectionIntro>
 
       <section className="calibration-model-card">
         <div className="calibration-model-main">
