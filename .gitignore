@@ -11,6 +11,7 @@ web/.next/
 web/.vercel/
 web/coverage/
 web/*.tsbuildinfo
+.forecast-data/
 
 .vercel
 .env*

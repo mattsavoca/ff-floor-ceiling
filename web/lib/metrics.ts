@@ -1,4 +1,4 @@
-import type { ForecastRow, OverrideSpec, RangeValues } from "./types";
+import type { ForecastRow, OverridePreset, OverrideSpec, RangeValues } from "./types";
 
 export function clampFactor(value: number) {
   if (!Number.isFinite(value)) return 1;
@@ -9,12 +9,25 @@ export function applyOverride(row: ForecastRow, override?: OverrideSpec): RangeV
   if (!override) return row.original;
   if (override.inactive) return { floor: 0, median: 0, ceiling: 0 };
 
-  const factor = clampFactor(override.factor);
+  const factor = clampFactor(override.workloadFactor ?? override.factor);
   const scaled: RangeValues = {
     floor: row.original.floor * factor,
     median: row.original.median * factor,
     ceiling: row.original.ceiling * factor,
   };
+
+  const presetFactors: Record<OverridePreset, number> = {
+    full: 1,
+    half: 0.5,
+    quarter: 0.25,
+    reduced_role: 0.75,
+  };
+  const preset = override.preset;
+  const presetSupported = preset !== "reduced_role" || ["RB", "WR", "TE"].includes(row.position);
+  const presetFactor = preset && presetSupported ? presetFactors[preset] : 1;
+  scaled.floor *= presetFactor;
+  scaled.median *= presetFactor;
+  scaled.ceiling *= presetFactor;
 
   if (override.defensePreset && row.position === "DST") {
     const reference = override.analystProjection ?? row.sourceProjection;

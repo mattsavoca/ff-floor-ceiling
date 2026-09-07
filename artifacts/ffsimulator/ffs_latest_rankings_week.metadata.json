@@ -1,0 +1,11 @@
+{
+  "snapshot_id": "ffs_latest_rankings_week_2026-09-07",
+  "source_url": "https://github.com/dynastyprocess/data/raw/master/files/fp_latest_weekly.rds",
+  "retrieval_time": "2026-09-07 17:35:20 UTC",
+  "package": "ffsimulator",
+  "package_version": "1.2.3.2",
+  "row_count": 1577,
+  "source_scrape_date": "2026-09-07",
+  "raw_snapshot": "artifacts/ffsimulator/ffs_latest_rankings_week.rds",
+  "serving_snapshot": "artifacts/ffsimulator/ffs_latest_rankings_week.csv"
+}

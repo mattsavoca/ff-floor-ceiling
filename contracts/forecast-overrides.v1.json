@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://floor-ceiling.example/contracts/forecast-overrides.v1.json",
+  "title": "Floor and Ceiling run-scoped overrides",
+  "description": "Manual changes linked to one complete run and one immutable uploaded input revision.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["overrideSetId", "runId", "uploadId", "sourceInputRevision", "workspaceId", "records", "history"],
+  "properties": {
+    "overrideSetId": { "type": "string", "pattern": "^overrides_[A-Za-z0-9-]{8,128}$" },
+    "runId": { "type": "string", "pattern": "^run_[A-Za-z0-9-]{8,128}$" },
+    "uploadId": { "type": "string", "pattern": "^upload_[A-Za-z0-9-]{8,128}$" },
+    "sourceInputRevision": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "workspaceId": { "type": "string", "pattern": "^ws_[a-z0-9]{12}$" },
+    "records": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/record" }
+    },
+    "history": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "action", "label", "detail", "time", "tone"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "action": { "enum": ["save", "reset", "copy"] },
+          "stablePlayerId": { "type": "string" },
+          "label": { "type": "string" },
+          "detail": { "type": "string" },
+          "time": { "type": "string", "format": "date-time" },
+          "tone": { "enum": ["blue", "orange", "gray"] }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "record": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["factor", "inactive", "exclude", "defensePreset", "edits", "reason", "savedAt", "revision"],
+      "properties": {
+        "factor": { "type": "number", "minimum": 0, "maximum": 2 },
+        "workloadFactor": { "type": "number", "minimum": 0, "maximum": 2 },
+        "preset": { "enum": ["full", "half", "quarter", "reduced_role"] },
+        "inactive": { "type": "boolean" },
+        "exclude": { "type": "boolean" },
+        "defensePreset": { "type": "boolean" },
+        "analystProjection": { "type": "number" },
+        "edits": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "floor": { "type": "number", "minimum": 0 },
+            "median": { "type": "number", "minimum": 0 },
+            "ceiling": { "type": "number", "minimum": 0 }
+          }
+        },
+        "reason": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "savedAt": { "type": "string", "format": "date-time" },
+        "revision": { "type": "integer", "minimum": 1 },
+        "overrideSetId": { "type": "string" },
+        "runId": { "type": "string" },
+        "uploadId": { "type": "string" },
+        "sourceInputRevision": { "type": "string" },
+        "stablePlayerId": { "type": "string" },
+        "workspaceId": { "type": "string" }
+      }
+    }
+  }
+}

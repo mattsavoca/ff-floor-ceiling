@@ -66,6 +66,8 @@ import {
   floorPositionModelSelections,
   floorModelFits,
   floorFeatureFamilies,
+  ffsimulatorModel,
+  scorecardMetrics,
 } from "@/lib/calibration-data";
 import {
   demoForecasts,
@@ -73,7 +75,7 @@ import {
 } from "@/lib/project-data";
 import { applyOverride, calculateDemoSummary, clampFactor, formatNumber, validateRange } from "@/lib/metrics";
 import { DEFAULT_SIMULATION_COUNT, MAX_SIMULATIONS, MIN_SIMULATIONS, SIMULATION_STEP, isValidSimulationCount } from "@/lib/simulation-config";
-import type { ForecastRow, OverrideSpec, RangeValues, RunState, TabId, UploadReport, ViewMode } from "@/lib/types";
+import type { ForecastResult, ForecastRow, OverrideHistoryEntry, OverrideSet, OverrideSpec, RangeValues, RunState, TabId, UploadReport, ViewMode } from "@/lib/types";
 import type { EChartsOption } from "echarts";
 
 const navItems: Array<{ id: TabId; label: string; description: string; icon: typeof LayoutDashboard }> = [
@@ -101,7 +103,6 @@ const positionDisplayNames: Record<(typeof monitoringPositionOrder)[number], str
   TE: "Tight end",
 };
 const runStates: RunState[] = ["Empty", "Checking upload", "Ready", "Queued", "Running", "Complete", "Failed", "Canceled"];
-type OverrideHistoryEntry = { id: string; label: string; detail: string; time: string; tone: "blue" | "orange" | "gray"; previous?: RangeValues; next?: RangeValues };
 
 function cx(...values: Array<string | false | null | undefined>) {
   return values.filter(Boolean).join(" ");
@@ -115,6 +116,45 @@ function formatRelativeTime(value: string) {
 
 function shortId(value: string) {
   return value.length > 18 ? `${value.slice(0, 8)}…${value.slice(-5)}` : value;
+}
+
+function forecastRowsFromResult(result: ForecastResult): ForecastRow[] {
+  return result.rows.map((row) => ({
+    id: row.stablePlayerId,
+    name: row.playerName,
+    position: row.position,
+    team: row.team,
+    opponent: row.opponent,
+    game: `${row.team} vs ${row.opponent}`,
+    sourceProjection: row.average,
+    average: row.average,
+    csvProjection: row.csvProjection,
+    rank: row.ecr,
+    sourceRowOrder: row.sourceRowOrder,
+    rankSd: row.rankSd,
+    rankSdMatch: row.rankSdMatch,
+    season: row.season,
+    week: row.week,
+    inputRevision: result.metadata.sourceInputRevision,
+    runId: result.runId,
+    modelRelease: result.metadata.modelRelease,
+    originalAverage: row.average,
+    rawProjection: row.rawProjection,
+    ffsim: {
+      mean: row.ffsimMean,
+      p15: row.ffsimP15,
+      p50: row.ffsimP50,
+      p85: row.ffsimP85,
+      zeroRate: row.ffsimZeroRate,
+      activeRate: row.ffsimActiveRate,
+    },
+    xgbP15: row.xgbP15 ?? undefined,
+    xgbP85: row.xgbP85 ?? undefined,
+    valueSources: row.valueSources,
+    original: { floor: row.floor, median: row.median, ceiling: row.ceiling },
+    nSimulations: result.metadata.simulationCount,
+    hasDraws: true,
+  }));
 }
 
 function browserCookie(name: string) {
@@ -243,6 +283,14 @@ export function FloorCeilingApp() {
   const [upload, setUpload] = useState<UploadReport>(demoUploadReport);
   const [runState, setRunState] = useState<RunState>("Complete");
   const [runId, setRunId] = useState("run_w1_2026_7f3a");
+  const [activeRunId, setActiveRunId] = useState("");
+  const [resultRunId, setResultRunId] = useState("");
+  const [dataMode, setDataMode] = useState<"demo" | "live">("demo");
+  const [liveRows, setLiveRows] = useState<ForecastRow[]>([]);
+  const [liveUploadId, setLiveUploadId] = useState("");
+  const [sourceInputRevision, setSourceInputRevision] = useState("");
+  const [liveOverrideSet, setLiveOverrideSet] = useState<OverrideSet | null>(null);
+  const [runFailure, setRunFailure] = useState<{ stage?: string; message?: string; nextAction?: string } | null>(null);
   const [simulationCount, setSimulationCount] = useState(String(DEFAULT_SIMULATION_COUNT));
   const [viewMode, setViewMode] = useState<ViewMode>("original");
   const [projectionSearch, setProjectionSearch] = useState("");
@@ -255,44 +303,125 @@ export function FloorCeilingApp() {
   const [toast, setToast] = useState<string | null>(null);
   const [uploadErrors, setUploadErrors] = useState<UploadReport["errors"]>([]);
 
-  const selectedRow = demoForecasts.find((row) => row.id === selectedPlayerId) ?? demoForecasts[0];
-  const teams = useMemo(() => ["All", ...Array.from(new Set(demoForecasts.map((row) => row.team))).sort()], []);
+  const activeRows = dataMode === "live" ? liveRows : demoForecasts;
+  const activeOverrides = dataMode === "live" ? (liveOverrideSet?.records ?? {}) : overrides;
+  const activeHistory = dataMode === "live" ? (liveOverrideSet?.history ?? []) : overrideHistory;
+  const selectedRow = activeRows.find((row) => row.id === selectedPlayerId) ?? activeRows[0];
+  const teams = useMemo(() => ["All", ...Array.from(new Set(activeRows.map((row) => row.team))).sort()], [activeRows]);
   const filteredForecasts = useMemo(() => {
-    const filtered = demoForecasts.filter((row) => {
+    const filtered = activeRows.filter((row) => {
       const matchesSearch = !projectionSearch || `${row.name} ${row.team}`.toLowerCase().includes(projectionSearch.toLowerCase());
       const matchesPosition = projectionPosition === "All" || row.position === projectionPosition;
       const matchesTeam = projectionTeam === "All" || row.team === projectionTeam;
       return matchesSearch && matchesPosition && matchesTeam;
     });
     return [...filtered].sort((left, right) => {
-      const leftValues = viewMode === "adjusted" ? applyOverride(left, overrides[left.id]) : left.original;
-      const rightValues = viewMode === "adjusted" ? applyOverride(right, overrides[right.id]) : right.original;
+      const leftValues = viewMode === "adjusted" ? applyOverride(left, activeOverrides[left.id]) : left.original;
+      const rightValues = viewMode === "adjusted" ? applyOverride(right, activeOverrides[right.id]) : right.original;
       if (projectionSort === "name") return left.name.localeCompare(right.name);
       if (projectionSort === "median") return rightValues.median - leftValues.median;
       if (projectionSort === "floor") return rightValues.floor - leftValues.floor;
       return rightValues.ceiling - leftValues.ceiling;
     });
-  }, [overrides, projectionPosition, projectionSearch, projectionSort, projectionTeam, viewMode]);
+  }, [activeOverrides, activeRows, projectionPosition, projectionSearch, projectionSort, projectionTeam, viewMode]);
 
   useEffect(() => {
-    const stored = window.sessionStorage.getItem("fc-overrides");
-    if (stored) {
-      try { setOverrides(JSON.parse(stored) as Record<string, OverrideSpec>); } catch { window.sessionStorage.removeItem("fc-overrides"); }
+    let cancelled = false;
+    async function restoreWorkspace() {
+      const storedWorkspace = window.sessionStorage.getItem("fc-workspace-id");
+      if (storedWorkspace) setWorkspaceId(storedWorkspace);
+      const storedDemoOverrides = window.sessionStorage.getItem("fc-demo-overrides");
+      if (storedDemoOverrides) {
+        try { setOverrides(JSON.parse(storedDemoOverrides) as Record<string, OverrideSpec>); } catch { window.sessionStorage.removeItem("fc-demo-overrides"); }
+      }
+      const sessionResponse = await fetch("/api/session").catch(() => null);
+      if (!sessionResponse?.ok || cancelled) return;
+      const sessionData = await sessionResponse.json() as { workspaceId?: string; expiresAt?: string };
+      if (sessionData.workspaceId) { setWorkspaceId(sessionData.workspaceId); window.sessionStorage.setItem("fc-workspace-id", sessionData.workspaceId); }
+      if (sessionData.expiresAt) setExpiresAt(sessionData.expiresAt);
+      const runsResponse = await fetch("/api/runs").catch(() => null);
+      if (!runsResponse?.ok || cancelled) return;
+      const runsData = await runsResponse.json() as { runs?: Array<{ runId: string; state: string; uploadId: string; season: number; week: number; lastCompleteRunId?: string }>; lastCompleteRunId?: string };
+      const storedRunId = window.sessionStorage.getItem("fc-active-run-id");
+      const active = runsData.runs?.find((run) => run.runId === storedRunId && (run.state === "Queued" || run.state === "Running"));
+      const lastComplete = runsData.lastCompleteRunId;
+      if (active) {
+        setDataMode("live");
+        setActiveRunId(active.runId);
+        setLiveUploadId(active.uploadId);
+        setSeason(String(active.season));
+        setWeek(String(active.week));
+        setRunId(active.runId);
+        setRunState(active.state === "Running" ? "Running" : "Queued");
+      } else if (lastComplete) {
+        setDataMode("live");
+        setResultRunId(lastComplete);
+        const completeRun = runsData.runs?.find((run) => run.runId === lastComplete);
+        if (completeRun) { setRunId(completeRun.runId); setLiveUploadId(completeRun.uploadId); setSeason(String(completeRun.season)); setWeek(String(completeRun.week)); setRunState("Complete"); }
+        const resultResponse = await fetch(`/api/runs/${lastComplete}/result`);
+        const resultData = await resultResponse.json() as { result?: ForecastResult };
+        if (resultData.result) setLiveRows(forecastRowsFromResult(resultData.result));
+        const overrideResponse = await fetch(`/api/runs/${lastComplete}/overrides`);
+        const overrideData = await overrideResponse.json() as { overrideSet?: OverrideSet };
+        if (overrideData.overrideSet) setLiveOverrideSet(overrideData.overrideSet);
+      }
     }
-    const storedWorkspace = window.sessionStorage.getItem("fc-workspace-id");
-    if (storedWorkspace) setWorkspaceId(storedWorkspace);
-    else window.sessionStorage.setItem("fc-workspace-id", workspaceId);
-    void fetch("/api/session").then(async (response) => {
-      if (!response.ok) return;
-      const data = await response.json() as { workspaceId?: string; expiresAt?: string };
-      if (data.workspaceId) { setWorkspaceId(data.workspaceId); window.sessionStorage.setItem("fc-workspace-id", data.workspaceId); }
-      if (data.expiresAt) setExpiresAt(data.expiresAt);
-    }).catch(() => undefined);
-  }, [workspaceId]);
+    void restoreWorkspace();
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
-    window.sessionStorage.setItem("fc-overrides", JSON.stringify(overrides));
+    window.sessionStorage.setItem("fc-demo-overrides", JSON.stringify(overrides));
   }, [overrides]);
+
+  useEffect(() => {
+    if (!selectedRow) return;
+    if (selectedPlayerId !== selectedRow.id) setSelectedPlayerId(selectedRow.id);
+  }, [selectedPlayerId, selectedRow]);
+
+  useEffect(() => {
+    if (dataMode !== "live" || !activeRunId) return;
+    let cancelled = false;
+    let timer: number | undefined;
+    async function pollRun() {
+      const response = await fetch(`/api/runs/${activeRunId}`).catch(() => null);
+      if (!response?.ok || cancelled) return;
+      const run = await response.json() as { state: string; stage?: string; season: number; week: number; uploadId: string; failure?: { stage?: string; message?: string; nextAction?: string }; lastCompleteRunId?: string };
+      if (cancelled) return;
+      setSeason(String(run.season));
+      setWeek(String(run.week));
+      setLiveUploadId(run.uploadId);
+      if (run.state === "Queued" || run.state === "Running") {
+        setRunState(run.state as RunState);
+        timer = window.setTimeout(() => void pollRun(), 900);
+        return;
+      }
+      if (run.state === "Failed") {
+        setRunFailure(run.failure ?? { stage: run.stage, message: "The run failed.", nextAction: "Review the run details and retry." });
+        setRunState("Failed");
+        if (run.lastCompleteRunId) {
+          const resultResponse = await fetch(`/api/runs/${run.lastCompleteRunId}/result`);
+          const resultData = await resultResponse.json() as { result?: ForecastResult };
+          if (resultData.result && !cancelled) { setResultRunId(run.lastCompleteRunId); setLiveRows(forecastRowsFromResult(resultData.result)); }
+          const overrideResponse = await fetch(`/api/runs/${run.lastCompleteRunId}/overrides`);
+          const overrideData = await overrideResponse.json() as { overrideSet?: OverrideSet };
+          if (overrideData.overrideSet && !cancelled) setLiveOverrideSet(overrideData.overrideSet);
+        }
+        return;
+      }
+      if (run.state === "Complete") {
+        const resultResponse = await fetch(`/api/runs/${activeRunId}/result`);
+        const resultData = await resultResponse.json() as { result?: ForecastResult };
+        if (resultData.result && !cancelled) { setResultRunId(activeRunId); setRunId(activeRunId); setLiveRows(forecastRowsFromResult(resultData.result)); }
+        const overrideResponse = await fetch(`/api/runs/${activeRunId}/overrides`);
+        const overrideData = await overrideResponse.json() as { overrideSet?: OverrideSet };
+        if (overrideData.overrideSet && !cancelled) setLiveOverrideSet(overrideData.overrideSet);
+        if (!cancelled) { setRunState("Complete"); setToast("The real inference run completed. The result is ready to inspect."); }
+      }
+    }
+    void pollRun();
+    return () => { cancelled = true; if (timer !== undefined) window.clearTimeout(timer); };
+  }, [activeRunId, dataMode]);
 
   useEffect(() => {
     if (!toast) return;
@@ -324,6 +453,14 @@ export function FloorCeilingApp() {
   function resetWorkspace() {
     setOverrides({});
     setOverrideHistory([]);
+    setLiveOverrideSet(null);
+    setLiveRows([]);
+    setLiveUploadId("");
+    setSourceInputRevision("");
+    setActiveRunId("");
+    setResultRunId("");
+    setRunFailure(null);
+    setDataMode("demo");
     setUpload(demoUploadReport);
     setRunState("Complete");
     setRunId("run_w1_2026_7f3a");
@@ -339,26 +476,55 @@ export function FloorCeilingApp() {
       setRunState("Failed");
       return;
     }
-    const parsed = parseProjectionCsv(await file.text(), file.name);
-    setUpload(parsed.report);
-    setUploadErrors(parsed.report.errors);
-    setRunState(parsed.report.errors.length || parsed.report.accepted === 0 ? "Failed" : "Ready");
-    setToast(parsed.report.errors.length ? "The upload needs review before a run can start." : `Accepted ${parsed.report.accepted.toLocaleString()} rows.`);
+    setDataMode("live");
+    setRunState("Checking upload");
+    setLiveRows([]);
+    setLiveOverrideSet(null);
+    setRunFailure(null);
+    try {
+      const form = new FormData();
+      form.set("file", file);
+      const response = await fetch("/api/uploads", { method: "POST", headers: { "x-csrf-token": browserCookie("fc_csrf") }, body: form });
+      const data = await response.json().catch(() => null) as { error?: string; uploadId?: string; sourceInputRevision?: string; report?: UploadReport } | null;
+      if (!response.ok || !data?.uploadId || !data.report) {
+        setRunState("Failed");
+        setToast(data?.error ?? "The upload could not be checked.");
+        return;
+      }
+      setUpload(data.report);
+      setUploadErrors(data.report.errors);
+      setLiveUploadId(data.uploadId);
+      setSourceInputRevision(data.sourceInputRevision ?? "");
+      setActiveRunId("");
+      setResultRunId("");
+      setRunId("pending");
+      setRunState(data.report.accepted > 0 ? "Ready" : "Failed");
+      setToast(data.report.accepted > 0 ? `Accepted ${data.report.accepted.toLocaleString()} rows. Row exclusions remain visible in the report.` : "The upload has no accepted player rows.");
+    } catch {
+      setRunState("Failed");
+      setToast("The upload request failed. Check the session and try again.");
+    }
   }
 
   function useDemoSample() {
-    setUpload(demoUploadReport);
-    setUploadErrors([]);
-    setRunState("Ready");
-    setToast("The Week 1 demonstration upload is ready to run.");
-  }
-
-  function resetUpload() {
+    setDataMode("demo");
+    setLiveRows([]);
+    setLiveOverrideSet(null);
+    setLiveUploadId("");
+    setSourceInputRevision("");
+    setActiveRunId("");
+    setResultRunId("");
+    setRunFailure(null);
     setUpload(demoUploadReport);
     setUploadErrors([]);
     setRunState("Complete");
     setRunId("run_w1_2026_7f3a");
-    setToast("The draft upload reset to the public sample. Prior runs stay available.");
+    setToast("The bundled demonstration is active. Live runs start after a CSV upload.");
+  }
+
+  function resetUpload() {
+    useDemoSample();
+    setToast("The workflow reset to the explicit bundled demonstration. Prior live runs stay available.");
   }
 
   async function startRun() {
@@ -366,8 +532,12 @@ export function FloorCeilingApp() {
       setToast("This submission already has an active job.");
       return;
     }
-    if (uploadErrors.length || upload.accepted === 0) {
-      setToast("Resolve the upload rows before starting a run.");
+    if (dataMode !== "live" || !liveUploadId || !sourceInputRevision) {
+      setToast("Upload a CSV to start a real inference run. The bundled sample is a separate demonstration.");
+      return;
+    }
+    if (upload.accepted === 0) {
+      setToast("The upload has no accepted player rows.");
       return;
     }
     const numericSimulationCount = Number(simulationCount);
@@ -377,19 +547,18 @@ export function FloorCeilingApp() {
     }
     setRunState("Checking upload");
     const numericWeek = Number.parseInt(week, 10) || 1;
-    const submissionToken = crypto.randomUUID().replaceAll("-", "").slice(0, 24);
     try {
-      const response = await fetch("/api/run", {
+      const response = await fetch("/api/runs", {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-csrf-token": browserCookie("fc_csrf") },
         body: JSON.stringify({
           season: Number(season),
           week: numericWeek,
-          metricDefinitionVersion: metricDefinition,
+          metricDefinitionVersion: "ppr_v1_projection_formula",
+          scoringContractVersion: "ppr_v1",
           simulationCount: numericSimulationCount,
-          acceptedRows: upload.accepted,
-          inputRevision: `${upload.fileName}:${upload.accepted}:${upload.rows}`,
-          submissionToken,
+          uploadId: liveUploadId,
+          inputRevision: sourceInputRevision,
         }),
       });
       if (!response.ok) {
@@ -399,21 +568,23 @@ export function FloorCeilingApp() {
         return;
       }
       const data = await response.json() as { runId?: string };
-      const nextRunId = data.runId ?? `run_${season}_w${numericWeek}_${submissionToken.slice(0, 6)}`;
+      const nextRunId = data.runId ?? "";
+      if (!nextRunId) throw new Error("The server did not return a run ID.");
       setRunId(nextRunId);
+      setActiveRunId(nextRunId);
+      setResultRunId("");
+      setRunFailure(null);
+      window.sessionStorage.setItem("fc-active-run-id", nextRunId);
     } catch {
       setRunState("Failed");
       setToast("The run request failed. Check the session and try again.");
       return;
     }
-    window.setTimeout(() => setRunState("Queued"), 500);
-    window.setTimeout(() => setRunState("Running"), 1100);
-    window.setTimeout(() => { setRunState("Complete"); setToast("The simulation completed. The result is ready to inspect."); }, 2200);
   }
 
   function exportForecasts(rows: ForecastRow[], scope: "filtered" | "all") {
-    const exportRows = rows.filter((row) => scope === "all" || !overrides[row.id]?.exclude).map((row) => {
-      const override = overrides[row.id];
+    const exportRows = rows.filter((row) => scope === "all" || !activeOverrides[row.id]?.exclude).map((row) => {
+      const override = activeOverrides[row.id];
       const adjusted = applyOverride(row, override);
       return {
         stable_player_id: row.id,
@@ -421,18 +592,36 @@ export function FloorCeilingApp() {
         position: row.position,
         team: row.team,
         opponent: row.opponent,
-        season,
-        week,
-        metric_definition_version: metricDefinition,
-        model_version: "sim-2026.1",
-        run_id: runId,
+        season: row.season ?? Number(season),
+        week: row.week ?? Number(week),
+        scoring_contract_version: dataMode === "live" ? "ppr_v1" : "demo",
+        metric_definition_version: dataMode === "live" ? "ppr_v1_projection_formula" : metricDefinition,
+        model_release: row.modelRelease ?? "demo-bundled-output",
+        run_id: row.runId ?? runId,
+        input_revision: row.inputRevision ?? "demo",
+        source_row_order: row.sourceRowOrder ?? "",
         source_projection: row.sourceProjection,
-        original_p15: row.original.floor,
-        original_p50: row.original.median,
-        original_p85: row.original.ceiling,
+        csv_projection: row.csvProjection ?? row.sourceProjection,
+        ffsim_mean: row.ffsim?.mean ?? "",
+        ffsim_p15: row.ffsim?.p15 ?? "",
+        ffsim_p50: row.ffsim?.p50 ?? row.original.median,
+        ffsim_p85: row.ffsim?.p85 ?? "",
+        xgb_p15: row.xgbP15 ?? "",
+        xgb_p85: row.xgbP85 ?? "",
+        original_floor: row.original.floor,
+        original_average: row.originalAverage ?? row.average ?? row.sourceProjection,
+        original_median: row.original.median,
+        original_ceiling: row.original.ceiling,
         adjusted_floor: adjusted.floor,
+        adjusted_average: row.average ?? row.sourceProjection,
         adjusted_median: adjusted.median,
         adjusted_ceiling: adjusted.ceiling,
+        adjusted_width: adjusted.ceiling - adjusted.floor,
+        value_source_floor: row.valueSources?.floor ?? "bundled output",
+        value_source_average: row.valueSources?.average ?? "bundled output",
+        value_source_median: row.valueSources?.median ?? "bundled output",
+        value_source_ceiling: row.valueSources?.ceiling ?? "bundled output",
+        override_reason: override?.reason ?? "",
         exclusion_state: override?.exclude ? "excluded" : "active",
         override_revision: override?.revision ?? 0,
       };
@@ -446,18 +635,34 @@ export function FloorCeilingApp() {
     setOverrideHistory((history) => [{ id: `${Date.now()}-${label}`, label, detail, time: new Date().toISOString(), tone, ...values }, ...history]);
   }
 
-  function saveOverride(spec: OverrideSpec) {
+  async function saveOverride(spec: OverrideSpec) {
     if (!selectedRow) return;
     const values = applyOverride(selectedRow, spec);
     const validationError = validateRange(values);
     if (validationError) { setToast(validationError); return; }
+    if (dataMode === "live" && resultRunId) {
+      const response = await fetch(`/api/runs/${resultRunId}/overrides/${encodeURIComponent(selectedRow.id)}`, { method: "PUT", headers: { "Content-Type": "application/json", "x-csrf-token": browserCookie("fc_csrf") }, body: JSON.stringify(spec) });
+      const data = await response.json().catch(() => null) as { error?: string; overrideSet?: OverrideSet } | null;
+      if (!response.ok || !data?.overrideSet) { setToast(data?.error ?? "The override could not be saved."); return; }
+      setLiveOverrideSet(data.overrideSet);
+      setToast(`${selectedRow.name}'s adjustment is saved. Original model values remain unchanged.`);
+      return;
+    }
     const previous = applyOverride(selectedRow, overrides[selectedRow.id]);
     setOverrides((current) => ({ ...current, [selectedRow.id]: spec }));
     addHistory(`Saved ${selectedRow.name}`, spec.reason, spec.inactive ? "gray" : "orange", { previous, next: values });
-    setToast(`${selectedRow.name}'s adjustment is saved as revision ${spec.revision}.`);
+    setToast(`${selectedRow.name}'s demonstration adjustment is saved.`);
   }
 
-  function resetPlayer(row: ForecastRow) {
+  async function resetPlayer(row: ForecastRow) {
+    if (dataMode === "live" && resultRunId) {
+      const response = await fetch(`/api/runs/${resultRunId}/overrides/${encodeURIComponent(row.id)}`, { method: "DELETE", headers: { "x-csrf-token": browserCookie("fc_csrf") } });
+      const data = await response.json().catch(() => null) as { error?: string; overrideSet?: OverrideSet } | null;
+      if (!response.ok || !data?.overrideSet) { setToast(data?.error ?? "The override could not be reset."); return; }
+      setLiveOverrideSet(data.overrideSet);
+      setToast(`${row.name} now uses the original model range.`);
+      return;
+    }
     if (!overrides[row.id]) { setToast(`${row.name} has no saved adjustment.`); return; }
     const previous = applyOverride(row, overrides[row.id]);
     setOverrides((current) => { const next = { ...current }; delete next[row.id]; return next; });
@@ -465,9 +670,19 @@ export function FloorCeilingApp() {
     setToast(`${row.name} now uses the original range.`);
   }
 
-  function resetAllOverrides() {
-    const count = Object.keys(overrides).length;
+  async function resetAllOverrides() {
+    const count = Object.keys(activeOverrides).length;
     if (!count) { setToast("There are no saved adjustments to reset."); return; }
+    if (dataMode === "live" && resultRunId) {
+      for (const stablePlayerId of Object.keys(activeOverrides)) {
+        await fetch(`/api/runs/${resultRunId}/overrides/${encodeURIComponent(stablePlayerId)}`, { method: "DELETE", headers: { "x-csrf-token": browserCookie("fc_csrf") } });
+      }
+      const response = await fetch(`/api/runs/${resultRunId}/overrides`);
+      const data = await response.json().catch(() => null) as { overrideSet?: OverrideSet } | null;
+      if (data?.overrideSet) setLiveOverrideSet(data.overrideSet);
+      setToast(`Restored ${count} player adjustments. The reset is recorded in history.`);
+      return;
+    }
     setOverrides({});
     addHistory("Reset all overrides", `Restored ${count} saved player adjustments.`, "gray");
     setToast(`Restored ${count} player adjustments. The reset is recorded in history.`);
@@ -493,8 +708,17 @@ export function FloorCeilingApp() {
           {activeTab === "overview" ? <OverviewPage navigate={navigate} season={season} week={week} onWeekChange={setWeek} /> : null}
           {activeTab === "methodology" ? <MethodologyPage navigate={navigate} /> : null}
           {activeTab === "calibration" ? <CalibrationPage /> : null}
-          {activeTab === "projection" ? <ProjectionPage upload={upload} uploadErrors={uploadErrors} runState={runState} runId={runId} simulationCount={simulationCount} onSimulationCount={setSimulationCount} viewMode={viewMode} onViewMode={setViewMode} rows={filteredForecasts} allRows={demoForecasts} overrides={overrides} search={projectionSearch} position={projectionPosition} team={projectionTeam} sort={projectionSort} teams={teams} onSearch={setProjectionSearch} onPosition={setProjectionPosition} onTeam={setProjectionTeam} onSort={setProjectionSort} onFile={handleFile} onUseDemo={useDemoSample} onResetUpload={resetUpload} onStartRun={startRun} onExport={(scope) => exportForecasts(scope === "filtered" ? filteredForecasts : demoForecasts, scope)} onSelectPlayer={(row) => setSelectedPlayerId(row.id)} onOpenOverrides={(row) => { setSelectedPlayerId(row.id); setActiveTab("overrides"); }} /> : null}
-          {activeTab === "overrides" ? <OverridesPage rows={demoForecasts} overrides={overrides} history={overrideHistory} selectedRow={selectedRow} selectedPlayerId={selectedPlayerId} onSelectRow={(row) => setSelectedPlayerId(row.id)} onSave={saveOverride} onResetPlayer={resetPlayer} onResetAll={resetAllOverrides} onCopy={() => { setToast("Copy prior overrides creates a reviewable draft inside this session."); addHistory("Copied prior overrides", "No unmatched players in the current run.", "blue"); }} /> : null}
+          {activeTab === "projection" ? <ProjectionPage upload={upload} uploadErrors={uploadErrors} runState={runState} runId={runId} season={season} week={week} onSeason={setSeason} onWeek={setWeek} runFailure={runFailure} simulationCount={simulationCount} onSimulationCount={setSimulationCount} viewMode={viewMode} onViewMode={setViewMode} rows={filteredForecasts} allRows={activeRows} overrides={activeOverrides} search={projectionSearch} position={projectionPosition} team={projectionTeam} sort={projectionSort} teams={teams} onSearch={setProjectionSearch} onPosition={setProjectionPosition} onTeam={setProjectionTeam} onSort={setProjectionSort} onFile={handleFile} onUseDemo={useDemoSample} onResetUpload={resetUpload} onStartRun={startRun} onExport={(scope) => exportForecasts(scope === "filtered" ? filteredForecasts : activeRows, scope)} onSelectPlayer={(row) => setSelectedPlayerId(row.id)} onOpenOverrides={(row) => { setSelectedPlayerId(row.id); setActiveTab("overrides"); }} /> : null}
+          {activeTab === "overrides" ? <OverridesPage rows={activeRows} overrides={activeOverrides} history={activeHistory} selectedRow={selectedRow} selectedPlayerId={selectedPlayerId} onSelectRow={(row) => setSelectedPlayerId(row.id)} onSave={saveOverride} onResetPlayer={resetPlayer} onResetAll={resetAllOverrides} onCopy={async () => {
+            if (dataMode !== "live" || !resultRunId) { setToast("Copy is available for a complete live result. Choose the source run explicitly."); return; }
+            const sourceRunId = window.prompt("Enter the complete source run ID to copy overrides from:");
+            if (!sourceRunId) return;
+            const response = await fetch(`/api/runs/${resultRunId}/overrides/copy`, { method: "POST", headers: { "Content-Type": "application/json", "x-csrf-token": browserCookie("fc_csrf") }, body: JSON.stringify({ sourceRunId: sourceRunId.trim() }) });
+            const data = await response.json().catch(() => null) as { error?: string; report?: { copiedPlayerIds: string[]; unmatchedPlayerIds: string[] }; set?: OverrideSet } | null;
+            if (!response.ok || !data?.set) { setToast(data?.error ?? "The override copy failed."); return; }
+            setLiveOverrideSet(data.set);
+            setToast(`Copied ${data.report?.copiedPlayerIds.length ?? 0} overrides. ${data.report?.unmatchedPlayerIds.length ?? 0} source IDs were unmatched.`);
+          }} /> : null}
         </div>
         <footer className="app-footer"><span><Database size={14} /> Public evidence build · v0.1</span><span>Last data check Aug 31, 2026</span><a href="#methodology" onClick={(event) => { event.preventDefault(); navigate("methodology"); }}>How to read this site <ChevronRight size={13} /></a></footer>
       </main>
@@ -793,6 +1017,176 @@ const p85OverallPerformance = {
   baselineRankSpearman: 0.5395841437158123,
   xgbRankSpearman: 0.6288275947096983,
 } as const;
+
+const ffsimulatorQbEvaluationRows = scorecardMetrics
+  .filter((row) => row.model === "ffsimulator" && row.position === "QB" && row.season !== null)
+  .sort((left, right) => Number(left.season) - Number(right.season));
+
+const ffsimulatorQbCurrentAggregate = positionModelSelections.find((row) => row.position === "QB");
+
+function formatMaybePercent(value: number | null | undefined) {
+  return value == null ? "n/a" : formatCalibrationPercent(value);
+}
+
+function formatMaybeMetric(value: number | null | undefined) {
+  return value == null ? "n/a" : formatCalibrationMetric(value);
+}
+
+function FfsimulatorQbModelCard() {
+  return (
+    <details className="methodology-model-card-panel methodology-model-card-panel-simulation">
+      <summary className="methodology-model-card-summary">
+        <div className="methodology-model-icon methodology-model-icon-simulation"><GitBranch size={19} /></div>
+        <div>
+          <span className="panel-eyebrow">Model card</span>
+          <h2><code>ffsimulator</code> quarterback range model</h2>
+          <p>Intended use, held-out QB evidence, inputs, and known limits for the rank-conditioned range path.</p>
+        </div>
+        <StatusPill label="Active QB path" tone="good" />
+        <ChevronDown size={18} aria-hidden="true" />
+      </summary>
+
+      <div className="methodology-model-card-body">
+        <div className="model-card-intro">
+          <div>
+            <span className="methodology-detail-label">Summary</span>
+            <p><code>ffsimulator</code> samples historical weekly PPR outcomes near a player&apos;s expected rank. It creates one score distribution for each QB player-week.</p>
+            <p>The combined forward range uses the distribution for QB p15, p50, and p85. The percentiles describe possible scores. They do not set a hard minimum or maximum.</p>
+          </div>
+          <div className="model-card-facts">
+            <div><span>Status</span><strong>Active QB path</strong><small>Full range output</small></div>
+            <div><span>Model type</span><strong>Rank-conditioned</strong><small>Historical outcome sampling</small></div>
+            <div><span>Output</span><strong>p15, p50, p85</strong><small>Weekly PPR points</small></div>
+            <div><span>Scoring</span><strong>PPR, <code>ppr_v1</code></strong><small>1 point per reception</small></div>
+            <div><span>Backtest draws</span><strong>{ffsimulatorModel.simulations.toLocaleString()}</strong><small>Per player-week</small></div>
+            <div><span>Package</span><strong><code>ffsimulator</code> 1.2.3.02</strong><small>MIT license</small></div>
+          </div>
+        </div>
+
+        <section className="model-card-section" aria-labelledby="ffsimulator-qb-model-details-title">
+          <h3 id="ffsimulator-qb-model-details-title">Model details</h3>
+          <ul className="methodology-data-list">
+            <li>Developer: Matt Savoca for <code>fffloorceiling</code>. The underlying package is maintained by ffverse.</li>
+            <li>The model has no fitted tree, neural network, or regression weights.</li>
+            <li>For each draw, sample an integer rank around the expected rank with half of the supplied rank standard deviation.</li>
+            <li>Use the sampled position and rank to select a historical weekly PPR score.</li>
+            <li>Repeat the draw, then calculate p15, p50, and p85 with type 7 quantiles.</li>
+            <li>Source paths: <code>R/01_rankings.R</code>, <code>R/02_ffsimulator.R</code>, and <code>backtest_fbg_2023_2025/R/simulation.R</code>.</li>
+          </ul>
+        </section>
+
+        <div className="model-card-section-grid">
+          <section className="model-card-section" aria-labelledby="ffsimulator-qb-intended-use-title">
+            <h3 id="ffsimulator-qb-intended-use-title">Intended use</h3>
+            <ul className="methodology-data-list">
+              <li>Estimate a QB&apos;s weekly PPR range before the game.</li>
+              <li>Show a lower marker, median, and upper marker for one player-week.</li>
+              <li>Give analysts a rank-based baseline for model comparison.</li>
+            </ul>
+            <h3 className="model-card-subheading">Out of scope</h3>
+            <ul className="methodology-data-list">
+              <li>Do not use the range as a health, talent, or contract decision.</li>
+              <li>Do not use it as a causal explanation or financial guarantee.</li>
+              <li>Do not use independent player draws as a shared game-state forecast.</li>
+            </ul>
+          </section>
+          <section className="model-card-section" aria-labelledby="ffsimulator-qb-factors-title">
+            <h3 id="ffsimulator-qb-factors-title">Factors</h3>
+            <ul className="methodology-data-list">
+              <li>Expected rank and rank uncertainty control the sampled rank.</li>
+              <li>Position, target week, target season, scoring rules, and history control the outcome pool.</li>
+              <li>Footballguys consensus rows supply the current rank input.</li>
+              <li>Injury news, starter status, matchup, weather, scheme, and game state have no separate feature.</li>
+              <li>No demographic or protected-group labels are used or evaluated.</li>
+            </ul>
+          </section>
+        </div>
+
+        <section className="model-card-section" aria-labelledby="ffsimulator-qb-metrics-title">
+          <h3 id="ffsimulator-qb-metrics-title">Metrics</h3>
+          <p>Coverage checks whether the final score falls at or below a forecast percentile. Pinball loss measures percentile error. Lower loss is better.</p>
+          <div className="model-card-table-wrap">
+            <table className="model-card-table">
+              <caption className="sr-only">Metrics and targets for the ffsimulator quarterback model</caption>
+              <thead><tr><th scope="col">Metric</th><th scope="col">Definition</th><th scope="col">Target</th></tr></thead>
+              <tbody>
+                <tr><th scope="row">p15 coverage</th><td>Final score at or below p15</td><td>15%</td></tr>
+                <tr><th scope="row">p50 coverage</th><td>Final score at or below p50</td><td>50%</td></tr>
+                <tr><th scope="row">p85 coverage</th><td>Final score at or below p85</td><td>85%</td></tr>
+                <tr><th scope="row">p15 to p85 coverage</th><td>Final score inside the range</td><td>70%</td></tr>
+                <tr><th scope="row">p85 pinball loss</th><td>Weighted p85 error</td><td>Lower is better</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p className="model-card-result-note">The extended 2023 through 2025 card uses a 2,000-resample row bootstrap. Approximate 95% intervals are 83.6% to 87.3% for p85 coverage and 61.2% to 66.2% for p15 to p85 coverage. These intervals do not account for player, week, or season dependence.</p>
+        </section>
+
+        <section className="model-card-section" aria-labelledby="ffsimulator-qb-evaluation-data-title">
+          <h3 id="ffsimulator-qb-evaluation-data-title">Evaluation data</h3>
+          <p>The backtest joins Footballguys weekly Projections Consensus rows to <code>nflreadr</code> regular-season outcomes.</p>
+          <ul className="methodology-data-list">
+            <li>Target seasons: 2023, 2024, and 2025.</li>
+            <li>Eligible rows: 13,378 across QB, RB, WR, and TE. The QB slice has 1,444 rows.</li>
+            <li>Filters: matched identity, non-free-agent team, at least 3 projectors, finite rank values, and a final weekly score.</li>
+            <li>Label: <code>actual_score</code>, the realized weekly PPR score.</li>
+            <li>Future-data check: each target season uses earlier history only.</li>
+          </ul>
+        </section>
+
+        <section className="model-card-section" aria-labelledby="ffsimulator-qb-training-data-title">
+          <h3 id="ffsimulator-qb-training-data-title">Training data</h3>
+          <p>This model has no supervised training step. Its reference data is a target-season-safe pool of historical weekly scores grouped by position and rank.</p>
+          <div className="model-card-table-wrap">
+            <table className="model-card-table">
+              <caption className="sr-only">Historical reference data for each target season</caption>
+              <thead><tr><th scope="col">Target season</th><th scope="col">History</th><th scope="col">Rows</th><th scope="col">Latest season</th></tr></thead>
+              <tbody>
+                <tr><th scope="row">2023</th><td>2012 to 2022</td><td>59,572</td><td>2022</td></tr>
+                <tr><th scope="row">2024</th><td>2012 to 2023</td><td>65,036</td><td>2023</td></tr>
+                <tr><th scope="row">2025</th><td>2012 to 2024</td><td>70,557</td><td>2024</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p>The weekly pool uses historical weeks 1 through 16. The backtest scores target weeks 1 through 17.</p>
+        </section>
+
+        <section className="model-card-section" aria-labelledby="ffsimulator-qb-analysis-title">
+          <h3 id="ffsimulator-qb-analysis-title">Quantitative analyses</h3>
+          <p>The current web calibration artifact reports 2024 and 2025 held-out rows. The full 2023 through 2025 table is in <code>docs/model_card_ffsimulator_qb.md</code>.</p>
+          <div className="model-card-table-wrap">
+            <table className="model-card-table model-card-results-table">
+              <caption className="sr-only">Held-out ffsimulator quarterback results by target season</caption>
+              <thead><tr><th scope="col">Season</th><th scope="col">Rows</th><th scope="col">p15 coverage</th><th scope="col">p50 coverage</th><th scope="col">p85 coverage</th><th scope="col">70% interval</th><th scope="col">p85 loss</th><th scope="col">Rank rho</th></tr></thead>
+              <tbody>{ffsimulatorQbEvaluationRows.map((row) => <tr key={String(row.season)}><th scope="row">{row.season}</th><td>{row.sampleCount.toLocaleString()}</td><td>{formatMaybePercent(row.p15Coverage)}</td><td>{formatMaybePercent(row.p50Coverage)}</td><td>{formatMaybePercent(row.p85Coverage)}</td><td>{formatMaybePercent(row.p15ToP85IntervalCoverage)}</td><td>{formatMaybeMetric(row.p85PinballLoss)}</td><td>{formatMaybeMetric(row.rankSpearman)}</td></tr>)}</tbody>
+            </table>
+          </div>
+          {ffsimulatorQbCurrentAggregate ? <p className="model-card-result-note">The web artifact combines {ffsimulatorQbCurrentAggregate.n.toLocaleString()} QB rows from 2024 and 2025. Its p85 coverage is {formatMaybePercent(ffsimulatorQbCurrentAggregate.selectedCoverage)}, and its p85 pinball loss is {formatMaybeMetric(ffsimulatorQbCurrentAggregate.selectedPinballLoss)}.</p> : null}
+        </section>
+
+        <section className="model-card-section" aria-labelledby="ffsimulator-qb-ethics-title">
+          <h3 id="ffsimulator-qb-ethics-title">Ethical considerations</h3>
+          <ul className="methodology-data-list">
+            <li>The output can affect lineup choices, contest entries, and money. Keep a user in the decision loop.</li>
+            <li>Names, player IDs, teams, ranks, and football outcomes support joins and forecasts. The model does not infer health, ability, intent, or protected traits.</li>
+            <li>Historical outcomes can carry changes in role, injury, team, and scoring environment into a new forecast.</li>
+            <li>No protected-group or intersectional analysis is available for this model.</li>
+          </ul>
+        </section>
+
+        <section className="model-card-section" aria-labelledby="ffsimulator-qb-caveats-title">
+          <h3 id="ffsimulator-qb-caveats-title">Caveats and recommendations</h3>
+          <ul className="methodology-data-list">
+            <li>Use at least 10,000 draws for a published snapshot. More draws reduce simulation noise. They do not fix a biased outcome pool.</li>
+            <li>Monitor p15, p50, p85, interval coverage, and pinball loss by season, week, rank band, and starter status.</li>
+            <li>Keep team and game outputs outside this player model. Independent player draws do not create one shared game state.</li>
+            <li>The generated floor comparison currently records XGBoost as the selected historical p15 reference for QB. The combined forward range describes <code>ffsimulator</code> as the QB p15 path. Reconcile this selector with the serving contract before the next release.</li>
+          </ul>
+          <div className="methodology-limit model-card-inline-limit"><Info size={16} /><div><strong>Recommendation</strong><p>Keep <code>ffsimulator</code> as the QB baseline until a replacement passes the same walk-forward scorecard. Treat this card as model evidence, not as a full audit or deployment approval.</p></div></div>
+        </section>
+      </div>
+    </details>
+  );
+}
 
 function P85ModelCard() {
   return (
@@ -1104,6 +1498,7 @@ function MethodologyPage({ navigate }: MethodologyPageProps) {
         </article>
       </div>
 
+      <FfsimulatorQbModelCard />
       <P85ModelCard />
       <P15ModelCard />
 
@@ -1120,7 +1515,7 @@ function MethodologyPage({ navigate }: MethodologyPageProps) {
         <Explainer>Coverage is compared with 85%. Pinball loss is the main error score, and lower is better. The table uses held-out results, not the current Week 1 forecast.</Explainer>
       </Panel>
 
-      <div id="methodology-source-map"><Panel className="methodology-sources-panel" eyebrow="Source map" title="Where to inspect the implementation" action={<span className="source-status"><span className="saved-dot" /> Public evidence</span>}><div className="methodology-source-grid"><div><strong>Ranked simulation</strong><code>R/01_rankings.R</code><code>R/02_ffsimulator.R</code><code>R/03_summaries.R</code><small>Ranking normalization, draws, and percentiles.</small></div><div><strong>Direct XGBoost</strong><code>scripts/08_xgb_p85_projection_experiment.py</code><code>scripts/08_xgb_p15_projection_experiment.py</code><code>scripts/10_build_calibration_page_data.py</code><small>Feature construction, walk-forward fits, and p85 and p15 comparison data.</small></div><div><strong>Historical evidence</strong><code>backtest_fbg_2023_2025/README.md</code><code>outputs/xgb_p85_projection/metadata.json</code><code>outputs/xgb_p15_projection/metadata.json</code><small>Source choices, cutoffs, scoring rules, and saved model settings.</small></div></div><Explainer>Private uploads and temporary session records do not enter the published calibration data.</Explainer></Panel></div>
+      <div id="methodology-source-map"><Panel className="methodology-sources-panel" eyebrow="Source map" title="Where to inspect the implementation" action={<span className="source-status"><span className="saved-dot" /> Public evidence</span>}><div className="methodology-source-grid"><div><strong>Ranked simulation</strong><code>R/01_rankings.R</code><code>R/02_ffsimulator.R</code><code>R/03_summaries.R</code><small>Ranking normalization, draws, and percentiles.</small></div><div><strong>Direct XGBoost</strong><code>scripts/08_xgb_p85_projection_experiment.py</code><code>scripts/08_xgb_p15_projection_experiment.py</code><code>scripts/10_build_calibration_page_data.py</code><small>Feature construction, walk-forward fits, and p85 and p15 comparison data.</small></div><div><strong>Historical evidence</strong><code>backtest_fbg_2023_2025/README.md</code><code>backtest_fbg_2023_2025/outputs/player_backtest_metadata.json</code><code>outputs/xgb_p85_projection/metadata.json</code><code>outputs/xgb_p15_projection/metadata.json</code><code>docs/model_card_ffsimulator_qb.md</code><small>Source choices, cutoffs, scoring rules, model settings, and the quarterback model card.</small></div></div><Explainer>Private uploads and temporary session records do not enter the published calibration data.</Explainer></Panel></div>
     </>
   );
 }

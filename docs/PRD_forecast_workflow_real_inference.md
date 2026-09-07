@@ -21,6 +21,8 @@ The implemented floor release uses the PPR `ppr_v1` contract, XGBoost `reg:quant
 
 The browser must never run R or Python model code. The browser submits an upload and reads a server result.
 
+The workflow has two linked result layers. The model result stores the approved inference output. The manual override layer stores analyst changes for that result. The model result stays unchanged when an override is saved.
+
 ## 2. Input file
 
 The supplied file is the acceptance fixture:
@@ -234,6 +236,8 @@ RB, WR, TE:
 
 The worker must reject a row when any complete-range value is missing. It must also reject a row when `floor > median` or `median > ceiling`. The result must record the model source for each range value.
 
+For display and export, join the active override set after the model result passes validation. Preserve every model row in the join. If a row has no override, use its original values.
+
 ## 7. Forecast result contract
 
 Extend the result contract so that the UI can explain each value. Each result must include:
@@ -253,6 +257,35 @@ Extend the result contract so that the UI can explain each value. Each result mu
 
 Each row must include the model source for `floor`, `average`, `median`, and `ceiling`. The existing `forecast-result.v1` contract requires p15, p50, and p85, so the contract must gain an explicit version for the combined output.
 
+Store manual overrides in a separate run-scoped override set. Link each override to `run_id`, `upload_id`, `source_input_revision`, and `stable_player_id`. Do not link an override by row order or player name.
+
+Each override record must include:
+
+- override set ID
+- run ID and upload ID
+- source input revision
+- stable player ID
+- revision number
+- saved time and workspace ID
+- required reason
+- workload factor, if used
+- direct range edits, if used
+- inactive state
+- export exclusion state
+
+Keep the original model values in every result row. Derive adjusted values from the original values and the linked override record. Include original values, adjusted values, override status, override revision, and override reason in the export.
+
+Apply overrides after the model join. Never send manual override values to `ffsimulator` or an XGBoost service. Never change model status, calibration evidence, or the original source values.
+
+Use this precedence for adjusted range values:
+
+1. Marking a player inactive sets floor, median, and ceiling to zero.
+2. Apply the workload factor.
+3. Apply a position-supported named preset.
+4. Apply direct floor, median, and ceiling edits last.
+
+Keep export exclusion separate from range values. Exclusion removes a row from the active export but does not change its adjusted range. Reject an override when a value is non-finite, `floor > median`, or `median > ceiling`. Require a reason before saving.
+
 The worker must publish the result only after schema, row count, key, numeric, and ordering checks pass. The UI must never read a partial file.
 
 ## 8. Web workflow
@@ -264,13 +297,37 @@ POST /api/uploads
 POST /api/runs
 GET  /api/runs/:runId
 GET  /api/runs/:runId/result
+GET  /api/runs/:runId/overrides
+PUT  /api/runs/:runId/overrides/:stablePlayerId
+DELETE /api/runs/:runId/overrides/:stablePlayerId
+POST /api/runs/:runId/overrides/copy
 ~~~
 
 The upload endpoint stores the file and returns an `uploadId`. The run endpoint creates a durable job with the upload ID, model release, simulation count, seed, and input revision.
 
+The override endpoints must enforce workspace ownership and run membership. They must reject a stable player ID that is absent from the run result.
+
 The page polls the run state. Client timers must not mark a run complete. A refresh must restore the active run and the last complete result.
 
 Keep the bundled Week 1 output as an explicit Demo mode. Demo mode must not share state with a live run.
+
+### Manual overrides
+
+The `MANUAL OVERRIDES` tab must use the current complete result for the active run. It must use the same rows and stable IDs as `Player Ranges`.
+
+- Load the override set by `run_id` and `source_input_revision`.
+- Show the player identity, original range, adjusted range, override status, revision, and reason.
+- Let a player detail view open the override editor for that player's stable ID.
+- Apply saved overrides to `Player Ranges`, its chart, its table, the player detail view, and adjusted summaries.
+- Keep the approved `average` value read-only. Apply manual range edits to `floor`, `median`, and `ceiling`.
+- Keep an Original view and an Adjusted view. Original view is the default.
+- Persist saved overrides across refreshes within the workspace.
+- Keep override history for save, reset, and copy actions.
+- Start a new completed run with an empty override set unless the user copies overrides.
+- Copy prior overrides only after an explicit user action and only for matching stable IDs.
+- Show unmatched prior IDs for review. Do not apply them by row position or player name.
+
+The live override set must not use the bundled demo rows. Demo overrides and live overrides must remain separate.
 
 ### Methodology model cards
 
@@ -315,6 +372,8 @@ A missing or failed p15 response is a hard failure for an RB, WR, or TE row. The
 
 An older run must not replace a newer upload. A session must access only its own uploads, runs, and results. Expired session data must be removed by cleanup work.
 
+If a new run fails, keep the last complete result and its override set visible. Do not attach that override set to the failed run.
+
 ## 10. Tests and release checks
 
 Use the supplied CSV as the first end-to-end fixture. Record accepted, excluded,
@@ -347,6 +406,12 @@ Add tests for:
 - partial output rejection
 - upload isolation between sessions
 - result refresh and CSV export
+- override linkage by run ID, input revision, and stable player ID
+- override precedence, range validation, required reason, and reset behavior
+- adjusted `Player Ranges` charts, tables, summaries, and exports
+- original model values remain unchanged after an override
+- failed runs keep the last complete result and its override set
+- copying prior overrides requires an explicit action and reports unmatched IDs
 - Methodology floor model card is present and folded on initial render
 
 Run one real fixture on the deployment target. Record wall time, peak worker memory, accepted rows, output rows, and each external model call.
@@ -361,8 +426,10 @@ Run one real fixture on the deployment target. Record wall time, peak worker mem
 6. Add the durable upload, run, and result APIs.
 7. Replace the demo state machine with server job state and real result rows.
 8. Wire the implemented XGBoost p15 service into the combined result and enforce hard p15 response checks.
-9. Add the folded p15 model card and update the methodology source map.
-10. Run the fixture and deployment checks before release.
+9. Define the run-scoped manual override contract and persistence path.
+10. Wire `MANUAL OVERRIDES` and `Player Ranges` to the same live result and override set.
+11. Add the folded p15 model card and update the methodology source map.
+12. Run the fixture and deployment checks before release.
 
 ## 12. Out of scope
 
@@ -371,6 +438,6 @@ Run one real fixture on the deployment target. Record wall time, peak worker mem
 - User-selected model versions.
 - Completed-game evaluation in this tab.
 - DST and team-game forecasts.
-- Manual overrides changing model outputs.
+- Changing trained model artifacts or rerunning inference from a manual override.
 
 The first release should make one path correct: upload the current projection set, run the approved models, publish a complete player range, and show where every value came from.
