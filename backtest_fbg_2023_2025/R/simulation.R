@@ -233,6 +233,13 @@ mean_above_threshold <- function(values, threshold) {
   mean(above)
 }
 
+mean_below_threshold <- function(values, threshold) {
+  values <- as.numeric(values)
+  below <- values[is.finite(values) & values < as.numeric(threshold)]
+  if (!length(below)) return(NA_real_)
+  mean(below)
+}
+
 simulate_player_week <- function(players, pool, n_simulations = 1000L, sd_multiplier = 0.5) {
   check_columns(players, c("player_id", "player_name", "position", "team", "ecr", "rank_sd"), "week players")
   n <- nrow(players)
@@ -304,7 +311,13 @@ simulation_to_player_draws <- function(players, simulation, season, week) {
 summarize_player_week <- function(players, simulation) {
   scores <- simulation$scores
   ranks <- simulation$ranks
+  p15 <- apply(scores, 2L, stats::quantile, probs = 0.15, names = FALSE, type = 7)
   p85 <- apply(scores, 2L, stats::quantile, probs = 0.85, names = FALSE, type = 7)
+  mean_below_p15 <- vapply(
+    seq_len(ncol(scores)),
+    function(index) mean_below_threshold(scores[, index], p15[[index]]),
+    numeric(1L)
+  )
   mean_above_p85 <- vapply(
     seq_len(ncol(scores)),
     function(index) mean_above_threshold(scores[, index], p85[[index]]),
@@ -312,7 +325,9 @@ summarize_player_week <- function(players, simulation) {
   )
   output <- data.table::copy(data.table::as.data.table(players))
   output[, `:=`(
-    p15 = apply(scores, 2L, stats::quantile, probs = 0.15, names = FALSE, type = 7),
+    p15 = p15,
+    mean_below_p15 = mean_below_p15,
+    p15_tail_excess = p15 - mean_below_p15,
     p50 = apply(scores, 2L, stats::quantile, probs = 0.50, names = FALSE, type = 7),
     p85 = p85,
     mean_above_p85 = mean_above_p85,

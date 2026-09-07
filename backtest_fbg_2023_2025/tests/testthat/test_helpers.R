@@ -134,6 +134,8 @@ test_that("player summaries preserve p15, p50, and p85", {
   simulation <- list(scores = matrix(c(0, 10, 20, 30, 40), ncol = 1), ranks = matrix(rep(1, 5), ncol = 1))
   out <- summarize_player_week(players, simulation)
   expect_equal(out$p50, 20)
+  expect_equal(out$mean_below_p15, 0)
+  expect_equal(out$p15_tail_excess, 6)
   expect_equal(out$mean_above_p85, 40)
   expect_equal(out$p85_tail_excess, 6)
   expect_true(out$p15 < out$p50 && out$p50 < out$p85)
@@ -149,6 +151,8 @@ test_that("PPR scorecard reports quantile, calibration, error, and tail metrics"
     p85 = c(4, 9, 18, 28, 5, 10, 19, 29),
     mean_above_p85 = c(12, 20, 32, 42, 13, 21, 33, 43),
     p85_tail_excess = c(4, 6, 6, 6, 4, 6, 6, 6),
+    mean_below_p15 = c(0, 0, 1, 2, 0, 0, 2, 3),
+    p15_tail_excess = c(1, 2, 3, 4, 1, 2, 3, 4),
     scoring_format = SCORING_FORMAT,
     scoring_contract_version = SCORING_CONTRACT_VERSION
   )
@@ -171,6 +175,11 @@ test_that("mean above threshold returns NA when no draw exceeds threshold", {
   expect_equal(mean_above_threshold(c(1, 2, 3, 4), 2), 3.5)
 })
 
+test_that("mean below threshold returns NA when no draw is below threshold", {
+  expect_true(is.na(mean_below_threshold(c(1, 2, 3), 1)))
+  expect_equal(mean_below_threshold(c(1, 2, 3, 4), 3), 1.5)
+})
+
 test_that("p85 tail calibration compares observed and simulated conditional means", {
   predictions <- data.table::data.table(
     season = rep(2023L, 4), week = 1:4, position = rep("RB", 4),
@@ -182,6 +191,19 @@ test_that("p85 tail calibration compares observed and simulated conditional mean
   expect_equal(out$n_actual_above_p85, c(1L, 1L))
   expect_equal(out$observed_tail_mean, c(15, 30))
   expect_equal(out$predicted_mean_above_p85, c(15, 30))
+})
+
+test_that("p15 tail calibration compares observed and simulated conditional means", {
+  predictions <- data.table::data.table(
+    season = rep(2023L, 4), week = 1:4, position = rep("RB", 4),
+    p15 = c(10, 10, 20, 20), mean_below_p15 = c(5, 5, 10, 10),
+    p15_tail_excess = c(5, 5, 10, 10), actual_score = c(15, 5, 30, 10)
+  )
+  out <- player_p15_tail_calibration(predictions, group_by = "position")
+  expect_equal(nrow(out), 2)
+  expect_equal(out$n_actual_below_p15, c(1L, 1L))
+  expect_equal(out$observed_tail_mean, c(5, 10))
+  expect_equal(out$predicted_mean_below_p15, c(5, 10))
 })
 
 test_that("p85 tail explanation uses prior-season exceedances only", {

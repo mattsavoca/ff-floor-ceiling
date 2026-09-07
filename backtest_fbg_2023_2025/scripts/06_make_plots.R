@@ -282,6 +282,65 @@ ggplot2::ggsave(
   bg = "white"
 )
 
+p15_tail_calibration <- player_p15_tail_calibration(
+  predictions,
+  group_by = c("season", "position"),
+  p15_increment = 1
+)
+p15_tail_calibration[, `:=`(
+  scoring_format = SCORING_FORMAT,
+  scoring_contract_version = SCORING_CONTRACT_VERSION
+)]
+data.table::fwrite(
+  p15_tail_calibration,
+  path_in_project("outputs", "position_xfpts_p15_tail_calibration_summary.csv")
+)
+
+p15_tail_plot_data <- p15_tail_calibration[
+  position %in% BACKTEST_POSITIONS & n_actual_below_p15 >= 10L &
+    is.finite(predicted_mean_below_p15) & is.finite(observed_tail_mean)
+]
+p_position_p15_tail <- ggplot2::ggplot(
+  p15_tail_plot_data,
+  ggplot2::aes(
+    x = predicted_mean_below_p15,
+    y = observed_tail_mean,
+    colour = factor(season),
+    size = n_actual_below_p15
+  )
+) +
+  ggplot2::geom_abline(
+    slope = 1,
+    intercept = 0,
+    linetype = "dotted",
+    linewidth = 0.6,
+    colour = "grey50"
+  ) +
+  ggplot2::geom_point(alpha = 0.8) +
+  ggplot2::facet_wrap(~position, scales = "free") +
+  ggplot2::scale_colour_brewer(palette = "Dark2", name = "Season") +
+  ggplot2::scale_size_continuous(name = "Observed lower-tail rows", range = c(1.5, 4)) +
+  ggplot2::labs(
+    title = "Observed lower-tail mean by predicted mean below PPR p15",
+    subtitle = "Each point is a position-season p15 bin with at least 10 actual scores below that row's p15.",
+    x = "Predicted mean score below p15, mean_below_p15",
+    y = "Observed mean PPR score below row-level p15"
+  ) +
+  ggplot2::theme_bw(base_size = 11) +
+  ggplot2::theme(
+    panel.background = ggplot2::element_rect(fill = "white", colour = NA),
+    plot.background = ggplot2::element_rect(fill = "white", colour = NA),
+    legend.position = "bottom"
+  )
+ggplot2::ggsave(
+  path_in_project("outputs", "plots", "position_xfpts_p15_tail_mean_calibration.png"),
+  p_position_p15_tail,
+  width = 10,
+  height = 7,
+  dpi = 160,
+  bg = "white"
+)
+
 p85_tail_explanation <- player_p85_tail_explanation(predictions, positions = BACKTEST_POSITIONS)
 p85_tail_explanation[, `:=`(
   scoring_format = SCORING_FORMAT,

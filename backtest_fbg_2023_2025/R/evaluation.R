@@ -101,6 +101,7 @@ player_scorecard_metrics <- function(predictions, model_name = "ffsimulator") {
     predictions,
     c(
       "actual_score", "p15", "p50", "p85", "mean_above_p85", "p85_tail_excess",
+      "mean_below_p15", "p15_tail_excess",
       "position", "season"
     ),
     "player predictions"
@@ -117,6 +118,7 @@ player_scorecard_metrics <- function(predictions, model_name = "ffsimulator") {
     p15 <- as.numeric(group$p15)
     p50 <- as.numeric(group$p50)
     p85 <- as.numeric(group$p85)
+    below <- actual < p15
     above <- actual > p85
     calibration <- if (length(unique(p85)) > 1L) {
       stats::coef(stats::lm(actual ~ p85))
@@ -149,7 +151,12 @@ player_scorecard_metrics <- function(predictions, model_name = "ffsimulator") {
       average_tail_excess = if (any(above)) mean(actual[above] - p85[above]) else NA_real_,
       n_above_p85 = sum(above),
       predicted_mean_above_p85 = mean(group$mean_above_p85, na.rm = TRUE),
-      predicted_average_tail_excess = mean(group$p85_tail_excess, na.rm = TRUE)
+      predicted_average_tail_excess = mean(group$p85_tail_excess, na.rm = TRUE),
+      mean_score_below_p15 = if (any(below)) mean(actual[below]) else NA_real_,
+      average_lower_tail_excess = if (any(below)) mean(p15[below] - actual[below]) else NA_real_,
+      n_below_p15 = sum(below),
+      predicted_mean_below_p15 = mean(group$mean_below_p15, na.rm = TRUE),
+      predicted_p15_tail_excess = mean(group$p15_tail_excess, na.rm = TRUE)
     )
   }
 
@@ -222,6 +229,65 @@ player_p85_tail_calibration <- function(
         },
         tail_excess_error = if (any(tail_rows)) {
           mean(actual_tail_excess[tail_rows]) - mean(p85_tail_excess)
+        } else {
+          NA_real_
+        }
+      )
+    },
+    by = by_columns
+  ]
+  data.table::setorderv(output, by_columns)
+  output[]
+}
+
+player_p15_tail_calibration <- function(
+    predictions,
+    group_by = c("season", "position"),
+    p15_increment = 1) {
+  check_columns(
+    predictions,
+    c("actual_score", "p15", "mean_below_p15", "p15_tail_excess", "position", "season", "week"),
+    "player predictions"
+  )
+  if (!length(group_by) || any(!group_by %in% names(predictions))) {
+    abort("group_by must contain columns from player predictions.")
+  }
+  if (length(p15_increment) != 1L || !is.finite(p15_increment) || p15_increment <= 0) {
+    abort("p15_increment must be one positive finite number.")
+  }
+
+  x <- data.table::as.data.table(data.table::copy(predictions))[
+    is.finite(actual_score) & is.finite(p15) &
+      is.finite(mean_below_p15) & is.finite(p15_tail_excess)
+  ]
+  if (!nrow(x)) abort("No complete p15 tail predictions are available for evaluation.")
+  x[, `:=`(
+    actual_below_p15 = actual_score < p15,
+    actual_tail_excess = p15 - actual_score,
+    p15_bin = round_to_increment(p15, increment = p15_increment)
+  )]
+
+  by_columns <- c(group_by, "p15_bin")
+  output <- x[
+    , {
+      tail_rows <- actual_below_p15
+      data.table::data.table(
+        n = .N,
+        n_actual_below_p15 = sum(tail_rows),
+        observed_coverage = mean(!tail_rows),
+        observed_below_rate = mean(tail_rows),
+        predicted_p15 = mean(p15),
+        predicted_mean_below_p15 = mean(mean_below_p15),
+        predicted_p15_tail_excess = mean(p15_tail_excess),
+        observed_tail_mean = if (any(tail_rows)) mean(actual_score[tail_rows]) else NA_real_,
+        observed_tail_excess = if (any(tail_rows)) mean(actual_tail_excess[tail_rows]) else NA_real_,
+        tail_mean_error = if (any(tail_rows)) {
+          mean(actual_score[tail_rows]) - mean(mean_below_p15)
+        } else {
+          NA_real_
+        },
+        tail_excess_error = if (any(tail_rows)) {
+          mean(actual_tail_excess[tail_rows]) - mean(p15_tail_excess)
         } else {
           NA_real_
         }

@@ -1,21 +1,17 @@
-"""Walk-forward XGBoost PPR p85 experiment with Footballguys projections.
+"""Run a walk-forward XGBoost PPR p15 projection experiment.
 
-This experiment is separate from the rank-conditioned simulation. It trains
-one direct p85 quantile model for each skill position. The model uses the
-Footballguys consensus stat projections and rank-summary features.
-
-The experiment uses season-level walk-forward evaluation. It selects grid
-settings on the last four weeks of the most recent training season, refits the
-selected settings on all prior seasons, and scores the next season.
+This experiment mirrors the validated direct p85 model workflow. It trains
+one lower-quantile model for each supported skill position, selects settings
+with an earlier-season validation slice, and scores later seasons once.
 """
 
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import itertools
 import json
 import os
-import re
 import time
 from pathlib import Path
 from typing import Any, Iterable
@@ -27,13 +23,16 @@ import xgboost as xgb
 
 SCORING_FORMAT = "PPR"
 SCORING_CONTRACT_VERSION = "ppr_v1"
-ALPHA = 0.85
+ALPHA = 0.15
+QUANTILE_LABEL = "p15"
 POSITIONS = ("QB", "RB", "WR", "TE")
 DEFAULT_TARGET_SEASONS = (2024, 2025)
 DEFAULT_MAX_ROUNDS = 700
 DEFAULT_EARLY_STOPPING_ROUNDS = 50
 DEFAULT_VALIDATION_WEEKS = (14, 15, 16, 17)
 
+# These columns are copied from the validated p85 feature contract. Keep the
+# order stable because it is part of the serialized model and SHAP contract.
 RANK_FEATURES = (
     "week",
     "ecr",
@@ -90,18 +89,42 @@ OUTCOME_COLUMNS = {
     "p15",
     "p50",
     "p85",
+    "mean_below_p15",
+    "p15_tail_excess",
+    "mean_above_p85",
+    "p85_tail_excess",
     "baseline_p15",
     "baseline_p50",
     "baseline_p85",
-    "baseline_mean_above_p85",
-    "baseline_p85_tail_excess",
-    "mean_below_p15",
-    "p15_tail_excess",
     "baseline_mean_below_p15",
     "baseline_p15_tail_excess",
-    "xgb_p85",
+    "baseline_mean_above_p85",
+    "baseline_p85_tail_excess",
     "xgb_p15",
+    "xgb_p85",
 }
+
+
+def load_p85_helpers(root: Path) -> Any:
+    """Load the validated p85 module for the shared data path.
+
+    Parameters
+    ----------
+    root : pathlib.Path
+        Repository root.
+
+    Returns
+    -------
+    Any
+        Loaded p85 experiment module.
+    """
+    script_path = root / "backtest_fbg_2023_2025" / "scripts" / "08_xgb_p85_projection_experiment.py"
+    spec = importlib.util.spec_from_file_location("xgb_p85_projection_for_p15", script_path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Cannot load shared p85 helpers from {script_path}.")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def parse_args() -> argparse.Namespace:
@@ -145,13 +168,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output-dir",
         default=None,
-        help="Optional output directory. Defaults to outputs/xgb_p85_projection.",
+        help="Optional output directory. Defaults to outputs/xgb_p15_projection.",
     )
     args = parser.parse_args()
-    target_seasons = tuple(
+    args.target_seasons = tuple(
         sorted({int(value.strip()) for value in args.target_seasons.split(",") if value.strip()})
     )
-    if not target_seasons:
+    if not args.target_seasons:
         parser.error("--target-seasons must contain at least one season.")
     if args.max_rounds < 1:
         parser.error("--max-rounds must be positive.")
@@ -161,18 +184,11 @@ def parse_args() -> argparse.Namespace:
         parser.error("--max-configs must be positive.")
     if args.nthread < 1:
         parser.error("--nthread must be positive.")
-    args.target_seasons = target_seasons
     return args
 
 
 def project_root() -> Path:
-    """Return the repository root for this script.
-
-    Returns
-    -------
-    pathlib.Path
-        Repository root path.
-    """
+    """Return the repository root for this script."""
     return Path(__file__).resolve().parents[2]
 
 
@@ -192,10 +208,12 @@ def require_ppr_artifact(frame: pd.DataFrame, label: str) -> None:
 
 
 def assert_feature_columns(features: list[str]) -> None:
-    """Reject outcome or future-result fields from XGBoost features."""
+    """Reject outcomes, future results, and legacy scoring fields from features."""
     leaked = sorted(set(features).intersection(OUTCOME_COLUMNS))
+    if "rec-1d" in features:
+        leaked.append("rec-1d")
     if leaked:
-        raise ValueError(f"XGBoost features contain outcome columns: {leaked}")
+        raise ValueError(f"XGBoost features contain outcome or inactive scoring columns: {sorted(set(leaked))}")
 
 
 def assert_walk_forward_split(
@@ -212,58 +230,47 @@ def assert_walk_forward_split(
     invalid_target = sorted(season for season in target_seasons if season != target_season)
     if invalid_prior:
         raise ValueError(
-            f"XGBoost training rows for {target_season} contain target or future seasons: {invalid_prior}"
+            f"P15 training rows for {target_season} contain target or future seasons: {invalid_prior}"
         )
     if invalid_target:
         raise ValueError(
-            f"XGBoost target rows for {target_season} contain unexpected seasons: {invalid_target}"
+            f"P15 target rows for {target_season} contain unexpected seasons: {invalid_target}"
         )
-    if prior_seasons and max(prior_seasons) >= target_season:
-        raise ValueError(f"XGBoost training history is not strictly earlier than {target_season}.")
+
+
+def assert_calibration_rows(predictions: pd.DataFrame) -> None:
+    """Require target-season rows before any calibration calculation."""
+    required = {"season", "actual_score", "xgb_p15", "baseline_p15"}
+    missing = sorted(required.difference(predictions.columns))
+    if missing:
+        raise ValueError(f"P15 calibration input is missing columns: {missing}")
+    if predictions.empty:
+        raise ValueError("P15 calibration input is empty.")
+    if predictions["actual_score"].isna().any():
+        raise ValueError("P15 calibration input contains missing outcomes.")
+    if predictions[["xgb_p15", "baseline_p15"]].isna().any().any():
+        raise ValueError("P15 calibration input contains missing predictions.")
 
 
 def pinball_loss(actual: np.ndarray, prediction: np.ndarray, alpha: float = ALPHA) -> float:
-    """Calculate mean pinball loss for one quantile.
-
-    Parameters
-    ----------
-    actual : numpy.ndarray
-        Observed scores.
-    prediction : numpy.ndarray
-        Predicted quantile values.
-    alpha : float, optional
-        Quantile level, by default 0.85.
-
-    Returns
-    -------
-    float
-        Mean pinball loss.
-    """
+    """Calculate mean pinball loss for one quantile."""
+    if not 0.0 < alpha < 1.0:
+        raise ValueError("alpha must be between 0 and 1.")
     residual = np.asarray(actual, dtype=float) - np.asarray(prediction, dtype=float)
     losses = np.where(residual >= 0.0, alpha * residual, (alpha - 1.0) * residual)
     return float(np.mean(losses))
 
 
 def pinball_metric(prediction: np.ndarray, dmatrix: xgb.DMatrix) -> tuple[str, float]:
-    """Return the p85 pinball metric for XGBoost evaluation.
-
-    Parameters
-    ----------
-    prediction : numpy.ndarray
-        Model predictions.
-    dmatrix : xgboost.DMatrix
-        Evaluation data with labels.
-
-    Returns
-    -------
-    tuple[str, float]
-        Metric name and value.
-    """
-    return "p85_pinball", pinball_loss(dmatrix.get_label(), prediction)
+    """Return the P15 pinball metric for XGBoost evaluation."""
+    return "p15_pinball", pinball_loss(dmatrix.get_label(), prediction)
 
 
 def make_grid() -> list[dict[str, Any]]:
-    """Build the bounded p85 parameter grid.
+    """Build the bounded P15 parameter grid.
+
+    The grid matches the P85 search method. P15 selects its own winner from
+    fresh validation losses, so the P85 settings are never reused.
 
     Returns
     -------
@@ -294,22 +301,7 @@ def make_grid() -> list[dict[str, Any]]:
 
 
 def xgb_params(settings: dict[str, Any], nthread: int, seed: int) -> dict[str, Any]:
-    """Combine fixed and searched XGBoost parameters.
-
-    Parameters
-    ----------
-    settings : dict[str, Any]
-        Searched parameters.
-    nthread : int
-        Number of training threads.
-    seed : int
-        Random seed.
-
-    Returns
-    -------
-    dict[str, Any]
-        Complete XGBoost parameter dictionary.
-    """
+    """Combine fixed and searched XGBoost parameters."""
     return {
         "objective": "reg:quantileerror",
         "quantile_alpha": ALPHA,
@@ -322,82 +314,8 @@ def xgb_params(settings: dict[str, Any], nthread: int, seed: int) -> dict[str, A
     }
 
 
-def read_consensus_projections(root: Path) -> pd.DataFrame:
-    """Read consensus projection rows from all cached FBG weeks.
-
-    Parameters
-    ----------
-    root : pathlib.Path
-        Repository root.
-
-    Returns
-    -------
-    pandas.DataFrame
-        One consensus projection row per player, week, and position.
-    """
-    raw_root = root / "backtest_fbg_2023_2025" / "data" / "raw" / "fbg"
-    usecols = ["id", "pos", "team", "set-id", "set-name", *PROJECTION_COLUMNS]
-    selection_path = root / "backtest_fbg_2023_2025" / "data" / "derived" / "fbg_set_selection.csv"
-    selection = pd.read_csv(selection_path, dtype={"season": "int64", "week": "int64", "set_id": "string"})
-    selection["set_name"] = selection["set_name"].astype("string").str.strip().str.lower()
-    selected = selection[
-        selection["selected"].astype("string").str.upper().eq("TRUE")
-        & selection["set_name"].eq("projections consensus")
-    ].copy()
-    selected_set_ids = {
-        (int(row.season), int(row.week)): str(row.set_id)
-        for row in selected.itertuples(index=False)
-    }
-    frames = []
-    for path in sorted(raw_root.glob("season=*/week=*.csv")):
-        match = re.search(r"season=(\d+)[\\/]week=(\d+)\.csv$", str(path))
-        if match is None:
-            raise ValueError(f"Cannot parse season and week from {path}.")
-        season, week = (int(value) for value in match.groups())
-        raw = pd.read_csv(path, usecols=usecols, low_memory=False)
-        set_name = raw["set-name"].astype("string").str.strip().str.lower()
-        selected_set_id = selected_set_ids.get((season, week))
-        if selected_set_id is None:
-            raise ValueError(f"No selected consensus set exists for {season} week {week}.")
-        consensus = raw.loc[
-            set_name.eq("projections consensus")
-            & raw["set-id"].astype("string").eq(selected_set_id)
-        ].copy()
-        consensus["season"] = season
-        consensus["week"] = week
-        consensus["fbg_id"] = consensus.pop("id").astype("string").str.strip()
-        consensus["position"] = consensus.pop("pos").astype("string").str.strip().str.upper()
-        consensus["team"] = consensus["team"].astype("string").str.strip().str.upper()
-        consensus = consensus[
-            consensus["position"].isin(POSITIONS)
-            & consensus["team"].notna()
-            & consensus["team"].ne("FA")
-        ]
-        consensus = consensus.drop(columns=["team", "set-id", "set-name"])
-        frames.append(consensus)
-    if not frames:
-        raise FileNotFoundError(f"No cached FBG CSV files found under {raw_root}.")
-    output = pd.concat(frames, ignore_index=True)
-    duplicate_mask = output.duplicated(list(KEY_COLUMNS), keep=False)
-    if duplicate_mask.any():
-        duplicates = output.loc[duplicate_mask, list(KEY_COLUMNS)].head(5).to_dict("records")
-        raise ValueError(f"Consensus projections contain duplicate keys: {duplicates}")
-    return output
-
-
 def projection_score(frame: pd.DataFrame) -> pd.Series:
-    """Calculate PPR projection points from raw FBG stat projections.
-
-    Parameters
-    ----------
-    frame : pandas.DataFrame
-        Consensus projection rows.
-
-    Returns
-    -------
-    pandas.Series
-        Projected fantasy score for each row.
-    """
+    """Calculate standard PPR projection points from raw FBG stats."""
     values = {
         column: pd.to_numeric(frame[column], errors="coerce").fillna(0.0)
         for column in PROJECTION_SCORE_COLUMNS
@@ -413,157 +331,32 @@ def projection_score(frame: pd.DataFrame) -> pd.Series:
         + values["rec-yds"] / 10.0
         + values["rec-td"] * 6.0
         + values["rec-2pt"] * 2.0
-        + values["rec-rec"] * 1.0
+        + values["rec-rec"]
         - values["fum-lost"] * 2.0
     )
 
 
 def build_dataset(root: Path) -> tuple[pd.DataFrame, dict[str, Any]]:
-    """Join rank summaries, raw projections, and baseline p85 output.
-
-    Parameters
-    ----------
-    root : pathlib.Path
-        Repository root.
-
-    Returns
-    -------
-    tuple[pandas.DataFrame, dict[str, Any]]
-        Modeling data and join audit values.
-    """
-    backtest_root = root / "backtest_fbg_2023_2025"
-    summary_path = backtest_root / "data" / "derived" / "fbg_rank_summary.parquet"
-    baseline_path = backtest_root / "outputs" / "player_predictions.parquet"
-    summary_columns = [
-        *KEY_COLUMNS,
-        "gsis_id",
-        "ecr",
-        "rank_sd",
-        "n_projectors",
-        "rank_min",
-        "rank_max",
-        "consensus_rank",
-        "consensus_projected_score",
-        "actual_score",
-        "scoring_format",
-        "scoring_contract_version",
-    ]
-    summary = pd.read_parquet(summary_path, columns=summary_columns)
-    require_ppr_artifact(summary, "FBG rank summary")
-    summary["position"] = summary["position"].astype("string").str.upper()
-    summary = summary[summary["position"].isin(POSITIONS)].copy()
-    summary["fbg_id"] = summary["fbg_id"].astype("string").str.strip()
-
-    projections = read_consensus_projections(root)
-    projections["projection_fpts"] = projection_score(projections)
-    merged = summary.merge(
-        projections,
-        on=list(KEY_COLUMNS),
-        how="left",
-        validate="one_to_one",
-        indicator="projection_join",
-    )
-    join_counts = merged["projection_join"].value_counts(dropna=False).to_dict()
-    if join_counts.get("left_only", 0) or join_counts.get("right_only", 0):
-        raise ValueError(f"Projection join did not conserve keys: {join_counts}")
-
-    baseline_columns = [
-        *KEY_COLUMNS,
-        "p15",
-        "p50",
-        "p85",
-        "mean_above_p85",
-        "p85_tail_excess",
-        "mean_below_p15",
-        "p15_tail_excess",
-        "scoring_format",
-        "scoring_contract_version",
-    ]
-    baseline_raw = pd.read_parquet(baseline_path, columns=baseline_columns)
-    require_ppr_artifact(baseline_raw, "ffsimulator player predictions")
-    baseline = baseline_raw.drop(columns=["scoring_format", "scoring_contract_version"])
-    baseline["position"] = baseline["position"].astype("string").str.upper()
-    baseline["fbg_id"] = baseline["fbg_id"].astype("string").str.strip()
-    baseline_duplicates = baseline.duplicated(list(KEY_COLUMNS), keep=False)
-    if baseline_duplicates.any():
-        duplicates = baseline.loc[baseline_duplicates, list(KEY_COLUMNS)].head(5).to_dict("records")
-        raise ValueError(f"Baseline predictions contain duplicate keys: {duplicates}")
-    merged = merged.merge(
-        baseline,
-        on=list(KEY_COLUMNS),
-        how="left",
-        validate="one_to_one",
-    )
-    for column in [
-        *RANK_FEATURES,
-        *PROJECTION_COLUMNS,
-        "projection_fpts",
-        "actual_score",
-        "p15",
-        "p50",
-        "p85",
-        "mean_above_p85",
-        "p85_tail_excess",
-        "mean_below_p15",
-        "p15_tail_excess",
-    ]:
-        if column in merged:
-            merged[column] = pd.to_numeric(merged[column], errors="coerce")
-    projection_difference = (
-        merged["consensus_projected_score"] - merged["projection_fpts"]
-    ).abs()
-    max_projection_difference = float(projection_difference.max())
-    if not np.isfinite(max_projection_difference) or max_projection_difference > 1e-8:
+    """Use the validated P85 join path and expose the P15 model frame."""
+    helpers = load_p85_helpers(root)
+    data, audit = helpers.build_dataset(root)
+    require_ppr_artifact(data, "P15 XGBoost model dataset")
+    if audit.get("feature_outcome_columns"):
         raise ValueError(
-            "R and Python PPR projection scores do not match. "
-            f"Maximum absolute difference: {max_projection_difference}"
+            "The shared XGBoost data audit found outcome columns in the feature universe: "
+            f"{audit['feature_outcome_columns']}"
         )
-    merged["model_eligible"] = (
-        merged["gsis_id"].notna()
-        & merged["n_projectors"].ge(3)
-        & merged["actual_score"].notna()
-        & merged["projection_fpts"].notna()
+    missing = sorted(
+        {"actual_score", "p15", "p50", "p85", "mean_below_p15", "p15_tail_excess"}.difference(data.columns)
     )
-    eligible = merged[merged["model_eligible"]].copy()
-    if eligible.empty:
-        raise ValueError("No model-eligible rows remain after the panel filters.")
-    assert_feature_columns([column for column in [*RANK_FEATURES, *PROJECTION_COLUMNS, "projection_fpts"] if column in eligible])
-    audit = {
-        "summary_rows": int(len(summary)),
-        "consensus_projection_rows": int(len(projections)),
-        "projection_join_counts": {str(key): int(value) for key, value in join_counts.items()},
-        "baseline_rows": int(len(baseline)),
-        "eligible_rows": int(len(eligible)),
-        "eligible_by_season_position": {
-            f"{int(season)}_{position}": int(count)
-            for (season, position), count in eligible.groupby(["season", "position"]).size().items()
-        },
-        "scoring_format": SCORING_FORMAT,
-        "scoring_contract_version": SCORING_CONTRACT_VERSION,
-        "outcome_column": "actual_score",
-        "feature_outcome_columns": sorted(
-            set([*RANK_FEATURES, *PROJECTION_COLUMNS, "projection_fpts"]).intersection(OUTCOME_COLUMNS)
-        ),
-        "projection_score_max_abs_difference": max_projection_difference,
-    }
-    return eligible, audit
+    if missing:
+        raise ValueError(f"P15 model dataset is missing floor-side baseline columns: {missing}")
+    assert_feature_columns([*RANK_FEATURES, *PROJECTION_COLUMNS, "projection_fpts"])
+    return data, audit
 
 
 def feature_columns(frame: pd.DataFrame, position: str) -> list[str]:
-    """Return non-constant numeric features for one position.
-
-    Parameters
-    ----------
-    frame : pandas.DataFrame
-        Modeling data.
-    position : str
-        Position-specific model label.
-
-    Returns
-    -------
-    list[str]
-        Numeric model feature names.
-    """
+    """Return non-constant numeric P15 features for one position."""
     candidates = [*RANK_FEATURES, *PROJECTION_COLUMNS, "projection_fpts"]
     subset = frame[frame["position"].eq(position)]
     selected = [
@@ -578,22 +371,7 @@ def feature_columns(frame: pd.DataFrame, position: str) -> list[str]:
 
 
 def to_dmatrix(frame: pd.DataFrame, features: list[str], with_label: bool) -> xgb.DMatrix:
-    """Convert a modeling frame to one XGBoost DMatrix.
-
-    Parameters
-    ----------
-    frame : pandas.DataFrame
-        Modeling rows.
-    features : list[str]
-        Feature columns.
-    with_label : bool
-        Whether to attach actual scores as labels.
-
-    Returns
-    -------
-    xgboost.DMatrix
-        Prepared matrix.
-    """
+    """Convert one P15 modeling frame to an XGBoost DMatrix."""
     assert_feature_columns(features)
     missing = sorted(set(features).difference(frame.columns))
     if missing:
@@ -613,32 +391,7 @@ def train_grid_model(
     nthread: int,
     seed: int,
 ) -> tuple[xgb.Booster, dict[str, Any]]:
-    """Fit one grid candidate and score its validation quantile.
-
-    Parameters
-    ----------
-    train : pandas.DataFrame
-        Inner training rows.
-    validation : pandas.DataFrame
-        Inner validation rows.
-    features : list[str]
-        Position-specific features.
-    settings : dict[str, Any]
-        Candidate hyperparameters.
-    max_rounds : int
-        Maximum boosting rounds.
-    early_stopping_rounds : int
-        Early stopping patience.
-    nthread : int
-        Number of XGBoost threads.
-    seed : int
-        Candidate random seed.
-
-    Returns
-    -------
-    tuple[xgboost.Booster, dict[str, Any]]
-        Fitted booster and validation diagnostics.
-    """
+    """Fit one P15 grid candidate and score its validation quantile."""
     dtrain = to_dmatrix(train, features, with_label=True)
     dvalidation = to_dmatrix(validation, features, with_label=True)
     evals_result: dict[str, dict[str, list[float]]] = {}
@@ -677,28 +430,7 @@ def choose_model(
     grid: list[dict[str, Any]],
     args: argparse.Namespace,
 ) -> tuple[dict[str, Any], pd.DataFrame, list[str]]:
-    """Search the grid for one position and target season.
-
-    Parameters
-    ----------
-    train : pandas.DataFrame
-        Inner training rows.
-    validation : pandas.DataFrame
-        Inner validation rows.
-    position : str
-        Position-specific model label.
-    target_season : int
-        Held-out target season.
-    grid : list[dict[str, Any]]
-        Candidate settings.
-    args : argparse.Namespace
-        Experiment settings.
-
-    Returns
-    -------
-    tuple[dict[str, Any], pandas.DataFrame, list[str]]
-        Best settings, all grid diagnostics, and feature names.
-    """
+    """Search the P15 grid for one position and target season."""
     features = feature_columns(train, position)
     results = []
     total = len(grid)
@@ -721,13 +453,13 @@ def choose_model(
                 "grid_index": index,
                 "grid_size": total,
                 "feature_count": len(features),
+                "quantile_alpha": ALPHA,
             }
         )
         results.append(diagnostics)
         if index == 1 or index == total or index % 24 == 0:
-            print(f"  {position} {target_season}: grid {index}/{total}", flush=True)
-    grid_results = pd.DataFrame(results)
-    grid_results = grid_results.sort_values(
+            print(f"  {position} {target_season}: P15 grid {index}/{total}", flush=True)
+    grid_results = pd.DataFrame(results).sort_values(
         ["validation_pinball", "validation_mae", "max_depth", "min_child_weight", "grid_index"]
     ).reset_index(drop=True)
     best = grid_results.iloc[0].to_dict()
@@ -754,26 +486,7 @@ def fit_final_model(
     nthread: int,
     seed: int,
 ) -> xgb.Booster:
-    """Refit selected settings on all prior-season rows.
-
-    Parameters
-    ----------
-    train : pandas.DataFrame
-        All rows before the target season.
-    features : list[str]
-        Position-specific features.
-    settings : dict[str, Any]
-        Selected settings and round count.
-    nthread : int
-        Number of XGBoost threads.
-    seed : int
-        Random seed.
-
-    Returns
-    -------
-    xgboost.Booster
-        Final walk-forward model.
-    """
+    """Refit selected P15 settings on all prior-season rows."""
     dtrain = to_dmatrix(train, features, with_label=True)
     model_settings = {
         key: settings[key]
@@ -804,19 +517,8 @@ def spearman_correlation(actual: np.ndarray, prediction: np.ndarray) -> float:
 
 
 def summarize_metrics(predictions: pd.DataFrame) -> pd.DataFrame:
-    """Create PPR quantile and descriptive metrics by model and group.
-
-    Parameters
-    ----------
-    predictions : pandas.DataFrame
-        OOS row-level prediction table.
-
-    Returns
-    -------
-    pandas.DataFrame
-        Long-form metrics table.
-    """
-    complete = predictions.dropna(subset=["actual_score", "baseline_p85", "xgb_p85"])
+    """Create P15 quantile and descriptive metrics by model and group."""
+    complete = predictions.dropna(subset=["actual_score", "baseline_p15", "xgb_p15"])
     rows = []
     groupings: Iterable[tuple[str, list[str]]] = (
         ("all", []),
@@ -825,15 +527,23 @@ def summarize_metrics(predictions: pd.DataFrame) -> pd.DataFrame:
         ("season_position", ["season", "position"]),
     )
     for group_name, group_columns in groupings:
-        grouped = [((), complete)] if not group_columns else complete.groupby(group_columns, dropna=False, sort=True)
+        grouped = (
+            [((), complete)]
+            if not group_columns
+            else complete.groupby(group_columns, dropna=False, sort=True)
+        )
         for group_key, group in grouped:
             if not isinstance(group_key, tuple):
                 group_key = (group_key,)
             group_values = dict(zip(group_columns, group_key))
             actual = group["actual_score"].to_numpy(dtype=float)
-            for model_name, column in (("simulation_baseline", "baseline_p85"), ("xgb_projection", "xgb_p85")):
+            for model_name, column in (
+                ("simulation_baseline", "baseline_p15"),
+                ("xgb_projection", "xgb_p15"),
+            ):
                 prediction = group[column].to_numpy(dtype=float)
-                above = actual > prediction
+                residual = actual - prediction
+                below = actual < prediction
                 calibration = (
                     np.polyfit(prediction, actual, 1)
                     if len(prediction) > 1 and np.std(prediction) > 0.0
@@ -845,140 +555,138 @@ def summarize_metrics(predictions: pd.DataFrame) -> pd.DataFrame:
                     "model": model_name,
                     "scoring_format": SCORING_FORMAT,
                     "scoring_contract_version": SCORING_CONTRACT_VERSION,
+                    "target_quantile": ALPHA,
+                    "quantile_label": QUANTILE_LABEL,
                     "n": int(len(group)),
-                    "p15_coverage": np.nan,
-                    "p50_coverage": np.nan,
-                    "p85_coverage": float(np.mean(actual <= prediction)),
-                    "p85_coverage_error": float(np.mean(actual <= prediction) - ALPHA),
-                    "p15_pinball_loss": np.nan,
-                    "p50_pinball_loss": np.nan,
-                    "p85_pinball_loss": pinball_loss(actual, prediction),
-                    "p85_bias": float(np.mean(prediction - actual)),
-                    "p85_mae": float(np.mean(np.abs(prediction - actual))),
-                    "p85_rmse": float(np.sqrt(np.mean((actual - prediction) ** 2))),
-                    "mean_p85": float(np.mean(prediction)),
+                    "p15_coverage": float(np.mean(actual <= prediction)),
+                    "p15_coverage_error": float(np.mean(actual <= prediction) - ALPHA),
+                    "p15_pinball_loss": pinball_loss(actual, prediction),
+                    "p15_bias": float(np.mean(prediction - actual)),
+                    "p15_mae": float(np.mean(np.abs(residual))),
+                    "p15_rmse": float(np.sqrt(np.mean(residual**2))),
+                    "mean_p15": float(np.mean(prediction)),
                     "calibration_slope": float(calibration[0]),
                     "calibration_intercept": float(calibration[1]),
+                    "p50_coverage": np.nan,
+                    "p50_pinball_loss": np.nan,
                     "p50_mae": np.nan,
                     "p50_rmse": np.nan,
                     "mean_p50": np.nan,
                     "p50_bias": np.nan,
-                    "low_side_miss_rate": np.nan,
-                    "high_side_miss_rate": float(np.mean(actual > prediction)),
-                    "mean_score_above_p85": float(np.mean(actual[above])) if above.any() else np.nan,
-                    "average_tail_excess": float(np.mean(actual[above] - prediction[above])) if above.any() else np.nan,
-                    "n_above_p85": int(above.sum()),
-                    "predicted_mean_above_p85": np.nan,
+                    "p85_coverage": np.nan,
+                    "p85_pinball_loss": np.nan,
+                    "p85_mae": np.nan,
+                    "p85_rmse": np.nan,
+                    "mean_p85": np.nan,
+                    "low_side_miss_rate": float(np.mean(actual < prediction)),
+                    "high_side_miss_rate": np.nan,
+                    "mean_below_p15": float(np.mean(actual[below])) if below.any() else np.nan,
+                    "mean_score_below_p15": float(np.mean(actual[below])) if below.any() else np.nan,
+                    "p15_tail_excess": float(np.mean(prediction[below] - actual[below])) if below.any() else np.nan,
+                    "average_tail_excess": float(np.mean(prediction[below] - actual[below])) if below.any() else np.nan,
+                    "n_below_p15": int(below.sum()),
+                    "predicted_mean_below_p15": np.nan,
+                    "predicted_p15_tail_excess": np.nan,
                     "predicted_average_tail_excess": np.nan,
-                    "mae": float(np.mean(np.abs(actual - prediction))),
-                    "rmse": float(np.sqrt(np.mean((actual - prediction) ** 2))),
-                    "p85_rank_spearman": spearman_correlation(actual, prediction),
+                    "interval_coverage": np.nan,
+                    "p15_to_p85_interval_coverage": np.nan,
+                    "mean_interval_width": np.nan,
+                    "mae": float(np.mean(np.abs(residual))),
+                    "rmse": float(np.sqrt(np.mean(residual**2))),
+                    "p15_rank_spearman": spearman_correlation(actual, prediction),
                 }
                 if model_name == "simulation_baseline":
                     lower = group["baseline_p15"].to_numpy(dtype=float)
                     median = group["baseline_p50"].to_numpy(dtype=float)
-                    lower_complete = np.isfinite(lower).all() and np.isfinite(median).all()
-                    if lower_complete:
+                    upper = group["baseline_p85"].to_numpy(dtype=float)
+                    if np.isfinite(median).all() and np.isfinite(upper).all():
                         row.update(
                             {
-                                "p15_coverage": float(np.mean(actual <= lower)),
                                 "p50_coverage": float(np.mean(actual <= median)),
-                                "p15_pinball_loss": pinball_loss(actual, lower, alpha=0.15),
                                 "p50_pinball_loss": pinball_loss(actual, median, alpha=0.50),
                                 "p50_mae": float(np.mean(np.abs(actual - median))),
                                 "p50_rmse": float(np.sqrt(np.mean((actual - median) ** 2))),
                                 "mean_p50": float(np.mean(median)),
                                 "p50_bias": float(np.mean(median - actual)),
-                                "low_side_miss_rate": float(np.mean(actual < lower)),
-                                "interval_coverage": float(np.mean((actual >= lower) & (actual <= prediction))),
+                                "p85_coverage": float(np.mean(actual <= upper)),
+                                "p85_pinball_loss": pinball_loss(actual, upper, alpha=0.85),
+                                "p85_mae": float(np.mean(np.abs(actual - upper))),
+                                "p85_rmse": float(np.sqrt(np.mean((actual - upper) ** 2))),
+                                "mean_p85": float(np.mean(upper)),
+                                "high_side_miss_rate": float(np.mean(actual > upper)),
+                                "interval_coverage": float(np.mean((actual >= lower) & (actual <= upper))),
                                 "p15_to_p85_interval_coverage": float(
-                                    np.mean((actual >= lower) & (actual <= prediction))
+                                    np.mean((actual >= lower) & (actual <= upper))
                                 ),
-                                "mean_interval_width": float(np.mean(prediction - lower)),
-                                "mae": float(np.mean(np.abs(actual - median))),
-                                "rmse": float(np.sqrt(np.mean((actual - median) ** 2))),
+                                "mean_interval_width": float(np.mean(upper - lower)),
                             }
                         )
-                    predicted_mean = group["baseline_mean_above_p85"].to_numpy(dtype=float)
-                    predicted_excess = group["baseline_p85_tail_excess"].to_numpy(dtype=float)
+                    predicted_mean = group["baseline_mean_below_p15"].to_numpy(dtype=float)
+                    predicted_excess = group["baseline_p15_tail_excess"].to_numpy(dtype=float)
                     if np.isfinite(predicted_mean).any():
-                        row["predicted_mean_above_p85"] = float(np.nanmean(predicted_mean))
+                        row["predicted_mean_below_p15"] = float(np.nanmean(predicted_mean))
                     if np.isfinite(predicted_excess).any():
+                        row["predicted_p15_tail_excess"] = float(np.nanmean(predicted_excess))
                         row["predicted_average_tail_excess"] = float(np.nanmean(predicted_excess))
                 rows.append(row)
     return pd.DataFrame(rows)
 
 
-def boom_capture(predictions: pd.DataFrame) -> pd.DataFrame:
-    """Measure upper-fifth boom selection for each model.
-
-    Parameters
-    ----------
-    predictions : pandas.DataFrame
-        OOS row-level prediction table.
-
-    Returns
-    -------
-    pandas.DataFrame
-        Boom rate and capture by season, position, and model.
-    """
-    rows = []
-    complete = predictions.dropna(subset=["actual_score", "baseline_p85", "xgb_p85"])
-    # The boom definition is season-wide. Position is used only to report
-    # results, so the threshold does not change by position.
+def bust_capture(predictions: pd.DataFrame) -> pd.DataFrame:
+    """Measure lower-fifth bust selection with a season-wide threshold."""
+    complete = predictions.dropna(subset=["actual_score", "baseline_p15", "xgb_p15"]).copy()
+    assert_calibration_rows(complete)
     season_cutoffs = complete.groupby("season")["actual_score"].transform(
         lambda values: np.quantile(values, ALPHA, method="linear")
     )
-    complete = complete.assign(boom_cutoff=season_cutoffs)
-    grouped = complete.groupby(["season", "position"], sort=True)
-    for (season, position), group in grouped:
+    complete = complete.assign(bust_cutoff=season_cutoffs)
+    rows = []
+    for (season, position), group in complete.groupby(["season", "position"], sort=True):
         actual = group["actual_score"].to_numpy(dtype=float)
-        boom = actual >= group["boom_cutoff"].to_numpy(dtype=float)
-        top_n = max(1, int(np.ceil(len(group) * 0.20)))
-        for model_name, column in (("simulation_baseline", "baseline_p85"), ("xgb_projection", "xgb_p85")):
+        bust = actual <= group["bust_cutoff"].to_numpy(dtype=float)
+        bottom_n = max(1, int(np.ceil(len(group) * 0.20)))
+        for model_name, column in (
+            ("simulation_baseline", "baseline_p15"),
+            ("xgb_projection", "xgb_p15"),
+        ):
             ranking = group[column].to_numpy(dtype=float)
-            top_indexes = np.argsort(-ranking, kind="mergesort")[:top_n]
-            top_mask = np.zeros(len(group), dtype=bool)
-            top_mask[top_indexes] = True
+            bottom_indexes = np.argsort(ranking, kind="mergesort")[:bottom_n]
+            bottom_mask = np.zeros(len(group), dtype=bool)
+            bottom_mask[bottom_indexes] = True
             rows.append(
                 {
                     "season": int(season),
                     "position": position,
                     "model": model_name,
                     "n": int(len(group)),
-                    "top_n": top_n,
-                    "boom_n": int(boom.sum()),
-                    "top_boom_rate": float(boom[top_mask].mean()),
-                    "boom_capture": float(boom[top_mask].sum() / boom.sum()) if boom.sum() else np.nan,
-                    "boom_lift": float(boom[top_mask].mean() / boom.mean()) if boom.mean() else np.nan,
-                    "boom_threshold_scope": "season",
-                    "boom_cutoff": float(group["boom_cutoff"].iloc[0]),
+                    "bottom_n": bottom_n,
+                    "bust_n": int(bust.sum()),
+                    "bottom_bust_rate": float(bust[bottom_mask].mean()),
+                    "bust_capture": float(bust[bottom_mask].sum() / bust.sum()) if bust.sum() else np.nan,
+                    "bust_lift": float(bust[bottom_mask].mean() / bust.mean()) if bust.mean() else np.nan,
+                    "bust_threshold_scope": "season",
+                    "bust_cutoff": float(group["bust_cutoff"].iloc[0]),
                     "scoring_format": SCORING_FORMAT,
                     "scoring_contract_version": SCORING_CONTRACT_VERSION,
+                    "target_quantile": ALPHA,
+                    "quantile_label": QUANTILE_LABEL,
                 }
             )
     return pd.DataFrame(rows)
 
 
 def calibration_table(predictions: pd.DataFrame) -> pd.DataFrame:
-    """Build empirical p85 calibration bins for both model families.
-
-    Parameters
-    ----------
-    predictions : pandas.DataFrame
-        OOS row-level prediction table.
-
-    Returns
-    -------
-    pandas.DataFrame
-        Calibration rows with counts and empirical p85 values.
-    """
-    complete = predictions.dropna(subset=["actual_score", "baseline_p85", "xgb_p85"]).copy()
+    """Build empirical P15 calibration bins for both model families."""
+    complete = predictions.dropna(subset=["actual_score", "baseline_p15", "xgb_p15"]).copy()
+    assert_calibration_rows(complete)
     rows = []
-    for model_name, column in (("simulation_baseline", "baseline_p85"), ("xgb_projection", "xgb_p85")):
-        complete["p85_bin"] = np.floor(complete[column] + 0.5).astype(int)
-        for (season, position, p85_bin), group in complete.groupby(
-            ["season", "position", "p85_bin"], sort=True
+    for model_name, column in (
+        ("simulation_baseline", "baseline_p15"),
+        ("xgb_projection", "xgb_p15"),
+    ):
+        complete["p15_bin"] = np.floor(complete[column] + 0.5).astype(int)
+        for (season, position, p15_bin), group in complete.groupby(
+            ["season", "position", "p15_bin"], sort=True
         ):
             observed = float(np.quantile(group["actual_score"], ALPHA, method="linear"))
             predicted = float(group[column].mean())
@@ -987,16 +695,21 @@ def calibration_table(predictions: pd.DataFrame) -> pd.DataFrame:
                     "model": model_name,
                     "scoring_format": SCORING_FORMAT,
                     "scoring_contract_version": SCORING_CONTRACT_VERSION,
+                    "target_quantile": ALPHA,
+                    "quantile_label": QUANTILE_LABEL,
                     "season": int(season),
                     "position": position,
-                    "p85_bin": int(p85_bin),
+                    "p15_bin": int(p15_bin),
                     "n": int(len(group)),
-                    "predicted_p85": predicted,
-                    "observed_p85": observed,
+                    "predicted_p15": predicted,
+                    "observed_p15": observed,
                     "bias": observed - predicted,
                 }
             )
     return pd.DataFrame(rows)
+
+
+p15_calibration_table = calibration_table
 
 
 def importance_table(
@@ -1005,7 +718,7 @@ def importance_table(
     position: str,
     target_season: int,
 ) -> pd.DataFrame:
-    """Return gain importance for one final model."""
+    """Return gain importance for one final P15 model."""
     gain = booster.get_score(importance_type="gain")
     rows = [
         {
@@ -1014,6 +727,9 @@ def importance_table(
             "feature": feature,
             "gain": float(gain.get(feature, 0.0)),
             "used_in_tree": feature in gain,
+            "scoring_format": SCORING_FORMAT,
+            "scoring_contract_version": SCORING_CONTRACT_VERSION,
+            "target_quantile": ALPHA,
         }
         for feature in features
     ]
@@ -1038,20 +754,26 @@ def json_safe(value: Any) -> Any:
 
 
 def run_experiment(args: argparse.Namespace) -> None:
-    """Run the complete walk-forward p85 experiment."""
+    """Run the complete walk-forward P15 experiment."""
     root = project_root()
-    output_dir = Path(args.output_dir) if args.output_dir else root / "backtest_fbg_2023_2025" / "outputs" / "xgb_p85_projection"
+    output_dir = (
+        Path(args.output_dir)
+        if args.output_dir
+        else root / "backtest_fbg_2023_2025" / "outputs" / "xgb_p15_projection"
+    )
     output_dir.mkdir(parents=True, exist_ok=True)
     model_dir = output_dir / "models"
     model_dir.mkdir(parents=True, exist_ok=True)
 
     started = time.perf_counter()
     data, audit = build_dataset(root)
-    require_ppr_artifact(data, "XGBoost model dataset")
     grid = make_grid()
     if args.max_configs is not None:
         grid = grid[: args.max_configs]
-    print(f"Rows: {len(data):,}. Grid candidates per position and season: {len(grid):,}.", flush=True)
+    print(
+        f"Rows: {len(data):,}. P15 grid candidates per position and season: {len(grid):,}.",
+        flush=True,
+    )
 
     all_predictions = []
     all_grid_results = []
@@ -1073,8 +795,10 @@ def run_experiment(args: argparse.Namespace) -> None:
         inner_train = prior.drop(validation.index).copy()
         if validation.empty or inner_train.empty:
             raise ValueError(f"Cannot form an inner time split for target season {target_season}.")
+        if not set(validation["season"].unique()).issubset(prior["season"].unique()):
+            raise ValueError("P15 validation rows are outside the prior-season training frame.")
         print(
-            f"Target {target_season}: train seasons {sorted(prior['season'].unique())}, "
+            f"Target {target_season}: P15 train seasons {sorted(prior['season'].unique())}, "
             f"validation {validation_season} weeks {DEFAULT_VALIDATION_WEEKS}.",
             flush=True,
         )
@@ -1095,7 +819,9 @@ def run_experiment(args: argparse.Namespace) -> None:
                 args,
             )
             assert_feature_columns(features)
-            grid_results["training_seasons"] = ",".join(str(value) for value in sorted(prior["season"].unique()))
+            grid_results["training_seasons"] = ",".join(
+                str(value) for value in sorted(prior["season"].unique())
+            )
             grid_results["validation_season"] = validation_season
             all_grid_results.append(grid_results)
             best_record = {
@@ -1111,13 +837,16 @@ def run_experiment(args: argparse.Namespace) -> None:
                 "inner_validation_coverage": float(grid_results.iloc[0]["validation_coverage"]),
                 "scoring_format": SCORING_FORMAT,
                 "scoring_contract_version": SCORING_CONTRACT_VERSION,
+                "target_quantile": ALPHA,
+                "quantile_label": QUANTILE_LABEL,
                 "max_historical_season_used": int(prior["season"].max()),
                 "features_contain_outcomes": False,
+                "features_contain_legacy_scoring_fields": False,
             }
             all_best.append(best_record)
             seed = 20260904 + target_season * 100 + POSITIONS.index(position)
             final_model = fit_final_model(position_prior, features, best_settings, args.nthread, seed)
-            model_path = model_dir / f"xgb_p85_{position.lower()}_through_{target_season - 1}.json"
+            model_path = model_dir / f"xgb_p15_{position.lower()}_through_{target_season - 1}.json"
             final_model.save_model(str(model_path))
             all_importance.append(importance_table(final_model, features, position, target_season))
             model_records.append(
@@ -1135,7 +864,10 @@ def run_experiment(args: argparse.Namespace) -> None:
                     "max_historical_season_used": int(position_prior["season"].max()),
                     "scoring_format": SCORING_FORMAT,
                     "scoring_contract_version": SCORING_CONTRACT_VERSION,
+                    "target_quantile": ALPHA,
+                    "quantile_label": QUANTILE_LABEL,
                     "features_contain_outcomes": False,
+                    "features_contain_legacy_scoring_fields": False,
                 }
             )
             target_features = to_dmatrix(position_target, features, with_label=False)
@@ -1151,37 +883,40 @@ def run_experiment(args: argparse.Namespace) -> None:
             prediction_frame["baseline_p15"] = position_target["p15"].to_numpy(dtype=float)
             prediction_frame["baseline_p50"] = position_target["p50"].to_numpy(dtype=float)
             prediction_frame["baseline_p85"] = position_target["p85"].to_numpy(dtype=float)
-            prediction_frame["baseline_mean_above_p85"] = position_target[
-                "mean_above_p85"
+            prediction_frame["baseline_mean_below_p15"] = position_target[
+                "mean_below_p15"
             ].to_numpy(dtype=float)
-            prediction_frame["baseline_p85_tail_excess"] = position_target[
-                "p85_tail_excess"
+            prediction_frame["baseline_p15_tail_excess"] = position_target[
+                "p15_tail_excess"
             ].to_numpy(dtype=float)
-            prediction_frame["xgb_p85"] = prediction
+            prediction_frame["xgb_p15"] = prediction
             prediction_frame["model_target_season"] = target_season
             prediction_frame["model_training_seasons"] = ",".join(
                 str(value) for value in sorted(prior["season"].unique())
             )
             prediction_frame["model_position"] = position
             prediction_frame["max_historical_season_used"] = int(prior["season"].max())
+            prediction_frame["target_quantile"] = ALPHA
+            prediction_frame["quantile_label"] = QUANTILE_LABEL
             prediction_frame["scoring_format"] = SCORING_FORMAT
             prediction_frame["scoring_contract_version"] = SCORING_CONTRACT_VERSION
             all_predictions.append(prediction_frame)
             print(
-                f"  {position} {target_season}: selected p85 pinball "
+                f"  {position} {target_season}: selected P15 pinball "
                 f"{best_record['inner_validation_pinball']:.4f}; "
                 f"rounds {best_settings['boosting_rounds']}; OOS rows {len(position_target):,}.",
                 flush=True,
             )
 
     if not all_predictions:
-        raise RuntimeError("The experiment produced no target-season predictions.")
+        raise RuntimeError("The P15 experiment produced no target-season predictions.")
     predictions = pd.concat(all_predictions, ignore_index=True)
+    assert_calibration_rows(predictions)
     grid_results = pd.concat(all_grid_results, ignore_index=True)
     best_results = pd.DataFrame(all_best)
     importance = pd.concat(all_importance, ignore_index=True)
     metrics = summarize_metrics(predictions)
-    boom = boom_capture(predictions)
+    bust = bust_capture(predictions)
     calibration = calibration_table(predictions)
 
     predictions.to_parquet(output_dir / "predictions.parquet", index=False)
@@ -1189,18 +924,20 @@ def run_experiment(args: argparse.Namespace) -> None:
     best_results.to_csv(output_dir / "selected_models.csv", index=False)
     importance.to_csv(output_dir / "feature_importance.csv", index=False)
     metrics.to_csv(output_dir / "metrics.csv", index=False)
-    boom.to_csv(output_dir / "boom_capture.csv", index=False)
-    calibration.to_csv(output_dir / "p85_calibration.csv", index=False)
+    bust.to_csv(output_dir / "bust_capture.csv", index=False)
+    calibration.to_csv(output_dir / "p15_calibration.csv", index=False)
 
     metadata = {
-        "experiment": "direct_xgboost_p85_ppr_with_fbg_projection_data",
+        "experiment": "direct_xgboost_p15_ppr_with_fbg_projection_data",
         "scoring_format": SCORING_FORMAT,
         "scoring_contract_version": SCORING_CONTRACT_VERSION,
         "target_column": "actual_score",
         "projection_score_field": "projection_fpts",
         "objective": "reg:quantileerror",
         "quantile_alpha": ALPHA,
-        "metric": "p85_pinball",
+        "target_quantile": ALPHA,
+        "quantile_label": QUANTILE_LABEL,
+        "metric": "p15_pinball",
         "positions": list(POSITIONS),
         "target_seasons_requested": list(args.target_seasons),
         "target_seasons_scored": sorted(predictions["model_target_season"].unique().tolist()),
@@ -1216,7 +953,7 @@ def run_experiment(args: argparse.Namespace) -> None:
         "grid_candidates_per_position_and_target": len(grid),
         "grid_definition": {
             "max_depth": [2, 3, 4],
-            "min_child_weight": [1, 5, 15],
+            "min_child_weight": [1.0, 5.0, 15.0],
             "subsample": [0.70, 0.90],
             "colsample_bytree": [0.70, 1.00],
             "learning_rate": [0.03, 0.06],
@@ -1235,8 +972,12 @@ def run_experiment(args: argparse.Namespace) -> None:
         "data_audit": audit,
         "leakage_checks": {
             "training_rows_before_target_season": True,
+            "target_outcomes_excluded_from_training": True,
             "features_contain_target_or_future_outcomes": False,
+            "features_contain_legacy_scoring_fields": False,
             "calibration_uses_target_season_outcomes_only_after_prediction": True,
+            "calibration_contains_future_scores": False,
+            "walk_forward_temporal_order": True,
         },
         "model_records": model_records,
         "runtime": {
@@ -1251,7 +992,7 @@ def run_experiment(args: argparse.Namespace) -> None:
         json.dumps(json_safe(metadata), indent=2), encoding="utf-8"
     )
 
-    print("\nOOS PPR metrics by position and model:", flush=True)
+    print("\nOOS PPR P15 metrics by position and model:", flush=True)
     report = metrics[metrics["group"].eq("position")]
     print(
         report[
@@ -1259,21 +1000,22 @@ def run_experiment(args: argparse.Namespace) -> None:
                 "position",
                 "model",
                 "n",
-                "p85_coverage",
-                "p85_pinball_loss",
+                "p15_coverage",
+                "p15_pinball_loss",
                 "calibration_slope",
                 "calibration_intercept",
-                "p85_bias",
-                "p85_mae",
-                "p85_rmse",
-                "high_side_miss_rate",
-                "mean_score_above_p85",
+                "p15_bias",
+                "p15_mae",
+                "p15_rmse",
+                "low_side_miss_rate",
+                "mean_below_p15",
+                "p15_tail_excess",
                 "interval_coverage",
             ]
         ].to_string(index=False),
         flush=True,
     )
-    print(f"\nWrote experiment artifacts to {output_dir}", flush=True)
+    print(f"\nWrote P15 experiment artifacts to {output_dir}", flush=True)
 
 
 if __name__ == "__main__":

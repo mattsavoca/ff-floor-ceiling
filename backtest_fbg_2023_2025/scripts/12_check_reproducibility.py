@@ -127,13 +127,57 @@ def main() -> None:
                 "match": left_hash == right_hash,
             }
         )
-    passed = all(item["match"] for item in comparisons + xgb_comparisons)
+    p15_comparisons = []
+    p15_a = output / "xgb_p15_repro_a"
+    p15_b = output / "xgb_p15_repro_b"
+    p15_files = [
+        "predictions.parquet",
+        "selected_models.csv",
+        "grid_results.csv",
+        "feature_importance.csv",
+        "metrics.csv",
+        "bust_capture.csv",
+        "p15_calibration.csv",
+    ]
+    for name in p15_files:
+        left = p15_a / name
+        right = p15_b / name
+        if not left.exists() or not right.exists():
+            raise FileNotFoundError(f"Missing P15 XGBoost reproducibility file pair: {name}")
+        left_hash = sha256(left)
+        right_hash = sha256(right)
+        p15_comparisons.append(
+            {
+                "canonical": str(left.relative_to(output)),
+                "repeat": str(right.relative_to(output)),
+                "canonical_sha256": left_hash,
+                "repeat_sha256": right_hash,
+                "match": left_hash == right_hash,
+            }
+        )
+    for left in sorted((p15_a / "models").glob("*.json")):
+        right = p15_b / "models" / left.name
+        if not right.exists():
+            raise FileNotFoundError(f"Missing repeated P15 XGBoost model: {right}")
+        left_hash = sha256(left)
+        right_hash = sha256(right)
+        p15_comparisons.append(
+            {
+                "canonical": str(left.relative_to(output)),
+                "repeat": str(right.relative_to(output)),
+                "canonical_sha256": left_hash,
+                "repeat_sha256": right_hash,
+                "match": left_hash == right_hash,
+            }
+        )
+    passed = all(item["match"] for item in comparisons + xgb_comparisons + p15_comparisons)
     receipt = {
         "status": "passed" if passed else "failed",
         "seed_policy": "100000 + target_season * 100 + target_week",
         "repeat_output_tag": tag,
         "comparisons": comparisons,
         "xgb_smoke_comparisons": xgb_comparisons,
+        "xgb_p15_smoke_comparisons": p15_comparisons,
     }
     (output / "reproducibility_check.json").write_text(
         json.dumps(receipt, indent=2), encoding="utf-8"
