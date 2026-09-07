@@ -1,0 +1,24 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "services": {
+    "frontend": {
+      "root": "web/",
+      "framework": "nextjs"
+    },
+    "producer": {
+      "root": "web/api/",
+      "entrypoint": "producer.py",
+      "framework": "python",
+      "functions": {
+        "producer.py": {
+          "maxDuration": 300,
+          "includeFiles": "producer-assets/**"
+        }
+      }
+    }
+  },
+  "rewrites": [
+    { "source": "/api/producer/(.*)", "destination": { "service": "producer" } },
+    { "source": "/(.*)", "destination": { "service": "frontend" } }
+  ]
+}

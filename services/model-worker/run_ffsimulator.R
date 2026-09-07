@@ -2,7 +2,6 @@
 
 options(stringsAsFactors = FALSE, warn = 1)
 suppressPackageStartupMessages({
-  library(fffloorceiling)
   library(jsonlite)
 })
 
@@ -48,24 +47,50 @@ if (any(!is.finite(rankings$rank_uncertainty)) || any(rankings$rank_uncertainty 
 if (any(!is.finite(rankings$source_order)) || any(rankings$source_order < 1L)) stop("Rankings contain invalid source order values.", call. = FALSE)
 
 outcome_pool <- readRDS(outcome_pool_path)
-draws <- simulate_player_week_outcomes(
-  rankings = rankings,
-  adp_outcomes = outcome_pool,
-  n_simulations = n_simulations,
-  week = week,
-  seed = seed,
-  strict = TRUE
-)
-summary <- summarize_player_outcomes(draws)$weekly
+required_outcome_columns <- c("pos", "rank", "week_outcomes")
+missing_outcome_columns <- setdiff(required_outcome_columns, names(outcome_pool))
+if (length(missing_outcome_columns)) stop("The outcome pool is missing: ", paste(missing_outcome_columns, collapse = ", "), call. = FALSE)
+outcome_pool$pos <- toupper(as.character(outcome_pool$pos))
+outcome_pool$rank <- as.integer(outcome_pool$rank)
+if (any(!vapply(outcome_pool$week_outcomes, is.numeric, logical(1)))) stop("Each outcome pool row must contain numeric week outcomes.", call. = FALSE)
+
+# This is the weekly rank-conditioned ffsimulator algorithm. The lower rank
+# boundary is explicit because a positional rank cannot be below one. Positive
+# draws outside the approved pool remain hard errors.
+set.seed(seed)
+summary_rows <- vector("list", nrow(rankings))
+for (index in seq_len(nrow(rankings))) {
+  ranking <- rankings[index, , drop = FALSE]
+  sampled_ranks <- round(stats::rnorm(n_simulations, mean = ranking$rank[[1]], sd = ranking$rank_uncertainty[[1]] / 2))
+  sampled_ranks[sampled_ranks < 1] <- 1
+  scores <- numeric(n_simulations)
+  for (draw_index in seq_len(n_simulations)) {
+    pool_index <- match(paste(ranking$position[[1]], sampled_ranks[[draw_index]], sep = "\r"), paste(outcome_pool$pos, outcome_pool$rank, sep = "\r"))
+    if (is.na(pool_index)) {
+      stop(
+        "The outcome pool does not cover ", ranking$position[[1]], " rank ", sampled_ranks[[draw_index]],
+        " for ", ranking$player_id[[1]], ".",
+        call. = FALSE
+      )
+    }
+    scores[[draw_index]] <- sample(outcome_pool$week_outcomes[[pool_index]], size = 1L, replace = TRUE)
+  }
+  scores <- pmax(0, scores)
+  summary_rows[[index]] <- list(
+    player_id = ranking$player_id[[1]],
+    mean = mean(scores),
+    median = stats::median(scores),
+    p15 = as.numeric(stats::quantile(scores, probs = 0.15, names = FALSE, type = 7)),
+    p50 = as.numeric(stats::quantile(scores, probs = 0.50, names = FALSE, type = 7)),
+    p85 = as.numeric(stats::quantile(scores, probs = 0.85, names = FALSE, type = 7)),
+    probability_zero = mean(scores == 0),
+    probability_active = 1,
+    n_simulations = n_simulations
+  )
+}
+summary <- do.call(rbind, lapply(summary_rows, as.data.frame, stringsAsFactors = FALSE))
 summary$player_id <- as.character(summary$player_id)
-summary <- merge(
-  rankings[, c("player_id", "rank", "rank_uncertainty", "source_order"), drop = FALSE],
-  summary,
-  by = "player_id",
-  all.x = TRUE,
-  sort = FALSE,
-  suffixes = c("", ".summary")
-)
+summary$source_order <- rankings$source_order
 summary <- summary[order(summary$source_order), , drop = FALSE]
 if (anyNA(summary$p15) || anyNA(summary$mean) || anyNA(summary$median) || anyNA(summary$p85)) {
   stop("The simulator returned incomplete player summaries.", call. = FALSE)

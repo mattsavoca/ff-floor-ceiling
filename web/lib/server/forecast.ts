@@ -114,6 +114,18 @@ function parseJsonOutput<T>(output: string, label: string) {
   }
 }
 
+function inferenceServiceBaseUrl() {
+  return (process.env.INFERENCE_SERVICE_URL ?? process.env.MODEL_SERVICE_URL)?.replace(/\/$/, "");
+}
+
+function inferenceHeaders() {
+  const token = process.env.INFERENCE_SERVICE_TOKEN ?? process.env.MODEL_SERVICE_TOKEN;
+  return {
+    "content-type": "application/json",
+    ...(token ? { authorization: `Bearer ${token}` } : {}),
+  };
+}
+
 function spawnProcess(command: string, args: string[], options: { cwd: string; input?: string; timeoutMs: number }) {
   return new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
     const child = spawn(command, args, { cwd: options.cwd, env: process.env, windowsHide: true });
@@ -168,7 +180,7 @@ function validateFfsimulator(response: FfsimulatorResponse, rows: RankedProjecti
     seen.add(result.stable_player_id);
     const scoreValues = [result.mean, result.median, result.p15, result.p50, result.p85];
     const probabilityValues = [result.probability_zero, result.probability_active];
-    if (scoreValues.some((value) => !Number.isFinite(value) || value < 0) || probabilityValues.some((value) => !Number.isFinite(value) || value < 0 || value > 1) || result.n_simulations !== simulationCount) {
+    if (scoreValues.some((value) => !Number.isFinite(value)) || probabilityValues.some((value) => !Number.isFinite(value) || value < 0 || value > 1) || result.n_simulations !== simulationCount) {
       throw new ForecastError(`The ffsimulator returned invalid values for ${result.stable_player_id}.`, { affectedPlayerIds: [result.stable_player_id] });
     }
     if (result.p15 > result.p50 || result.p50 > result.p85) throw new ForecastError(`The ffsimulator percentile order is invalid for ${result.stable_player_id}.`, { affectedPlayerIds: [result.stable_player_id] });
@@ -202,7 +214,7 @@ function validateModelResponse(response: PredictionResponse, expectedRows: Servi
 
 async function callModelService(quantile: Quantile, position: string, season: number, week: number, rows: ServingFeatureRow[], run: RunRecord, calls: ExternalModelCall[]) {
   const startedAt = Date.now();
-  const baseUrl = process.env.MODEL_SERVICE_URL?.replace(/\/$/, "");
+  const baseUrl = inferenceServiceBaseUrl();
   const endpoint = baseUrl ? `${baseUrl}/v1/models/${quantile}/predict` : `local://services/model-worker/predict_service.py/v1/models/${quantile}/predict`;
   let attempts = 0;
   let lastError: unknown;
@@ -223,7 +235,7 @@ async function callModelService(quantile: Quantile, position: string, season: nu
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 45_000);
         try {
-          const httpResponse = await fetch(endpoint, { method: "POST", headers: { "content-type": "application/json" }, body: requestBody, signal: controller.signal });
+          const httpResponse = await fetch(endpoint, { method: "POST", headers: inferenceHeaders(), body: requestBody, signal: controller.signal });
           const body = await httpResponse.json() as PredictionResponse | Record<string, unknown>;
           if (!httpResponse.ok) throw new ForecastError(`The ${quantile} model service rejected the request.`, { affectedPosition: position, serviceResponse: body, retryable: httpResponse.status === 408 || httpResponse.status === 429 || httpResponse.status >= 500, nextAction: "Retry the run after checking the model service response." });
           response = body as PredictionResponse;
@@ -261,6 +273,57 @@ async function callModelService(quantile: Quantile, position: string, season: nu
 }
 
 async function runFfsimulator(rows: RankedProjectionRow[], run: RunRecord, temporaryDirectory: string) {
+  const baseUrl = inferenceServiceBaseUrl();
+  if (baseUrl) {
+    const endpoint = `${baseUrl}/v1/ffsimulator/predict`;
+    const requestBody = JSON.stringify({
+      schema_version: "ffsimulator-request.v1",
+      week: run.week,
+      seed: run.seed,
+      simulation_count: run.simulationCount,
+      rows: rows.map((row) => ({
+        stable_player_id: row.stablePlayerId,
+        position: row.position,
+        rank: row.ecr,
+        rank_uncertainty: row.rankSd,
+        source_order: row.sourceRowOrder,
+      })),
+    });
+    let lastError: unknown;
+    for (let attempt = 0; attempt <= MAX_SERVICE_RETRIES; attempt += 1) {
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 120_000);
+        try {
+          const httpResponse = await fetch(endpoint, { method: "POST", headers: inferenceHeaders(), body: requestBody, signal: controller.signal });
+          const responseText = await httpResponse.text();
+          const body = parseJsonOutput<FfsimulatorResponse>(responseText, "ffsimulator service");
+          if (!httpResponse.ok) {
+            throw new ForecastError("The ffsimulator service rejected the request.", {
+              serviceResponse: body,
+              retryable: httpResponse.status === 408 || httpResponse.status === 429 || httpResponse.status >= 500,
+              nextAction: "Retry the run after checking the ffsimulator service response.",
+            });
+          }
+          return body;
+        } finally {
+          clearTimeout(timeout);
+        }
+      } catch (error) {
+        lastError = error;
+        const retryable = error instanceof ForecastError && error.retryable;
+        if (attempt < MAX_SERVICE_RETRIES && retryable) continue;
+        if (error instanceof ForecastError) throw error;
+        throw new ForecastError("The ffsimulator service could not be reached.", {
+          serviceResponse: String(error),
+          retryable: true,
+          nextAction: "Retry the run. If the timeout repeats, inspect the ffsimulator service.",
+        });
+      }
+    }
+    throw lastError instanceof ForecastError ? lastError : new ForecastError("The ffsimulator service failed.", { serviceResponse: String(lastError) });
+  }
+
   const root = projectRoot();
   const rankingsPath = path.join(temporaryDirectory, "rankings.csv");
   const outputPath = path.join(temporaryDirectory, "ffsimulator.json");
@@ -362,8 +425,10 @@ export async function processRun(runId: string, workspaceId: string) {
   const updateStage = async (nextStage: string) => {
     stage = nextStage;
     peakMemoryBytes = Math.max(peakMemoryBytes, process.memoryUsage().rss);
+    console.info("[forecast] stage", { runId, workspaceId, stage });
     await store.updateRun(workspaceId, runId, { state: "Running", stage, externalModelCalls: calls.slice(), runtime: { wallMs: Date.now() - started, peakMemoryBytes } });
   };
+  console.info("[forecast] run started", { runId, workspaceId, season: run.season, week: run.week, simulationCount: run.simulationCount });
   await store.updateRun(workspaceId, runId, { state: "Running", startedAt: new Date().toISOString(), stage, externalModelCalls: [] });
   let temporaryDirectory: string | undefined;
   try {
@@ -443,6 +508,7 @@ export async function processRun(runId: string, workspaceId: string) {
         ? new ForecastError(error.message, { affectedPlayerIds: [error.stablePlayerId], nextAction: "Add the missing source feature and start a new run." })
         : new ForecastError(error instanceof Error ? error.message : String(error));
     const failure: RunFailure = { stage, message: failureError.message, affectedPlayerIds: failureError.affectedPlayerIds, affectedPosition: failureError.affectedPosition, serviceResponse: failureError.serviceResponse, nextAction: failureError.nextAction };
+    console.error("[forecast] run failed", { runId, workspaceId, stage, message: failureError.message, affectedPlayerIds: failureError.affectedPlayerIds, affectedPosition: failureError.affectedPosition });
     peakMemoryBytes = Math.max(peakMemoryBytes, process.memoryUsage().rss);
     await store.updateRun(workspaceId, runId, { state: "Failed", stage, failure, externalModelCalls: calls.slice(), runtime: { wallMs: Date.now() - started, peakMemoryBytes } });
   } finally {

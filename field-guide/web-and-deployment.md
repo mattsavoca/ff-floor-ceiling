@@ -43,21 +43,27 @@ product scope.
 The browser does not run model training or simulation. The real forecast tab
 uploads a source file, creates a durable run record, and reads the complete
 `forecast-result.v2` output. The server worker derives rank and uncertainty,
-runs `ffsimulator`, calls the released p15 and p85 services for RB, WR, and TE,
-checks the full join, and publishes no result until all accepted IDs are
-present. Manual overrides remain in a separate run-scoped set.
+runs the rank-conditioned `ffsimulator` algorithm, calls the released p15 and
+p85 services for RB, WR, and TE, checks the full join, and publishes no result
+until all accepted IDs are present. Manual overrides remain in a separate
+run-scoped set.
 
-`/api/run` creates a bounded queue request. `services/model-worker` defines the
-separate persistent worker boundary. The local preview starts R and Python
-processes inside the web process, so `persistentWorker: false` in
-`/api/health` remains deliberate. A production deployment needs a shared
-worker and durable job storage. Set `FC_SESSION_SECRET` in production. Do not
-use the local development secret for a deployed session boundary.
+`/api/runs` creates a bounded queue request. The local preview starts the R
+fallback and Python model process inside the web process and uses a local file
+store. Production uses the Vercel Services Python producer at `/api/producer`
+and private Vercel Blob state. The Next.js frontend and Python producer share
+one Vercel project but build as separate services. `after()` keeps the run
+worker alive after the 202 response. `FC_SESSION_SECRET`, `BLOB_READ_WRITE_TOKEN`,
+`INFERENCE_SERVICE_URL`, and `INFERENCE_SERVICE_TOKEN` are required for the
+production path. Do not use the local development secret for a deployed
+session boundary.
 
 ## Limits
 
-The public Vercel build is an evidence preview. It does not prove that a
-persistent worker, database, private artifact store, or cleanup job exists.
+The public Vercel build is a serverless worker deployment. It uses private
+Blob objects for temporary workspace state. It does not provide a long-lived
+queue, and expired workspace cleanup still runs when a request touches that
+workspace. Do not describe the deployment as a separate queue service.
 
 Page content and data can change after a new deployment. Keep the exact
 deployment record in a session log instead of treating a deployment ID as
@@ -69,11 +75,16 @@ permanent project policy.
 - `web/lib/project-data.ts`
 - `web/package.json`
 - `services/model-worker/README.md`
+- `web/api/producer.py`
+- `web/api/producer-assets/`
+- `vercel.json`
 - `contracts/model-job.v1.json`
 - `contracts/forecast-result.v1.json`
 - `contracts/forecast-result.v2.json`
 - `contracts/forecast-overrides.v1.json`
 - `scripts/test_forecast_workflow.ps1`
+- `scripts/create_ffsimulator_snapshot.R`
+- `scripts/prepare_vercel_worker_assets.ps1`
 - `.agent-sessions/2026-09-06-model-monitoring-site-deploy-and-rollback.md`
 - `npx vercel inspect <deployment-url>`
 - `npx vercel curl / --deployment <deployment-url>`

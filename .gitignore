@@ -12,6 +12,8 @@ web/.vercel/
 web/coverage/
 web/*.tsbuildinfo
 .forecast-data/
+__pycache__/
+*.pyc
 
 .vercel
 .env*

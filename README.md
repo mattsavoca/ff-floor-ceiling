@@ -98,6 +98,12 @@ The adapter is experimental. Independent player draws do not create one shared
 game environment. The package stores FantasyLabs-style correlation matrices
 with `new_correlation_layer()`, but v0 does not apply them.
 
+## Web forecast app
+
+The production forecast workflow is in [`web/README.md`](web/README.md). It accepts a checked CSV, preserves the selected source order, runs the released ffsimulator and XGBoost inference contracts, and publishes a validated `forecast-result.v2` result.
+
+Local development uses the R and Python producers in [`services/model-worker`](services/model-worker). Vercel uses the Python producer at `web/api/producer.py`, private Vercel Blob state, and the checked-in producer assets. Regenerate those assets with `scripts/create_ffsimulator_snapshot.R` and `scripts/prepare_vercel_worker_assets.ps1` after a model or outcome-pool release changes.
+
 ## Week 1 2026 FBG snapshot
 
 Run `scripts/week1_2026.R` to reproduce the committed FBG snapshot in

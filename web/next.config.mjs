@@ -3,6 +3,9 @@ const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
   agentRules: false,
+  outputFileTracingIncludes: {
+    "/*": ["./data/ffsimulator/**/*"],
+  },
   async headers() {
     return [{
       source: "/(.*)",

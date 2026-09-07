@@ -1,11 +1,12 @@
 import { randomInt } from "node:crypto";
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { hasValidCsrfToken, readSession } from "@/lib/server/session";
 import { DEFAULT_SIMULATION_COUNT, isValidSimulationCount, MAX_SIMULATIONS, MIN_SIMULATIONS, SIMULATION_STEP } from "@/lib/simulation-config";
 import { processRun } from "@/lib/server/forecast";
 import { store } from "@/lib/server/store";
 
 export const runtime = "nodejs";
+export const maxDuration = 300;
 
 const MAX_ROWS = 50_000;
 
@@ -93,7 +94,17 @@ export async function POST(request: Request) {
     seed,
     state: "Queued",
   });
-  void processRun(run.runId, session.workspaceId);
+  after(async () => {
+    try {
+      await processRun(run.runId, session.workspaceId);
+    } catch (error) {
+      console.error("[forecast] background run failed before state update", {
+        runId: run.runId,
+        workspaceId: session.workspaceId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  });
   return NextResponse.json({
     runId: run.runId,
     uploadId: run.uploadId,
@@ -105,4 +116,3 @@ export async function POST(request: Request) {
     modelRelease: run.modelRelease,
   }, { status: 202, headers: { "Cache-Control": "no-store" } });
 }
-

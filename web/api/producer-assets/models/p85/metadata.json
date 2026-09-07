@@ -1,0 +1,28 @@
+{
+    "model_release":  "forecast-ppr-v1",
+    "quantile_label":  "p85",
+    "quantile_alpha":  0.85,
+    "scoring_contract_version":  "ppr_v1",
+    "feature_version":  "fbg_rank_projection_v1",
+    "target_season_policy":  "newest target season less than or equal to the requested season",
+    "model_records":  [
+                          {
+                              "target_season":  2025,
+                              "position":  "RB",
+                              "model_path":  "models/xgb_p85_rb_through_2024.json",
+                              "features":  "week,ecr,rank_sd,n_projectors,rank_min,rank_max,consensus_rank,consensus_projected_score,rush-car,rush-1d,rush-td,rush-yds,rec-rec,rec-tgt,rec-td,rec-yds,fum-lost,projection_fpts"
+                          },
+                          {
+                              "target_season":  2025,
+                              "position":  "WR",
+                              "model_path":  "models/xgb_p85_wr_through_2024.json",
+                              "features":  "week,ecr,rank_sd,n_projectors,rank_min,rank_max,consensus_rank,consensus_projected_score,rush-car,rush-1d,rush-td,rush-yds,rec-rec,rec-tgt,rec-td,rec-yds,fum-lost,projection_fpts"
+                          },
+                          {
+                              "target_season":  2025,
+                              "position":  "TE",
+                              "model_path":  "models/xgb_p85_te_through_2024.json",
+                              "features":  "week,ecr,rank_sd,n_projectors,rank_min,rank_max,consensus_rank,consensus_projected_score,rush-car,rush-1d,rush-td,rush-yds,rec-rec,rec-tgt,rec-td,rec-yds,fum-lost,projection_fpts"
+                          }
+                      ]
+}

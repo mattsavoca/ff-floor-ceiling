@@ -1,0 +1,11 @@
+**/node_modules
+**/.next
+**/.vercel
+backtest_fbg_2023_2025
+artifacts
+R
+services
+tests
+outputs
+*.rds
+*.parquet

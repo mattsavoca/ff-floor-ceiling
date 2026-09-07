@@ -618,6 +618,14 @@ a { color: inherit; }
 .run-state-row span { display: inline-flex; align-items: center; gap: 3px; padding: 3px 5px; border-radius: 4px; background: #f4f7f8; color: var(--muted-2); font-size: 8px; }
 .run-state-row .run-state-active { background: var(--blue-soft); color: var(--action); font-weight: 700; }
 .run-state-row .run-state-failed { background: var(--orange-soft); color: var(--orange); }
+.run-failure-banner { display: flex; gap: 10px; margin: 0 0 16px; padding: 11px 13px; border: 1px solid #edc7a8; border-radius: 7px; background: #fff8f1; color: var(--navy); }
+.run-failure-banner > svg { flex: 0 0 auto; margin-top: 1px; color: var(--orange); }
+.run-failure-banner > div { min-width: 0; }
+.run-failure-banner strong, .run-failure-banner span, .run-failure-banner small { display: block; }
+.run-failure-banner strong { font-size: 11px; }
+.run-failure-banner span { margin-top: 3px; font-size: 10px; }
+.run-failure-banner small { margin-top: 5px; color: var(--muted); font-size: 9px; line-height: 1.4; }
+.run-failure-banner .run-failure-response { overflow-wrap: anywhere; color: var(--navy); font-family: "SFMono-Regular", Consolas, monospace; }
 .forecast-output-panel { overflow: hidden; }
 .projection-toolbar { display: flex; align-items: end; gap: 8px; padding: 0 19px 15px; border-bottom: 1px solid var(--line-light); }
 .search-field { position: relative; display: flex; align-items: center; min-width: 200px; }

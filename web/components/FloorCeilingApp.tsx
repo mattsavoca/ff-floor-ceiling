@@ -104,6 +104,15 @@ const positionDisplayNames: Record<(typeof monitoringPositionOrder)[number], str
 };
 const runStates: RunState[] = ["Empty", "Checking upload", "Ready", "Queued", "Running", "Complete", "Failed", "Canceled"];
 
+type RunFailureView = {
+  stage?: string;
+  message?: string;
+  affectedPlayerIds?: string[];
+  affectedPosition?: string;
+  serviceResponse?: unknown;
+  nextAction?: string;
+};
+
 function cx(...values: Array<string | false | null | undefined>) {
   return values.filter(Boolean).join(" ");
 }
@@ -116,6 +125,21 @@ function formatRelativeTime(value: string) {
 
 function shortId(value: string) {
   return value.length > 18 ? `${value.slice(0, 8)}…${value.slice(-5)}` : value;
+}
+
+function formatFailureResponse(value: unknown) {
+  if (value === undefined || value === null) return "";
+  if (typeof value === "string") return value;
+  if (typeof value === "object") {
+    const response = value as Record<string, unknown>;
+    const details = [
+      typeof response.error === "string" ? response.error : "",
+      Array.isArray(response.fields) ? `Fields: ${response.fields.join(", ")}` : "",
+      Array.isArray(response.player_ids) ? `Player IDs: ${response.player_ids.join(", ")}` : "",
+    ].filter(Boolean);
+    if (details.length) return details.join(" · ");
+  }
+  try { return JSON.stringify(value); } catch { return String(value); }
 }
 
 function forecastRowsFromResult(result: ForecastResult): ForecastRow[] {
@@ -291,7 +315,7 @@ export function FloorCeilingApp() {
   const [sourceInputRevision, setSourceInputRevision] = useState("");
   const [sourceFile, setSourceFile] = useState<File | null>(null);
   const [liveOverrideSet, setLiveOverrideSet] = useState<OverrideSet | null>(null);
-  const [runFailure, setRunFailure] = useState<{ stage?: string; message?: string; nextAction?: string } | null>(null);
+  const [runFailure, setRunFailure] = useState<RunFailureView | null>(null);
   const [simulationCount, setSimulationCount] = useState(String(DEFAULT_SIMULATION_COUNT));
   const [viewMode, setViewMode] = useState<ViewMode>("original");
   const [projectionSearch, setProjectionSearch] = useState("");
@@ -353,7 +377,7 @@ export function FloorCeilingApp() {
       }
       const runsResponse = await fetch("/api/runs").catch(() => null);
       if (!runsResponse?.ok || cancelled) return;
-      const runsData = await runsResponse.json() as { runs?: Array<{ runId: string; state: string; uploadId: string; season: number; week: number; failure?: { stage?: string; message?: string; nextAction?: string } }>; lastCompleteRunId?: string };
+      const runsData = await runsResponse.json() as { runs?: Array<{ runId: string; state: string; uploadId: string; season: number; week: number; failure?: RunFailureView }>; lastCompleteRunId?: string };
       const storedRunId = window.sessionStorage.getItem("fc-active-run-id");
       const active = runsData.runs?.find((run) => run.runId === storedRunId && (run.state === "Queued" || run.state === "Running" || run.state === "Failed"));
       const lastComplete = runsData.lastCompleteRunId;
@@ -413,7 +437,7 @@ export function FloorCeilingApp() {
     async function pollRun() {
       const response = await fetch(`/api/runs/${activeRunId}`).catch(() => null);
       if (!response?.ok || cancelled) return;
-      const run = await response.json() as { state: string; stage?: string; season: number; week: number; uploadId: string; failure?: { stage?: string; message?: string; nextAction?: string }; lastCompleteRunId?: string };
+      const run = await response.json() as { state: string; stage?: string; season: number; week: number; uploadId: string; failure?: RunFailureView; lastCompleteRunId?: string };
       if (cancelled) return;
       setSeason(String(run.season));
       setWeek(String(run.week));
@@ -2133,7 +2157,7 @@ type ProjectionPageProps = {
   week: string;
   onSeason: (value: string) => void;
   onWeek: (value: string) => void;
-  runFailure: { stage?: string; message?: string; nextAction?: string } | null;
+  runFailure: RunFailureView | null;
   simulationCount: string;
   onSimulationCount: (value: string) => void;
   viewMode: ViewMode;
@@ -2262,7 +2286,7 @@ function ForecastProjectionPage({ upload, uploadErrors, runState, runId, season,
           <div className="run-state-row">{runStates.map((state) => <span key={state} className={cx(runState === state && "run-state-active", runState === "Failed" && state === "Failed" && "run-state-failed")}>{runState === state ? <Check size={12} /> : null}{state}</span>)}</div>
         </Panel>
       </div>
-      {runFailure ? <div className="run-failure-banner"><AlertTriangle size={18} /><div><strong>{runFailure.stage ?? "Run failure"}</strong><span>{runFailure.message ?? "The run failed before a complete result was published."}</span><small>{runFailure.nextAction ?? "Review the failure and retry after correction."}</small></div></div> : null}
+      {runFailure ? <div className="run-failure-banner"><AlertTriangle size={18} /><div><strong>{runFailure.stage ?? "Run failure"}</strong><span>{runFailure.message ?? "The run failed before a complete result was published."}</span>{runFailure.affectedPosition || runFailure.affectedPlayerIds?.length ? <small>Affected {runFailure.affectedPosition ? `position: ${runFailure.affectedPosition}` : "players"}{runFailure.affectedPlayerIds?.length ? ` · ${runFailure.affectedPlayerIds.join(", ")}` : ""}</small> : null}{formatFailureResponse(runFailure.serviceResponse) ? <small className="run-failure-response">Service response: {formatFailureResponse(runFailure.serviceResponse)}</small> : null}<small>{runFailure.nextAction ?? "Review the failure and retry after correction."}</small></div></div> : null}
       <Panel className="forecast-output-panel" eyebrow="3 · Inspect the result" title="Player ranges" action={<div className="panel-actions"><div className="view-toggle"><button type="button" className={viewMode === "original" ? "active" : ""} onClick={() => onViewMode("original")}>Original</button><button type="button" className={viewMode === "adjusted" ? "active" : ""} onClick={() => onViewMode("adjusted")}>Adjusted {Object.keys(overrides).length ? `(${Object.keys(overrides).length})` : ""}</button></div><StatusPill label={`${rows.length} shown`} tone="neutral" /></div>}>
         {hasResult ? <><div className="projection-toolbar"><SearchField value={search} onChange={onSearch} placeholder="Search by player or team" /><FilterSelect label="Position" value={position} options={positionOptions} onChange={onPosition} compact /><FilterSelect label="Team" value={team} options={teams} onChange={onTeam} compact /><FilterSelect label="Sort by" value={sort} options={["ceiling", "median", "floor", "name"]} onChange={onSort} compact /><div className="toolbar-spacer" /><div className="download-menu"><Button variant="secondary" icon={<Download size={15} />} onClick={() => onExport("filtered")}>Download filtered ({filteredCount})</Button><Button variant="quiet" onClick={() => onExport("all")}>All {allRows.length}</Button></div></div><div className="range-chart-card"><div className="range-chart-header"><div><strong>Floor to ceiling</strong><span>Showing the first 25 rows · select a player for details</span></div><div className="range-chart-legend"><span><i className="legend-floor" /> Floor</span><span><i className="legend-median" /> Median</span><span><i className="legend-ceiling" /> Ceiling</span></div></div><div className="range-list">{rows.length ? rows.slice(0, 25).map((row) => <ForecastRange key={row.id} row={row} override={viewMode === "adjusted" ? overrides[row.id] : undefined} onSelect={selectPlayer} />) : <EmptyState icon={<Search size={24} />} title="No matching players" body="Change the search or filters to restore rows." />}</div><div className="range-chart-footer"><span>Player count limit: 25 of {rows.length}</span><span>Average uses the declared source policy. Range values use full precision.</span></div></div><div className="linked-chart-grid"><Panel eyebrow="Median vs ceiling" title="Where is the upside?" className="small-range-panel"><div className="median-ceiling-chart">{rows.slice(0, 12).map((row, index) => { const values = viewMode === "adjusted" ? applyOverride(row, overrides[row.id]) : row.original; return <button type="button" className="median-ceiling-dot" key={row.id} style={{ left: `${Math.min(93, (values.median / 35) * 100)}%`, bottom: `${Math.min(86, (values.ceiling / 40) * 100)}%`, background: ["#1264A3", "#2E8B73", "#D87945", "#7C5BAA"][index % 4] }} onClick={() => selectPlayer(row)} aria-label={`Open ${row.name}`} />; })}<span className="axis-label-x">Median</span><span className="axis-label-y">Ceiling</span></div><Explainer>The dot uses the same player selection as the range chart and table.</Explainer></Panel><Panel eyebrow="Source and range" title="Current output"><div className="output-summary-list"><div><span>Average median</span><strong>{formatNumber(calculateDemoSummary(rows, overrides).averageMedian)}</strong></div><div><span>Average range width</span><strong>{formatNumber(calculateDemoSummary(rows, overrides).averageWidth)}</strong></div><div><span>Model release</span><strong>{rows[0]?.modelRelease ?? "demo-bundled-output"}</strong></div><div><span>Run ID</span><strong className="mono">{shortId(runId)}</strong></div></div><Explainer>Original model values stay available when adjusted values are shown.</Explainer></Panel></div><DataTable data={displayRows} columns={columns} onRowClick={selectPlayer} /></> : <EmptyState icon={runState === "Failed" ? <AlertTriangle size={24} /> : <Play size={15} />} title={runState === "Failed" ? "The run needs attention" : runState === "Ready" ? "Ready to run" : "Waiting for a result"} body={runState === "Failed" ? "The last complete result stays visible when one exists. Correct the issue and retry." : runState === "Ready" ? "The upload passed the baseline input checks. Start real inference to create ranges." : "The server result will appear here when the run completes."} action={runState === "Ready" ? <Button variant="primary" onClick={onStartRun} icon={<Play size={15} />}>Run real inference</Button> : undefined} />}
       </Panel>

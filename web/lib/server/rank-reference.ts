@@ -70,10 +70,12 @@ function parseSnapshotCsv(text: string): RankReferenceRow[] {
 export async function loadRankReferenceSnapshot(): Promise<RankReferenceSnapshot> {
   const csvPath = process.env.FC_RANK_REFERENCE_CSV
     ? path.resolve(process.env.FC_RANK_REFERENCE_CSV)
-    : await firstExistingPath("artifacts/ffsimulator/ffs_latest_rankings_week.csv");
+    : await firstExistingPath("data/ffsimulator/ffs_latest_rankings_week.csv")
+      ?? await firstExistingPath("artifacts/ffsimulator/ffs_latest_rankings_week.csv");
   const metadataPath = process.env.FC_RANK_REFERENCE_METADATA
     ? path.resolve(process.env.FC_RANK_REFERENCE_METADATA)
-    : await firstExistingPath("artifacts/ffsimulator/ffs_latest_rankings_week.metadata.json");
+    : await firstExistingPath("data/ffsimulator/ffs_latest_rankings_week.metadata.json")
+      ?? await firstExistingPath("artifacts/ffsimulator/ffs_latest_rankings_week.metadata.json");
   if (!csvPath || !metadataPath) {
     throw new Error("The local ffsimulator weekly ranking snapshot is missing. Run scripts/create_ffsimulator_snapshot.R first.");
   }

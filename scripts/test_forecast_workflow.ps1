@@ -1,6 +1,15 @@
+param(
+  [string]$BaseUrl = "http://localhost:3001",
+  [int]$SimulationCount = 1000
+)
+
 $ErrorActionPreference = "Stop"
 
-$baseUrl = "http://localhost:3001"
+if ($SimulationCount -lt 100 -or $SimulationCount -gt 1000 -or $SimulationCount % 100 -ne 0) {
+  throw "SimulationCount must be an integer from 100 through 1000 in steps of 100."
+}
+
+$baseUrl = $BaseUrl.TrimEnd("/")
 $fixturePath = (Resolve-Path "tests/test-data/projection-set-weekly-all-2026-1-qb-rb-wr-te.csv").Path
 $cookiePath = [System.IO.Path]::GetTempFileName()
 $isolatedCookiePath = [System.IO.Path]::GetTempFileName()
@@ -43,15 +52,21 @@ function Get-Api {
 function Send-Json {
   param($Cookies, [string]$Method, [string]$Path, $Payload)
   $body = $Payload | ConvertTo-Json -Compress -Depth 8
-  $response = Invoke-Curl @(
-    "-X", $Method,
-    "-H", "Cookie: $($Cookies.Header)",
-    "-H", "x-csrf-token: $($Cookies.Csrf)",
-    "-H", "Content-Type: application/json",
-    "--data-raw", $body,
-    "$baseUrl$Path"
-  )
-  [pscustomobject]@{ Response = $response; Data = Read-JsonBody $response }
+  $bodyPath = [System.IO.Path]::GetTempFileName()
+  try {
+    [System.IO.File]::WriteAllText($bodyPath, $body, [System.Text.UTF8Encoding]::new($false))
+    $response = Invoke-Curl @(
+      "-X", $Method,
+      "-H", "Cookie: $($Cookies.Header)",
+      "-H", "x-csrf-token: $($Cookies.Csrf)",
+      "-H", "Content-Type: application/json",
+      "--data-binary", "@$bodyPath",
+      "$baseUrl$Path"
+    )
+    [pscustomobject]@{ Response = $response; Data = Read-JsonBody $response }
+  } finally {
+    Remove-Item -LiteralPath $bodyPath -Force -ErrorAction SilentlyContinue
+  }
 }
 
 function Assert-True {
@@ -84,7 +99,7 @@ try {
     metricDefinitionVersion = "ppr_v1_projection_formula"
     season = 2026
     week = 1
-    simulationCount = 100
+    simulationCount = $SimulationCount
     seed = 20260907
     scoringContractVersion = "ppr_v1"
   }
@@ -160,7 +175,7 @@ try {
   $unknownId = Send-Json $cookies "PUT" "/api/runs/$runId/overrides/unknown-player" @{ factor = 1; edits = @{}; reason = "unknown ID check" }
   Assert-True ($badReason.Response.Status -eq 400 -and $unknownId.Response.Status -eq 404) "Override validation did not reject bad requests."
 
-  $secondRunResponse = Send-Json $cookies "POST" "/api/runs" (@{ uploadId = $upload.uploadId; inputRevision = $upload.sourceInputRevision; metricDefinitionVersion = "ppr_v1_projection_formula"; season = 2026; week = 1; simulationCount = 100; seed = 20260908; scoringContractVersion = "ppr_v1" })
+  $secondRunResponse = Send-Json $cookies "POST" "/api/runs" (@{ uploadId = $upload.uploadId; inputRevision = $upload.sourceInputRevision; metricDefinitionVersion = "ppr_v1_projection_formula"; season = 2026; week = 1; simulationCount = $SimulationCount; seed = 20260908; scoringContractVersion = "ppr_v1" })
   $secondRun = $secondRunResponse.Data
   Assert-True ($secondRunResponse.Response.Status -eq 202 -and $secondRun.runId) "The second run was not created."
   $secondRunId = $secondRun.runId
@@ -174,9 +189,9 @@ try {
   $emptyTargetSet = (Get-Api $cookies "/api/runs/$secondRunId/overrides").Data.overrideSet
   Assert-True (@($emptyTargetSet.records.PSObject.Properties).Count -eq 0) "A new run inherited overrides without an explicit copy."
   $copyResponse = Send-Json $cookies "POST" "/api/runs/$secondRunId/overrides/copy" @{ sourceRunId = $runId }
-  Assert-True ($copyResponse.Response.Status -eq 200 -and @($copyResponse.Data.report.copiedPlayerIds) -contains $rb.stablePlayerId -and @($copyResponse.Data.report.unmatchedPlayerIds).Count -eq 0) "Explicit override copy failed."
+  Assert-True ($copyResponse.Response.Status -eq 200 -and @($copyResponse.Data.report.copiedPlayerIds) -contains $rb.stablePlayerId -and @($copyResponse.Data.report.unmatchedPlayerIds).Count -eq 0) "Explicit override copy failed: $($copyResponse.Response.Body)"
   $copied = (Get-Api $cookies "/api/runs/$secondRunId/overrides").Data.overrideSet
-  Assert-True ($copied.runId -eq $secondRunId -and $copied.uploadId -eq $upload.uploadId -and $copied.records.PSObject.Properties[$rb.stablePlayerId].Value.sourceInputRevision -eq $upload.sourceInputRevision -and $copied.history[0].action -eq "copy") "Copied override linkage or history failed."
+  Assert-True ($copied.runId -eq $secondRunId -and $copied.uploadId -eq $upload.uploadId -and $copied.records.PSObject.Properties[$rb.stablePlayerId].Value.sourceInputRevision -eq $upload.sourceInputRevision -and $copied.history[0].action -eq "copy") "Copied override linkage or history failed: $($copyResponse.Response.Body)"
 
   $resetResponse = Invoke-Curl @("-X", "DELETE", "-H", "Cookie: $($cookies.Header)", "-H", "x-csrf-token: $($cookies.Csrf)", "$baseUrl/api/runs/$runId/overrides/$($rb.stablePlayerId)")
   $reset = Read-JsonBody $resetResponse
