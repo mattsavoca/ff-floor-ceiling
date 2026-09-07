@@ -56,14 +56,16 @@ class ForecastError extends Error {
   readonly affectedPosition?: string;
   readonly serviceResponse?: unknown;
   readonly nextAction: string;
+  readonly retryable: boolean;
 
-  constructor(message: string, options: { affectedPlayerIds?: string[]; affectedPosition?: string; serviceResponse?: unknown; nextAction?: string } = {}) {
+  constructor(message: string, options: { affectedPlayerIds?: string[]; affectedPosition?: string; serviceResponse?: unknown; nextAction?: string; retryable?: boolean } = {}) {
     super(message);
     this.name = "ForecastError";
     this.affectedPlayerIds = options.affectedPlayerIds ?? [];
     this.affectedPosition = options.affectedPosition;
     this.serviceResponse = options.serviceResponse;
     this.nextAction = options.nextAction ?? "Correct the reported issue and start a new run.";
+    this.retryable = options.retryable ?? (!options.serviceResponse || typeof options.serviceResponse === "string");
   }
 }
 
@@ -81,8 +83,8 @@ function outcomePoolPath(root: string) {
   const configured = process.env.FC_OUTCOME_POOL;
   if (configured) return path.resolve(configured);
   const candidates = [
-    path.resolve(root, "..", "ffsimulator", "inst", "cache", "adp_outcomes_week.rds"),
     path.resolve(root, "..", "ffsimulator", "inst", "cache", "adp_outcomes.rds"),
+    path.resolve(root, "..", "ffsimulator", "inst", "cache", "adp_outcomes_week.rds"),
   ];
   return candidates.find((candidate) => existsSync(candidate)) ?? candidates[0];
 }
@@ -141,7 +143,8 @@ function spawnProcess(command: string, args: string[], options: { cwd: string; i
       if (settled) return;
       settled = true;
       if (code !== 0) {
-        reject(new ForecastError(`${path.basename(command)} failed with exit code ${code}.`, { serviceResponse: stderr.slice(-4000), nextAction: "Review the producer error and retry after the input or environment is corrected." }));
+        const serviceResponse = [stderr.trim(), stdout.trim()].filter(Boolean).join("\n").slice(-4000);
+        reject(new ForecastError(`${path.basename(command)} failed with exit code ${code}.`, { serviceResponse, nextAction: "Review the producer error and retry after the input or environment is corrected." }));
         return;
       }
       resolve({ stdout, stderr });
@@ -222,8 +225,11 @@ async function callModelService(quantile: Quantile, position: string, season: nu
         try {
           const httpResponse = await fetch(endpoint, { method: "POST", headers: { "content-type": "application/json" }, body: requestBody, signal: controller.signal });
           const body = await httpResponse.json() as PredictionResponse | Record<string, unknown>;
-          if (!httpResponse.ok) throw new ForecastError(`The ${quantile} model service rejected the request.`, { affectedPosition: position, serviceResponse: body, nextAction: "Retry the run after checking the model service response." });
+          if (!httpResponse.ok) throw new ForecastError(`The ${quantile} model service rejected the request.`, { affectedPosition: position, serviceResponse: body, retryable: httpResponse.status === 408 || httpResponse.status === 429 || httpResponse.status >= 500, nextAction: "Retry the run after checking the model service response." });
           response = body as PredictionResponse;
+        } catch (error) {
+          if (error instanceof ForecastError) throw error;
+          throw new ForecastError(`The ${quantile} model service could not be reached.`, { affectedPosition: position, serviceResponse: String(error), retryable: true, nextAction: "Retry the run. If the timeout repeats, inspect the model service." });
         } finally {
           clearTimeout(timeout);
         }
@@ -242,7 +248,7 @@ async function callModelService(quantile: Quantile, position: string, season: nu
       return response;
     } catch (error) {
       lastError = error;
-      const retryable = error instanceof ForecastError && (!error.serviceResponse || typeof error.serviceResponse === "string");
+      const retryable = error instanceof ForecastError && error.retryable;
       if (attempt < MAX_SERVICE_RETRIES && retryable) continue;
       break;
     }

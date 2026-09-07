@@ -67,6 +67,25 @@ The QB `ffsimulator` model now has a repository model card and a matching
 expanded panel in the `METHODOLOGY` tab. The card reports current evidence and
 calls out the selector mismatch for review before a future model release.
 
+### Follow-up correction
+
+The first placement put the folded card after two large methodology cards.
+Move the card directly below the range summary so the `MODEL CARD` row is
+visible near the start of the tab. The current project dev server is on port
+3001. Port 3000 belongs to a different local project.
+
+Follow-up verification: the source order places the card at line 1478, before
+the long methodology model grid. `npm run lint` still reaches the existing
+live-inference error where `useDemoSample` is called from `resetUpload`, plus
+existing warnings. The card move itself adds no lint error.
+
+### Copy correction
+
+The user replaced the visible title with `ffsimulator floor and ceiling
+model` and replaced the subtitle with the supplied description. The repository
+card heading now uses the same title. Source and the running port 3001 bundle
+contain both updated strings.
+
 ## Open Questions
 
 - Resolve whether the generated floor selector or the combined forward range

@@ -78,7 +78,8 @@ class PredictionService:
     def _load_records(self) -> tuple[ModelRecord, ...]:
         """Validate metadata and resolve model file paths."""
 
-        quantile_label = str(self.metadata.get("quantile_label", ""))
+        metadata_label = self.metadata.get("quantile_label")
+        quantile_label = str(metadata_label or f"p{round(float(self.metadata.get('quantile_alpha', 0)) * 100):.0f}")
         if quantile_label not in QUANTILES:
             raise RuntimeError(f"Unsupported quantile label in metadata: {quantile_label}")
         records: list[ModelRecord] = []
@@ -129,7 +130,7 @@ class PredictionService:
 
         if request.get("model_release") is None:
             raise PredictionError("model_release is required", fields=["model_release"])
-        if request["scoring_contract_version"] != SCORING_CONTRACT_VERSION:
+        if request.get("scoring_contract_version") != SCORING_CONTRACT_VERSION:
             raise PredictionError("The scoring contract is unsupported", fields=["scoring_contract_version"])
         if request.get("feature_version") != FEATURE_VERSION:
             raise PredictionError("The feature version is unsupported", fields=["feature_version"])
@@ -180,7 +181,11 @@ class PredictionService:
                 feature
                 for feature in record.features
                 if feature in feature_values
-                and (not isinstance(feature_values[feature], (int, float)) or not math.isfinite(float(feature_values[feature])))
+                and (
+                    isinstance(feature_values[feature], bool)
+                    or not isinstance(feature_values[feature], (int, float))
+                    or not math.isfinite(float(feature_values[feature]))
+                )
             ]
             if missing or invalid:
                 missing_by_player[player_id] = sorted(set(missing + invalid))
@@ -299,4 +304,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

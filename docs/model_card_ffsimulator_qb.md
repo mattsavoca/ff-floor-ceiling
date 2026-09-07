@@ -1,4 +1,4 @@
-# Model card: `ffsimulator` quarterback range model
+# Model card: `ffsimulator` floor and ceiling model
 
 Card date: 2026-09-07  
 Model status: Active QB range path, with a selector review noted in the caveats  

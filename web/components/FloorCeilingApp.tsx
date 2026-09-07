@@ -289,6 +289,7 @@ export function FloorCeilingApp() {
   const [liveRows, setLiveRows] = useState<ForecastRow[]>([]);
   const [liveUploadId, setLiveUploadId] = useState("");
   const [sourceInputRevision, setSourceInputRevision] = useState("");
+  const [sourceFile, setSourceFile] = useState<File | null>(null);
   const [liveOverrideSet, setLiveOverrideSet] = useState<OverrideSet | null>(null);
   const [runFailure, setRunFailure] = useState<{ stage?: string; message?: string; nextAction?: string } | null>(null);
   const [simulationCount, setSimulationCount] = useState(String(DEFAULT_SIMULATION_COUNT));
@@ -351,8 +352,20 @@ export function FloorCeilingApp() {
         setLiveUploadId(active.uploadId);
         setSeason(String(active.season));
         setWeek(String(active.week));
-        setRunId(active.runId);
-        setRunState(active.state === "Running" ? "Running" : "Queued");
+      setRunId(active.runId);
+      setRunState(active.state === "Running" ? "Running" : "Queued");
+      if (lastComplete && lastComplete !== active.runId) {
+        const resultResponse = await fetch(`/api/runs/${lastComplete}/result`).catch(() => null);
+        const resultData = resultResponse?.ok ? await resultResponse.json() as { result?: ForecastResult } : null;
+        if (resultData?.result && !cancelled) {
+          setResultRunId(lastComplete);
+          setLiveRows(forecastRowsFromResult(resultData.result));
+          setSourceInputRevision(resultData.result.metadata.sourceInputRevision);
+        }
+        const overrideResponse = await fetch(`/api/runs/${lastComplete}/overrides`).catch(() => null);
+        const overrideData = overrideResponse?.ok ? await overrideResponse.json() as { overrideSet?: OverrideSet } : null;
+        if (overrideData?.overrideSet && !cancelled) setLiveOverrideSet(overrideData.overrideSet);
+      }
       } else if (lastComplete) {
         setDataMode("live");
         setResultRunId(lastComplete);
@@ -457,6 +470,7 @@ export function FloorCeilingApp() {
     setLiveRows([]);
     setLiveUploadId("");
     setSourceInputRevision("");
+    setSourceFile(null);
     setActiveRunId("");
     setResultRunId("");
     setRunFailure(null);
@@ -464,19 +478,21 @@ export function FloorCeilingApp() {
     setUpload(demoUploadReport);
     setRunState("Complete");
     setRunId("run_w1_2026_7f3a");
+    window.sessionStorage.removeItem("fc-active-run-id");
     setSimulationCount(String(DEFAULT_SIMULATION_COUNT));
     setProjectionSearch("");
     setToast("The temporary workspace now shows the public demonstration.");
     setSessionMenuOpen(false);
   }
 
-  async function handleFile(file: File) {
+  async function handleFile(file: File, selectedSetId?: string) {
     if (file.size > 10 * 1024 * 1024) {
       setUploadErrors([{ row: 0, field: "file", message: "The file is larger than the 10 MB upload limit." }]);
       setRunState("Failed");
       return;
     }
     setDataMode("live");
+    setSourceFile(file);
     setRunState("Checking upload");
     setLiveRows([]);
     setLiveOverrideSet(null);
@@ -484,6 +500,7 @@ export function FloorCeilingApp() {
     try {
       const form = new FormData();
       form.set("file", file);
+      if (selectedSetId) form.set("selectedSetId", selectedSetId);
       const response = await fetch("/api/uploads", { method: "POST", headers: { "x-csrf-token": browserCookie("fc_csrf") }, body: form });
       const data = await response.json().catch(() => null) as { error?: string; uploadId?: string; sourceInputRevision?: string; report?: UploadReport } | null;
       if (!response.ok || !data?.uploadId || !data.report) {
@@ -506,12 +523,21 @@ export function FloorCeilingApp() {
     }
   }
 
+  function handleSetChange(selectedSetId: string) {
+    if (!sourceFile) {
+      setToast("Choose a projection file before selecting a projection set.");
+      return;
+    }
+    void handleFile(sourceFile, selectedSetId);
+  }
+
   function useDemoSample() {
     setDataMode("demo");
     setLiveRows([]);
     setLiveOverrideSet(null);
     setLiveUploadId("");
     setSourceInputRevision("");
+    setSourceFile(null);
     setActiveRunId("");
     setResultRunId("");
     setRunFailure(null);
@@ -546,6 +572,8 @@ export function FloorCeilingApp() {
       return;
     }
     setRunState("Checking upload");
+    setLiveRows([]);
+    setLiveOverrideSet(null);
     const numericWeek = Number.parseInt(week, 10) || 1;
     try {
       const response = await fetch("/api/runs", {
@@ -573,7 +601,10 @@ export function FloorCeilingApp() {
       setRunId(nextRunId);
       setActiveRunId(nextRunId);
       setResultRunId("");
+      setLiveRows([]);
+      setLiveOverrideSet(null);
       setRunFailure(null);
+      setRunState("Queued");
       window.sessionStorage.setItem("fc-active-run-id", nextRunId);
     } catch {
       setRunState("Failed");
@@ -709,7 +740,7 @@ export function FloorCeilingApp() {
           {activeTab === "overview" ? <OverviewPage navigate={navigate} season={season} week={week} onWeekChange={setWeek} /> : null}
           {activeTab === "methodology" ? <MethodologyPage navigate={navigate} /> : null}
           {activeTab === "calibration" ? <CalibrationPage /> : null}
-          {activeTab === "projection" ? <ForecastProjectionPage upload={upload} uploadErrors={uploadErrors} runState={runState} runId={runId} season={season} week={week} onSeason={setSeason} onWeek={setWeek} runFailure={runFailure} simulationCount={simulationCount} onSimulationCount={setSimulationCount} viewMode={viewMode} onViewMode={setViewMode} rows={filteredForecasts} allRows={activeRows} overrides={activeOverrides} search={projectionSearch} position={projectionPosition} team={projectionTeam} sort={projectionSort} teams={teams} onSearch={setProjectionSearch} onPosition={setProjectionPosition} onTeam={setProjectionTeam} onSort={setProjectionSort} onFile={handleFile} onUseDemo={useDemoSample} onResetUpload={resetUpload} onStartRun={startRun} onExport={(scope) => exportForecasts(scope === "filtered" ? filteredForecasts : activeRows, scope)} onSelectPlayer={(row) => setSelectedPlayerId(row.id)} onOpenOverrides={(row) => { setSelectedPlayerId(row.id); setActiveTab("overrides"); }} /> : null}
+          {activeTab === "projection" ? <ForecastProjectionPage upload={upload} uploadErrors={uploadErrors} runState={runState} runId={runId} season={season} week={week} onSeason={setSeason} onWeek={setWeek} runFailure={runFailure} simulationCount={simulationCount} onSimulationCount={setSimulationCount} viewMode={viewMode} onViewMode={setViewMode} rows={filteredForecasts} allRows={activeRows} overrides={activeOverrides} search={projectionSearch} position={projectionPosition} team={projectionTeam} sort={projectionSort} teams={teams} onSearch={setProjectionSearch} onPosition={setProjectionPosition} onTeam={setProjectionTeam} onSort={setProjectionSort} onFile={handleFile} onSetChange={handleSetChange} onUseDemo={useDemoSample} onResetUpload={resetUpload} onStartRun={startRun} onExport={(scope) => exportForecasts(scope === "filtered" ? filteredForecasts : activeRows, scope)} onSelectPlayer={(row) => setSelectedPlayerId(row.id)} onOpenOverrides={(row) => { setSelectedPlayerId(row.id); setActiveTab("overrides"); }} /> : null}
           {activeTab === "overrides" ? <OverridesPage rows={activeRows} overrides={activeOverrides} history={activeHistory} selectedRow={selectedRow} selectedPlayerId={selectedPlayerId} onSelectRow={(row) => setSelectedPlayerId(row.id)} onSave={saveOverride} onResetPlayer={resetPlayer} onResetAll={resetAllOverrides} onCopy={async () => {
             if (dataMode !== "live" || !resultRunId) { setToast("Copy is available for a complete live result. Choose the source run explicitly."); return; }
             const sourceRunId = window.prompt("Enter the complete source run ID to copy overrides from:");
@@ -1040,8 +1071,8 @@ function FfsimulatorQbModelCard() {
         <div className="methodology-model-icon methodology-model-icon-simulation"><GitBranch size={19} /></div>
         <div>
           <span className="panel-eyebrow">Model card</span>
-          <h2><code>ffsimulator</code> quarterback range model</h2>
-          <p>Intended use, held-out QB evidence, inputs, and known limits for the rank-conditioned range path.</p>
+          <h2><code>ffsimulator</code> floor and ceiling model</h2>
+          <p>Using positional consensus rank, historical outputs, and random sampling to sim ranges of outcome</p>
         </div>
         <StatusPill label="Active QB path" tone="good" />
         <ChevronDown size={18} aria-hidden="true" />
@@ -1475,6 +1506,8 @@ function MethodologyPage({ navigate }: MethodologyPageProps) {
         </div>
       </section>
 
+      <FfsimulatorQbModelCard />
+
       <div className="methodology-model-grid">
         <article className="methodology-model-card methodology-model-card-simulation">
           <div className="methodology-model-heading">
@@ -1499,7 +1532,6 @@ function MethodologyPage({ navigate }: MethodologyPageProps) {
         </article>
       </div>
 
-      <FfsimulatorQbModelCard />
       <P85ModelCard />
       <P15ModelCard />
 
@@ -2097,6 +2129,7 @@ type ProjectionPageProps = {
   onTeam: (value: string) => void;
   onSort: (value: string) => void;
   onFile: (file: File) => void;
+  onSetChange?: (setId: string) => void;
   onUseDemo: () => void;
   onResetUpload: () => void;
   onStartRun: () => void;
@@ -2151,7 +2184,7 @@ function ProjectionPage({ upload, uploadErrors, runState, runId, season, week, o
   );
 }
 
-function ForecastProjectionPage({ upload, uploadErrors, runState, runId, season, week, onSeason, onWeek, runFailure, simulationCount, onSimulationCount, viewMode, onViewMode, rows, allRows, overrides, search, position, team, sort, teams, onSearch, onPosition, onTeam, onSort, onFile, onUseDemo, onResetUpload, onStartRun, onExport, onSelectPlayer, onOpenOverrides }: ProjectionPageProps) {
+function ForecastProjectionPage({ upload, uploadErrors, runState, runId, season, week, onSeason, onWeek, runFailure, simulationCount, onSimulationCount, viewMode, onViewMode, rows, allRows, overrides, search, position, team, sort, teams, onSearch, onPosition, onTeam, onSort, onFile, onSetChange, onUseDemo, onResetUpload, onStartRun, onExport, onSelectPlayer, onOpenOverrides }: ProjectionPageProps) {
   const [detailRow, setDetailRow] = useState<ForecastRow | null>(null);
   const numericSimulationCount = Number(simulationCount);
   const simulationCountValid = isValidSimulationCount(numericSimulationCount);
@@ -2183,7 +2216,8 @@ function ForecastProjectionPage({ upload, uploadErrors, runState, runId, season,
     onSelectPlayer(row);
   }
   const selectedSet = upload.sets.find((set) => set.id === upload.selectedSet);
-  const weekOptions = Array.from(new Set([week, "1", "14", "15", "16", "17"]));
+  const seasonOptions = ["2026"];
+  const weekOptions = ["1"];
   return (
     <>
       <SectionIntro eyebrow="Projection to sim" title="Turn a projection file into ranges" status={<StatusPill label={runState} tone={statusTone as "good" | "warn" | "neutral" | "blue"} />} action={<div className="action-group"><Button variant="secondary" onClick={onResetUpload} icon={<RotateCcw size={15} />}>Reset upload</Button><Button variant="quiet" icon={<CircleHelp size={15} />}>Input guide</Button></div>}>The real run uses the approved rank snapshot, ffsimulator, and released P15 and P85 services. Uploads do not train a model. Every run stores its input revision, seed, count, metric definition, and model release.</SectionIntro>
@@ -2193,13 +2227,13 @@ function ForecastProjectionPage({ upload, uploadErrors, runState, runId, season,
           <button type="button" className="sample-link" onClick={onUseDemo}><Sparkles size={14} /> Use the bundled demonstration</button>
           <div className="upload-file-card"><div className="file-icon"><FileText size={17} /></div><div className="file-copy"><strong>{upload.fileName}</strong><span>{upload.sourceTimestamp === demoUploadReport.sourceTimestamp ? "Bundled public output" : "Stored in this workspace"}</span></div><StatusPill label={uploadErrors.length ? "Needs review" : "Checked"} tone={uploadErrors.length ? "warn" : "good"} /></div>
           <div className="upload-stats"><div><span>Rows</span><strong>{upload.rows.toLocaleString()}</strong></div><div><span>Accepted</span><strong className="text-green">{upload.accepted.toLocaleString()}</strong></div><div><span>Excluded</span><strong className={upload.excluded ? "text-orange" : ""}>{upload.excluded.toLocaleString()}</strong></div><div><span>Unresolved</span><strong className={upload.unresolved ? "text-orange" : ""}>{upload.unresolved.toLocaleString()}</strong></div></div>
-          <div className="set-select-row"><FilterSelect label="Projection set" value={selectedSet?.label ?? upload.selectedSet} options={upload.sets.map((set) => set.label)} onChange={() => undefined} /><span className="set-note"><Info size={13} /> {selectedSet?.rows ?? upload.rows} rows in selected set</span></div>
+          <div className="set-select-row"><FilterSelect label="Projection set" value={selectedSet?.label ?? upload.selectedSet} options={upload.sets.map((set) => set.label)} onChange={(label) => { const nextSet = upload.sets.find((set) => set.label === label); if (nextSet) onSetChange?.(nextSet.id); }} /><span className="set-note"><Info size={13} /> {selectedSet?.rows ?? upload.rows} rows in selected set</span></div>
           {upload.sourceOrderUsed ? <Explainer>The file has no explicit rank field. The adapter uses source order within each position.</Explainer> : null}
           {uploadErrors.length ? <div className="error-report"><div className="error-report-title"><AlertTriangle size={15} /><strong>Row report</strong><span>{uploadErrors.length} findings</span></div><div className="error-list">{uploadErrors.slice(0, 5).map((error) => <div key={`${error.row}-${error.field}-${error.message}`}><code>Row {error.row || "file"}</code><span><strong>{error.field}</strong> {error.message}</span></div>)}</div>{uploadErrors.length > 5 ? <small>Showing 5 of {uploadErrors.length} findings.</small> : null}</div> : null}
         </Panel>
         <Panel className="run-panel" eyebrow="2 · Run the baseline" title="Real inference" action={<span className="run-version">forecast-ppr-v1</span>}>
           <div className="run-model-card"><div className="model-symbol"><Activity size={20} /></div><div><strong>ffsimulator plus quantile services</strong><span>QB from simulation · RB, WR, and TE from XGBoost p15 and p85</span></div><StatusPill label="Available" tone="good" /></div>
-          <div className="run-settings"><div><span>Forecast context</span><div className="run-context-selects"><FilterSelect label="Season" value={season} options={[season === "2026" ? "2026" : season, "2026"].filter((value, index, values) => values.indexOf(value) === index)} onChange={onSeason} compact /><FilterSelect label="Week" value={week} options={weekOptions} onChange={onWeek} compact /></div></div><label className="run-setting-input"><span>Simulation count</span><span className="simulation-count-field"><input type="number" min={MIN_SIMULATIONS} max={MAX_SIMULATIONS} step={SIMULATION_STEP} value={simulationCount} onChange={(event) => onSimulationCount(event.target.value)} disabled={simulationCountDisabled} aria-label="Simulation count" aria-invalid={!simulationCountValid} /><em>sims</em></span></label><div><span>Run profile</span><strong>{simulationCountValid ? simulationProfile : "Check count"}</strong></div><div><span>Input checks</span><strong>{uploadBlocked ? "Review report" : <>Pass <Check size={14} className="text-green" /></>}</strong></div></div>
+          <div className="run-settings"><div><span>Forecast context</span><div className="run-context-selects"><FilterSelect label="Season" value={season} options={seasonOptions} onChange={onSeason} compact /><FilterSelect label="Week" value={week} options={weekOptions} onChange={onWeek} compact /></div></div><label className="run-setting-input"><span>Simulation count</span><span className="simulation-count-field"><input type="number" min={MIN_SIMULATIONS} max={MAX_SIMULATIONS} step={SIMULATION_STEP} value={simulationCount} onChange={(event) => onSimulationCount(event.target.value)} disabled={simulationCountDisabled} aria-label="Simulation count" aria-invalid={!simulationCountValid} /><em>sims</em></span></label><div><span>Run profile</span><strong>{simulationCountValid ? simulationProfile : "Check count"}</strong></div><div><span>Input checks</span><strong>{uploadBlocked ? "Review report" : <>Pass <Check size={14} className="text-green" /></>}</strong></div></div>
           <div className="run-setting-help">Use 100 to 1,000 simulations in steps of 100. The seed is stored with the run.</div>
           <div className="run-action"><Button variant="primary" onClick={onStartRun} disabled={runState === "Checking upload" || runState === "Queued" || runState === "Running" || uploadBlocked || !simulationCountValid} className="full-width" icon={runState === "Running" ? <RefreshCcw size={15} className="spin" /> : <Play size={15} />}>{runState === "Running" ? "Inference running" : runState === "Queued" ? "Queued" : "Run real inference"}</Button><span>A new source revision creates a separate durable run.</span></div>
           {runState !== "Empty" && runState !== "Ready" && runState !== "Complete" ? <div className="run-progress"><div className="run-progress-top"><span>{runState}</span><strong>{progress}%</strong></div><span className="progress-track"><span style={{ width: `${progress}%` }} /></span><small>Job {shortId(runId)} · {numericSimulationCount.toLocaleString()} simulations</small></div> : null}
