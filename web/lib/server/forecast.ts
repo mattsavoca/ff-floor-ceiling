@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -68,7 +69,7 @@ class ForecastError extends Error {
 
 function projectRoot() {
   const candidates = [process.env.FC_PROJECT_ROOT, process.cwd(), path.resolve(process.cwd(), "..")].filter((value): value is string => Boolean(value));
-  const root = candidates.find((candidate) => candidate && candidate !== "" && candidate.includes("ff_floor_ceiling"));
+  const root = candidates.find((candidate) => existsSync(path.resolve(candidate, "services", "model-worker", "predict_service.py")) && existsSync(path.resolve(candidate, "backtest_fbg_2023_2025")));
   return root ?? candidates[0] ?? process.cwd();
 }
 
@@ -83,7 +84,7 @@ function outcomePoolPath(root: string) {
     path.resolve(root, "..", "ffsimulator", "inst", "cache", "adp_outcomes_week.rds"),
     path.resolve(root, "..", "ffsimulator", "inst", "cache", "adp_outcomes.rds"),
   ];
-  return candidates[0];
+  return candidates.find((candidate) => existsSync(candidate)) ?? candidates[0];
 }
 
 function csvCell(value: string | number) {
@@ -442,4 +443,3 @@ export async function processRun(runId: string, workspaceId: string) {
     if (temporaryDirectory) await rm(temporaryDirectory, { recursive: true, force: true });
   }
 }
-
