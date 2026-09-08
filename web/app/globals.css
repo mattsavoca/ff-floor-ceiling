@@ -45,8 +45,6 @@ a { color: inherit; }
 .app-shell { min-height: 100vh; display: flex; }
 .sidebar { position: fixed; z-index: 30; inset: 0 auto 0 0; width: 260px; padding: 22px 14px 16px; display: flex; flex-direction: column; background: var(--navy); color: #e9f1f6; }
 .brand-block { display: flex; align-items: center; gap: 11px; padding: 0 9px 26px; }
-.brand-mark { width: 32px; height: 32px; position: relative; display: grid; place-items: center; border-radius: 9px; background: #e6eff5; color: var(--navy); font-weight: 850; font-size: 14px; line-height: 1; box-shadow: 0 5px 12px rgba(0, 0, 0, 0.14); }
-.brand-mark span:last-child { position: absolute; right: -4px; bottom: -3px; padding: 3px 4px; border-radius: 4px; background: #4a93bd; color: #fff; font-size: 9px; letter-spacing: -0.04em; }
 .brand-name { font-size: 16px; font-weight: 760; letter-spacing: -0.02em; }
 .brand-subtitle { margin-top: 3px; color: #a9c0d0; font-size: 11px; letter-spacing: 0.02em; }
 .mobile-close { display: none; margin-left: auto; border: 0; background: transparent; color: #b4cad9; }

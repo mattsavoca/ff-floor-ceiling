@@ -754,7 +754,7 @@ export function FloorCeilingApp() {
   return (
     <div className="app-shell">
       <aside className={cx("sidebar", mobileNavOpen && "sidebar-open")}>
-        <div className="brand-block"><div className="brand-mark"><span>F</span><span>C</span></div><div><div className="brand-name">Range of Outcomes</div><div className="brand-subtitle">Model Monitoring by Matt Savoca</div></div><button type="button" className="mobile-close" onClick={() => setMobileNavOpen(false)} aria-label="Close navigation"><X size={18} /></button></div>
+        <div className="brand-block"><div><div className="brand-name">Range of Outcomes</div><div className="brand-subtitle">Model Monitoring by Matt Savoca</div></div><button type="button" className="mobile-close" onClick={() => setMobileNavOpen(false)} aria-label="Close navigation"><X size={18} /></button></div>
         <div className="sidebar-label">Workspace</div>
         <nav className="primary-nav" aria-label="Primary navigation">{navItems.map((item) => { const Icon = item.icon; return <button type="button" key={item.id} onClick={() => navigate(item.id)} className={cx("nav-item", activeTab === item.id && "nav-item-active")}><Icon size={18} /><span><strong>{item.label}</strong></span>{activeTab === item.id ? <ChevronRight size={16} className="nav-arrow" /> : null}</button>; })}</nav>
         <div className="sidebar-spacer" />
