@@ -1,4 +1,4 @@
-export type TabId = "overview" | "methodology" | "calibration" | "projection" | "overrides";
+export type TabId = "video-submission" | "overview" | "methodology" | "calibration" | "projection" | "overrides";
 export type Position = "QB" | "RB" | "WR" | "TE" | "DST";
 export type ViewMode = "original" | "adjusted";
 

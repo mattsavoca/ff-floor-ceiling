@@ -36,6 +36,7 @@ import {
   Upload,
   UserRound,
   Users,
+  Video,
   X,
   Zap,
 } from "lucide-react";
@@ -77,6 +78,7 @@ import type { ForecastResult, ForecastRow, OverrideHistoryEntry, OverridePreset,
 import type { EChartsOption } from "echarts";
 
 const navItems: Array<{ id: TabId; label: string; icon: typeof LayoutDashboard }> = [
+  { id: "video-submission", label: "Video Submission", icon: Video },
   { id: "overview", label: "Overview", icon: LayoutDashboard },
   { id: "methodology", label: "Methodology", icon: GitBranch },
   { id: "calibration", label: "Calibration", icon: Target },
@@ -85,11 +87,6 @@ const navItems: Array<{ id: TabId; label: string; icon: typeof LayoutDashboard }
 ];
 
 const positionOptions = ["All", "QB", "RB", "WR", "TE"] as const;
-const monitoringSeasonOptions = ["2026", "2025"] as const;
-const monitoringWeekOptionsBySeason: Record<string, readonly string[]> = {
-  "2026": ["1"],
-  "2025": ["14", "15", "16", "17"],
-};
 const defaultMonitoringSeason = "2026";
 const defaultMonitoringWeek = "1";
 const demoMetricDefinition = "Outcome metric v1.0";
@@ -270,17 +267,6 @@ function DataTable<T extends object>({ data, columns, empty = "No rows match the
           {table.getRowModel().rows.length ? table.getRowModel().rows.map((row) => <tr key={row.id} onClick={() => onRowClick?.(row.original)} className={onRowClick ? "clickable-row" : ""}>{row.getVisibleCells().map((cell) => <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>)}</tr>) : <tr><td colSpan={columns.length}><EmptyState title="No matching rows" body={empty} /></td></tr>}
         </tbody>
       </table>
-    </div>
-  );
-}
-
-function ContextStrip({ season, week, onSeason, onWeek, onNavigateOverview }: { season: string; week: string; onSeason: (value: string) => void; onWeek: (value: string) => void; onNavigateOverview: () => void }) {
-  const weekOptions = monitoringWeekOptionsBySeason[season] ?? [];
-  return (
-    <div className="context-strip" role="link" tabIndex={0} aria-label="Open Overview model performance" title="Open Overview model performance" onClick={(event) => { const target = event.target as HTMLElement; if (target.closest?.("label")) return; onNavigateOverview(); }} onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onNavigateOverview(); } }}>
-      <FilterSelect label="Season" value={season} options={monitoringSeasonOptions} onChange={onSeason} compact />
-      <FilterSelect label="Week" value={week} options={weekOptions} onChange={onWeek} compact />
-      <StatusPill label="Bundled output" tone="blue" />
     </div>
   );
 }
@@ -487,13 +473,6 @@ export function FloorCeilingApp() {
     setActiveTab(nextTab);
     setMobileNavOpen(false);
     window.scrollTo({ top: 0, behavior: "smooth" });
-  }
-
-  function updateContextSeason(value: string) {
-    const availableWeeks = monitoringWeekOptionsBySeason[value] ?? [];
-    setMonitoringSeason(value);
-    setMonitoringWeek((currentWeek) => availableWeeks.includes(currentWeek) ? currentWeek : availableWeeks[availableWeeks.length - 1] ?? "");
-    if (activeTab !== "overview") navigate("overview");
   }
 
   function updateContextWeek(value: string) {
@@ -779,8 +758,8 @@ export function FloorCeilingApp() {
       {mobileNavOpen ? <button className="nav-scrim" type="button" onClick={() => setMobileNavOpen(false)} aria-label="Close navigation" /> : null}
       <main className="main-area">
         <header className={cx("topbar", activeTab === "projection" && "projection-topbar")}><div className="mobile-brand"><button type="button" className="menu-button" onClick={() => setMobileNavOpen(true)} aria-label="Open navigation"><Menu size={20} /></button><span>Floor &amp; Ceiling</span></div><div className="topbar-context"><span className="topbar-kicker">{activeTab === "calibration" ? "Calibration" : "Forecast workspace"}</span><span className="topbar-separator">/</span><strong>{activeTab === "calibration" ? calibrationModel.shortName : `${displayedSeason} · Week ${displayedWeek}`}</strong></div><div className="topbar-actions"><span className="saved-state"><span className="saved-dot" /> Saved locally</span><button type="button" className="session-button" onClick={() => setSessionMenuOpen((open) => !open)}><span className="session-avatar"><UserRound size={14} /></span><span>{shortId(workspaceId)}</span><ChevronDown size={14} /></button>{sessionMenuOpen ? <div className="session-menu"><div className="session-menu-heading"><span className="session-avatar large"><UserRound size={16} /></span><div><strong>Temporary workspace</strong><span>{shortId(workspaceId)}</span></div></div><div className="session-menu-row"><Clock3 size={15} /><span>Expires {formatRelativeTime(expiresAt)}</span></div><div className="session-menu-row"><ShieldCheck size={15} /><span>Private to this browser</span></div><div className="session-menu-divider" /><Button variant="quiet" onClick={resetWorkspace} icon={<RotateCcw size={15} />}>Reset workspace</Button><p>Download work before the session expires. Lost or expired data cannot be recovered.</p></div> : null}</div></header>
-        {activeTab !== "calibration" && activeTab !== "projection" && activeTab !== "methodology" ? <ContextStrip season={monitoringSeason} week={monitoringWeek} onSeason={updateContextSeason} onWeek={updateContextWeek} onNavigateOverview={() => navigate("overview")} /> : null}
         <div className="page-content">
+          {activeTab === "video-submission" ? <VideoSubmissionPage /> : null}
           {activeTab === "overview" ? <OverviewPage navigate={navigate} season={monitoringSeason} week={monitoringWeek} onWeekChange={updateContextWeek} /> : null}
           {activeTab === "methodology" ? <MethodologyPage /> : null}
           {activeTab === "calibration" ? <CalibrationPage /> : null}
@@ -800,6 +779,20 @@ export function FloorCeilingApp() {
         <footer className="app-footer"><span><Database size={14} /> Public evidence build · v0.1</span><span>Last data check Aug 31, 2026</span><a href="#methodology" onClick={(event) => { event.preventDefault(); navigate("methodology"); }}>How to read this site <ChevronRight size={13} /></a></footer>
       </main>
       {toast ? <div className="toast" role="status"><CheckCircle2 size={17} /><span>{toast}</span><button type="button" onClick={() => setToast(null)} aria-label="Dismiss message"><X size={15} /></button></div> : null}
+    </div>
+  );
+}
+
+function VideoSubmissionPage() {
+  return (
+    <div className="video-submission">
+      <iframe
+        className="video-submission-frame"
+        src="https://www.youtube.com/embed/c65pWEHklk8"
+        title="Video Submission"
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+        allowFullScreen
+      />
     </div>
   );
 }
