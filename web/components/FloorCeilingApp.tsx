@@ -87,8 +87,15 @@ const navItems: Array<{ id: TabId; label: string; icon: typeof LayoutDashboard }
 ];
 
 const positionOptions = ["All", "QB", "RB", "WR", "TE"] as const;
-const defaultMonitoringSeason = "2026";
-const defaultMonitoringWeek = "1";
+const monitoringSeasonOptions = ["2026", "2025"] as const;
+const monitoringWeekOptionsBySeason: Record<string, readonly string[]> = {
+  "2026": ["1"],
+  "2025": ["14", "15", "16", "17"],
+};
+const defaultMonitoringSeason = "2025";
+const defaultMonitoringWeek = "17";
+const workflowMonitoringSeason = "2026";
+const workflowMonitoringWeek = "1";
 const demoMetricDefinition = "Outcome metric v1.0";
 const monitoringPositionOrder = ["QB", "RB", "WR", "TE"] as const;
 const monitoringPositionColors: Record<(typeof monitoringPositionOrder)[number], string> = {
@@ -267,6 +274,17 @@ function DataTable<T extends object>({ data, columns, empty = "No rows match the
           {table.getRowModel().rows.length ? table.getRowModel().rows.map((row) => <tr key={row.id} onClick={() => onRowClick?.(row.original)} className={onRowClick ? "clickable-row" : ""}>{row.getVisibleCells().map((cell) => <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>)}</tr>) : <tr><td colSpan={columns.length}><EmptyState title="No matching rows" body={empty} /></td></tr>}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+function ContextStrip({ season, week, onSeason, onWeek, onNavigateOverview }: { season: string; week: string; onSeason: (value: string) => void; onWeek: (value: string) => void; onNavigateOverview: () => void }) {
+  const weekOptions = monitoringWeekOptionsBySeason[season] ?? [];
+  return (
+    <div className="context-strip" role="link" tabIndex={0} aria-label="Open Overview model performance" title="Open Overview model performance" onClick={(event) => { const target = event.target as HTMLElement; if (target.closest?.("label")) return; onNavigateOverview(); }} onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onNavigateOverview(); } }}>
+      <FilterSelect label="Season" value={season} options={monitoringSeasonOptions} onChange={onSeason} compact />
+      <FilterSelect label="Week" value={week} options={weekOptions} onChange={onWeek} compact />
+      <StatusPill label="Bundled output" tone="blue" />
     </div>
   );
 }
@@ -470,14 +488,36 @@ export function FloorCeilingApp() {
   }, [toast]);
 
   function navigate(nextTab: TabId) {
+    if (nextTab === "overview") {
+      setMonitoringSeason(defaultMonitoringSeason);
+      setMonitoringWeek(defaultMonitoringWeek);
+    } else if (nextTab === "projection" || nextTab === "overrides") {
+      setMonitoringSeason(workflowMonitoringSeason);
+      setMonitoringWeek(workflowMonitoringWeek);
+    }
     setActiveTab(nextTab);
     setMobileNavOpen(false);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
+  function updateContextSeason(value: string) {
+    const availableWeeks = monitoringWeekOptionsBySeason[value] ?? [];
+    setMonitoringSeason(value);
+    setMonitoringWeek((currentWeek) => availableWeeks.includes(currentWeek) ? currentWeek : availableWeeks[availableWeeks.length - 1] ?? "");
+    if (activeTab !== "overview") {
+      setActiveTab("overview");
+      setMobileNavOpen(false);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }
+
   function updateContextWeek(value: string) {
     setMonitoringWeek(value);
-    if (activeTab !== "overview") navigate("overview");
+    if (activeTab !== "overview") {
+      setActiveTab("overview");
+      setMobileNavOpen(false);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
   }
 
   function resetWorkspace() {
@@ -758,12 +798,13 @@ export function FloorCeilingApp() {
       {mobileNavOpen ? <button className="nav-scrim" type="button" onClick={() => setMobileNavOpen(false)} aria-label="Close navigation" /> : null}
       <main className="main-area">
         <header className={cx("topbar", activeTab === "projection" && "projection-topbar")}><div className="mobile-brand"><button type="button" className="menu-button" onClick={() => setMobileNavOpen(true)} aria-label="Open navigation"><Menu size={20} /></button><span>Floor &amp; Ceiling</span></div><div className="topbar-context"><span className="topbar-kicker">{activeTab === "calibration" ? "Calibration" : "Forecast workspace"}</span><span className="topbar-separator">/</span><strong>{activeTab === "calibration" ? calibrationModel.shortName : `${displayedSeason} · Week ${displayedWeek}`}</strong></div><div className="topbar-actions"><span className="saved-state"><span className="saved-dot" /> Saved locally</span><button type="button" className="session-button" onClick={() => setSessionMenuOpen((open) => !open)}><span className="session-avatar"><UserRound size={14} /></span><span>{shortId(workspaceId)}</span><ChevronDown size={14} /></button>{sessionMenuOpen ? <div className="session-menu"><div className="session-menu-heading"><span className="session-avatar large"><UserRound size={16} /></span><div><strong>Temporary workspace</strong><span>{shortId(workspaceId)}</span></div></div><div className="session-menu-row"><Clock3 size={15} /><span>Expires {formatRelativeTime(expiresAt)}</span></div><div className="session-menu-row"><ShieldCheck size={15} /><span>Private to this browser</span></div><div className="session-menu-divider" /><Button variant="quiet" onClick={resetWorkspace} icon={<RotateCcw size={15} />}>Reset workspace</Button><p>Download work before the session expires. Lost or expired data cannot be recovered.</p></div> : null}</div></header>
+        {activeTab === "overview" || activeTab === "projection" || activeTab === "overrides" ? <ContextStrip season={monitoringSeason} week={monitoringWeek} onSeason={updateContextSeason} onWeek={updateContextWeek} onNavigateOverview={() => navigate("overview")} /> : null}
         <div className="page-content">
           {activeTab === "video-submission" ? <VideoSubmissionPage /> : null}
           {activeTab === "overview" ? <OverviewPage navigate={navigate} season={monitoringSeason} week={monitoringWeek} onWeekChange={updateContextWeek} /> : null}
           {activeTab === "methodology" ? <MethodologyPage /> : null}
           {activeTab === "calibration" ? <CalibrationPage /> : null}
-          {activeTab === "projection" ? <ForecastProjectionPage upload={upload} uploadErrors={uploadErrors} runState={runState} runId={runId} season={season} week={week} onSeason={setSeason} onWeek={setWeek} runFailure={runFailure} simulationCount={simulationCount} onSimulationCount={setSimulationCount} viewMode={viewMode} onViewMode={setViewMode} rows={filteredForecasts} allRows={activeRows} overrides={activeOverrides} search={projectionSearch} position={projectionPosition} team={projectionTeam} sort={projectionSort} teams={teams} onSearch={setProjectionSearch} onPosition={setProjectionPosition} onTeam={setProjectionTeam} onSort={setProjectionSort} onFile={handleFile} onSetChange={handleSetChange} onUseDemo={activateDemoSample} onResetUpload={resetUpload} onStartRun={startRun} onExport={(scope) => exportForecasts(scope === "filtered" ? filteredForecasts : activeRows, scope)} onSelectPlayer={(row) => setSelectedPlayerId(row.id)} onOpenOverrides={(row) => { setSelectedPlayerId(row.id); setActiveTab("overrides"); }} /> : null}
+          {activeTab === "projection" ? <ForecastProjectionPage upload={upload} uploadErrors={uploadErrors} runState={runState} runId={runId} season={season} week={week} onSeason={setSeason} onWeek={setWeek} runFailure={runFailure} simulationCount={simulationCount} onSimulationCount={setSimulationCount} viewMode={viewMode} onViewMode={setViewMode} rows={filteredForecasts} allRows={activeRows} overrides={activeOverrides} search={projectionSearch} position={projectionPosition} team={projectionTeam} sort={projectionSort} teams={teams} onSearch={setProjectionSearch} onPosition={setProjectionPosition} onTeam={setProjectionTeam} onSort={setProjectionSort} onFile={handleFile} onSetChange={handleSetChange} onUseDemo={activateDemoSample} onResetUpload={resetUpload} onStartRun={startRun} onExport={(scope) => exportForecasts(scope === "filtered" ? filteredForecasts : activeRows, scope)} onSelectPlayer={(row) => setSelectedPlayerId(row.id)} onOpenOverrides={(row) => { setSelectedPlayerId(row.id); navigate("overrides"); }} /> : null}
           {activeTab === "overrides" ? <OverridesPage runLabel={shortId(resultRunId || runId)} rows={activeRows} overrides={activeOverrides} history={activeHistory} selectedRow={selectedRow} selectedPlayerId={selectedPlayerId} onSelectRow={(row) => setSelectedPlayerId(row.id)} onSave={saveOverride} onResetPlayer={resetPlayer} onResetAll={resetAllOverrides} onCopy={async () => {
             if (dataMode !== "live" || !resultRunId) { setToast("Copy is available for a complete live result. Choose the source run explicitly."); return; }
             const sourceRunId = window.prompt("Enter the complete source run ID to copy overrides from:");
