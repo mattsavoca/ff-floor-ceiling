@@ -302,7 +302,7 @@ function ForecastRange({ row, override, onSelect }: { row: ForecastRow; override
 }
 
 export function FloorCeilingApp() {
-  const [activeTab, setActiveTab] = useState<TabId>("overview");
+  const [activeTab, setActiveTab] = useState<TabId>("video-submission");
   const [season, setSeason] = useState("2026");
   const [week, setWeek] = useState("1");
   const [monitoringSeason, setMonitoringSeason] = useState(defaultMonitoringSeason);
