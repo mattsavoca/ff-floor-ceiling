@@ -1,4 +1,6 @@
-# fffloorceiling
+# Range of Outcomes for Fantasy Football
+
+*this README was made with assistance from CODEX*
 
 This package turns provider rankings into player fantasy outcome ranges.
 It uses the rank-conditioned sampling process in `ffsimulator`.
