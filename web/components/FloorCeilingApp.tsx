@@ -788,7 +788,7 @@ export function FloorCeilingApp() {
         {activeTab !== "calibration" && activeTab !== "projection" && activeTab !== "methodology" ? <ContextStrip season={monitoringSeason} week={monitoringWeek} onSeason={updateContextSeason} onWeek={updateContextWeek} onNavigateOverview={() => navigate("overview")} /> : null}
         <div className="page-content">
           {activeTab === "overview" ? <OverviewPage navigate={navigate} season={monitoringSeason} week={monitoringWeek} onWeekChange={updateContextWeek} /> : null}
-          {activeTab === "methodology" ? <MethodologyPage navigate={navigate} /> : null}
+          {activeTab === "methodology" ? <MethodologyPage /> : null}
           {activeTab === "calibration" ? <CalibrationPage /> : null}
           {activeTab === "projection" ? <ForecastProjectionPage upload={upload} uploadErrors={uploadErrors} runState={runState} runId={runId} season={season} week={week} onSeason={setSeason} onWeek={setWeek} runFailure={runFailure} simulationCount={simulationCount} onSimulationCount={setSimulationCount} viewMode={viewMode} onViewMode={setViewMode} rows={filteredForecasts} allRows={activeRows} overrides={activeOverrides} search={projectionSearch} position={projectionPosition} team={projectionTeam} sort={projectionSort} teams={teams} onSearch={setProjectionSearch} onPosition={setProjectionPosition} onTeam={setProjectionTeam} onSort={setProjectionSort} onFile={handleFile} onSetChange={handleSetChange} onUseDemo={activateDemoSample} onResetUpload={resetUpload} onStartRun={startRun} onExport={(scope) => exportForecasts(scope === "filtered" ? filteredForecasts : activeRows, scope)} onSelectPlayer={(row) => setSelectedPlayerId(row.id)} onOpenOverrides={(row) => { setSelectedPlayerId(row.id); setActiveTab("overrides"); }} /> : null}
           {activeTab === "overrides" ? <OverridesPage runLabel={shortId(resultRunId || runId)} rows={activeRows} overrides={activeOverrides} history={activeHistory} selectedRow={selectedRow} selectedPlayerId={selectedPlayerId} onSelectRow={(row) => setSelectedPlayerId(row.id)} onSave={saveOverride} onResetPlayer={resetPlayer} onResetAll={resetAllOverrides} onCopy={async () => {
@@ -1062,8 +1062,6 @@ function OverviewPage({ navigate, season, week, onWeekChange }: { navigate: (tab
 }
 
 
-type MethodologyPageProps = { navigate: (tab: TabId) => void };
-
 const p85ModelTrainingRows = [2024, 2025].map((targetSeason) => {
   const fits = floorModelFits.filter((row) => row.targetSeason === targetSeason);
   const heldOutRows = oosSeasonPositionMetrics.filter((row) => row.season === targetSeason).reduce((sum, row) => sum + row.n, 0);
@@ -1123,7 +1121,7 @@ function FfsimulatorQbModelCard() {
           <h2><code>ffsimulator</code> floor and ceiling model</h2>
           <p>Using positional consensus rank, historical outputs, and random sampling to sim ranges of outcome</p>
         </div>
-        <StatusPill label="Diagnostic baseline" tone="blue" />
+        <StatusPill label="Initial/Baseline model" tone="blue" />
         <ChevronDown size={18} aria-hidden="true" />
       </summary>
 
@@ -1531,7 +1529,7 @@ function P15ModelCard() {
   );
 }
 
-function MethodologyPage({ navigate }: MethodologyPageProps) {
+function MethodologyPage() {
   const [choiceView, setChoiceView] = useState<"ceiling" | "floor">("ceiling");
   const choiceIsCeiling = choiceView === "ceiling";
   const choiceRows = choiceIsCeiling ? positionModelSelections : floorPositionModelSelections;
@@ -1540,24 +1538,27 @@ function MethodologyPage({ navigate }: MethodologyPageProps) {
   const choiceEstimate = choiceIsCeiling ? "ceiling" : "floor";
   const choiceMissDirection = choiceIsCeiling ? "low" : "high";
   const choiceOtherDirection = choiceIsCeiling ? "high" : "low";
-  const outputModelRows = [
-    { position: "QB", floor: "XGBoost", median: "XGBoost", ceiling: "XGBoost" },
-    { position: "RB", floor: "XGBoost", median: "XGBoost", ceiling: "XGBoost" },
-    { position: "WR", floor: "XGBoost", median: "XGBoost", ceiling: "XGBoost" },
-    { position: "TE", floor: "XGBoost", median: "XGBoost", ceiling: "XGBoost" },
-  ] as const;
   const modelBadge = (model: "ffsimulator" | "XGBoost") => <span className={cx("methodology-model-badge", model === "ffsimulator" ? "methodology-model-badge-simulation" : "methodology-model-badge-xgboost")}>{model}</span>;
 
   return (
     <>
-      <SectionIntro eyebrow="Methodology" title="Floor and Ceiling Modeling Process" status={<StatusPill label="forecast-ppr-v2" tone="good" />} action={<Button variant="secondary" onClick={() => navigate("calibration")} icon={<Target size={15} />}>View calibration</Button>}>The active release uses one multi-quantile XGBoost booster for each of QB, RB, WR, and TE. It returns p15, p50, and p85 in one prediction call. A rank-conditioned ffsimulator run stays available as a diagnostic comparison. <strong>Floor is p15 and ceiling is p85.</strong></SectionIntro>
+      <SectionIntro eyebrow="Methodology" title="Floor and Ceiling Modeling Process">
+        The current release uses a separate model for each position: QB, RB, WR, and TE. Each model gives us three estimates in one pass: a lower 15th percentile estimate (floor), a median estimate, and a higher 85th percentile estimate (ceiling).
+        <br /><br />
+        This is tested against a consensus rank-based simulator, which remains available as a baseline to compare model results.
+        <br /><br />
+        <strong>Error metrics:</strong>
+        <br />
+        • <strong>Coverage:</strong> the percentage of actual scores at or below a marker, with targets of 15%, 50%, and 85%.
+        <br />
+        • <strong>Pinball loss:</strong> a weighted error score in PPR points. Lower is better, so the calibration tab checks both before it chooses a model.
+      </SectionIntro>
 
       <div className="methodology-range-markers" role="group" aria-label="Forecast range markers">
-        <div className="methodology-range-marker methodology-range-marker-floor"><strong>p15</strong><span>Floor</span><small>A bad week, not the worst week. About 15 games in 100 finish under it.</small></div>
-        <div className="methodology-range-marker methodology-range-marker-middle"><strong>p50</strong><span>Median</span><small>The coin-flip line. Half of outcomes land above.</small></div>
-        <div className="methodology-range-marker methodology-range-marker-ceiling"><strong>p85</strong><span>Ceiling</span><small>A good week, not the best week. About 15 games in 100 finish over it.</small></div>
+        <div className="methodology-range-marker methodology-range-marker-floor"><strong>p15</strong><span>Floor</span><small>15th Percentile Probability</small></div>
+        <div className="methodology-range-marker methodology-range-marker-middle"><strong>p50</strong><span>Median</span><small>50th Percentile Probability</small></div>
+        <div className="methodology-range-marker methodology-range-marker-ceiling"><strong>p85</strong><span>Ceiling</span><small>85th Percentile Probability</small></div>
       </div>
-      <p className="methodology-range-caveat">Coverage is the percentage of actual scores at or below a marker, with targets of 15%, 50%, and 85%. Pinball loss is a weighted error score in PPR points, and lower is better, so the calibration tab checks both before it chooses a model.</p>
 
       <div className="methodology-model-grid">
         <article className="methodology-model-card methodology-model-card-simulation">
@@ -1569,8 +1570,7 @@ function MethodologyPage({ navigate }: MethodologyPageProps) {
           <div className="methodology-detail-block"><span className="methodology-detail-label">Stack</span><div className="methodology-pill-list"><span>R</span><span>fffloorceiling</span><span>ffsimulator</span><span>data.table</span><span>arrow</span><span>nflreadr</span><span>ggplot2</span><span>testthat</span></div></div>
           <div className="methodology-detail-block"><span className="methodology-detail-label">Data used</span><ul className="methodology-data-list"><li>Footballguys Projections Consensus. The source row order within each position becomes the player rank after free-agent rows are removed.</li><li>Historical FantasyPros weekly rank variation. The median standard deviation by position and rank supplies rank uncertainty.</li><li>Prior-season `nflreadr` weekly PPR scores. The history cutoff is strictly before the target season.</li></ul></div>
           <div className="methodology-detail-block"><span className="methodology-detail-label">How one prediction is derived</span><ol className="methodology-step-list"><li><span>01</span><div><strong>Normalize the ranking row</strong><p>Keep the stable player ID, position, team, source rank, and rank uncertainty together.</p></div></li><li><span>02</span><div><strong>Draw a nearby rank</strong><p>Draw a rank near the projected one. Use a wider spread where rankers disagree more. The backtest sets the spread to 0.5 times the mapped rank SD.</p></div></li><li><span>03</span><div><strong>Sample a historical score</strong><p>Use the sampled position and rank to select a weekly PPR outcome from the `ffsimulator` pool. Repeat for every simulation.</p></div></li><li><span>04</span><div><strong>Read the percentiles</strong><p>Take the 15th, 50th, and 85th percentiles of the simulated scores. Those values become p15, p50, and p85.</p></div></li></ol></div>
-          <div className="methodology-output-box"><span>Current output</span><strong>Full p15 / p50 / p85 range</strong><small>The backtest uses 1,000 simulations per player-week. The Week 1 FBG snapshot uses 100.</small></div>
-          <div className="explainer methodology-path-explainer"><Info size={15} /><span>More simulations reduce random sampling noise. They do not fix a biased outcome pool.</span></div>
+          <div className="methodology-output-box"><span>Current output</span><strong>Specific p15/p50/p85 Predictions</strong></div>
         </article>
 
         <article className="methodology-model-card methodology-model-card-xgboost">
@@ -1582,14 +1582,9 @@ function MethodologyPage({ navigate }: MethodologyPageProps) {
           <div className="methodology-detail-block"><span className="methodology-detail-label">Stack</span><div className="methodology-pill-list"><span>Python 3.14</span><span>XGBoost</span><span>pandas</span><span>NumPy</span><span>PyArrow</span><span>SHAP</span><span>matplotlib</span></div></div>
           <div className="methodology-detail-block"><span className="methodology-detail-label">Data used</span><ul className="methodology-data-list"><li>Footballguys weekly Projections Consensus rows from the 2023 through 2025 backtest seasons.</li><li>Week, ECR, position-specific projected statistics, and one derived PPR projection score.</li><li>Actual weekly PPR points from `nflreadr` are the training label. They never enter the feature columns. The `ffsimulator` output is a comparison baseline, not an XGBoost feature.</li><li>The projector count and rank summary fields stay in the data-quality report. They are not model features.</li></ul></div>
           <div className="methodology-detail-block"><span className="methodology-detail-label">How one prediction is derived</span><ol className="methodology-step-list"><li><span>01</span><div><strong>Build one player-week row</strong><p>Join the rank summary, raw projection fields, derived PPR projection, and final PPR score for each historical row.</p></div></li><li><span>02</span><div><strong>Fit one model per position</strong><p>Train separate QB, RB, WR, and TE boosters with XGBoost&apos;s `reg:quantileerror` objective and `quantile_alpha = [0.15, 0.50, 0.85]`.</p></div></li><li><span>03</span><div><strong>Tune on the latest prior weeks</strong><p>Test bounded parameter settings on weeks 14 through 17 of the latest training season. Choose the setting with the lowest multi-quantile loss, then refit on all earlier seasons.</p></div></li><li><span>04</span><div><strong>Score the next season</strong><p>Pass only pre-kickoff features to the position model. One prediction call returns p15, p50, and p85. Raw outputs are checked for finite values and quantile order.</p></div></li></ol></div>
-          <div className="methodology-output-box"><span>Current output</span><strong>One multi-quantile call</strong><small>p15 defines floor, p50 defines median, and p85 defines ceiling for QB, RB, WR, and TE.</small></div>
+          <div className="methodology-output-box"><span>Current output</span><strong>Specific p15/p50/p85 Predictions</strong></div>
         </article>
       </div>
-
-      <Panel className="methodology-output-map-panel" eyebrow="Active model output" title="Which model supplies each number?">
-        <div className="methodology-output-map-wrap"><table className="methodology-output-map"><caption className="sr-only">Model source for each range marker by position</caption><thead><tr><th scope="col">Position</th><th scope="col">Floor p15</th><th scope="col">Median p50</th><th scope="col">Ceiling p85</th></tr></thead><tbody>{outputModelRows.map((row) => <tr key={row.position}><th scope="row"><span className="position-chip">{row.position}</span></th><td>{modelBadge(row.floor)}</td><td>{modelBadge(row.median)}</td><td>{modelBadge(row.ceiling)}</td></tr>)}</tbody></table></div>
-        <Explainer>The live result uses XGBoost p15, p50, and p85 for all four positions. The CSV PPR projection remains a separate average, and ffsimulator values remain diagnostic.</Explainer>
-      </Panel>
 
       <Panel className="methodology-choice-panel" eyebrow="Model choice" title="Positional Model Selection">
         <div className="methodology-choice-copy"><p>The table shows the best historical method for each percentile. The live web result uses the v2 XGBoost booster for all three percentiles and keeps ffsimulator as a diagnostic baseline.</p><ol className="methodology-choice-rules"><li><strong>Coverage first.</strong> A candidate survives only if {choiceCoverageRange} of actual scores land at or below its {choicePercentile}.</li><li><strong>Then pinball loss.</strong> Lowest wins. The loss punishes a {choiceEstimate} set too {choiceMissDirection} harder than one set too {choiceOtherDirection}, which is what you want from a {choiceEstimate}.</li></ol></div>
