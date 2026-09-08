@@ -52,13 +52,11 @@ import {
   floorOosWeeklyPositionMetrics,
   floorOosWeeklySummaries,
   positionModelSelections,
-  scoringContract,
   selectedCalibrationBins,
   selectedModelByPosition,
   selectedPortfolioOverall,
   floorCalibrationBinMinimum,
   floorCalibrationModel,
-  floorScoringContract,
   floorSelectedCalibrationBins,
   floorSelectedModelByPosition,
   floorSelectedPortfolioOverall,
@@ -206,12 +204,12 @@ function StatusPill({ label, tone = "neutral", icon = true }: { label: string; t
   return <span className={cx("status-pill", `status-${tone}`)}>{icon ? iconForStatus(tone === "good" ? "good" : tone === "warn" ? "warn" : label) : null}{label}</span>;
 }
 
-function MetricCard({ label, value, detail, tone = "neutral", icon }: { label: string; value: string; detail: string; tone?: "good" | "warn" | "neutral"; icon: React.ReactNode }) {
+function MetricCard({ label, value, detail, tone = "neutral", icon, showDetail = true }: { label: string; value: string; detail: string; tone?: "good" | "warn" | "neutral"; icon: React.ReactNode; showDetail?: boolean }) {
   return (
     <article className="metric-card">
       <div className="metric-card-top"><span className="metric-icon">{icon}</span><span className="metric-label">{label}</span><MoreHorizontal size={16} className="muted" /></div>
       <div className={cx("metric-value", tone === "warn" && "metric-warn")}>{value}</div>
-      <div className="metric-detail">{detail}</div>
+      {showDetail ? <div className="metric-detail">{detail}</div> : null}
     </article>
   );
 }
@@ -288,8 +286,8 @@ function ContextStrip({ season, week, onSeason, onWeek, onNavigateOverview }: { 
   );
 }
 
-function SectionIntro({ eyebrow, title, children, status, action }: { eyebrow: string; title: string; children: React.ReactNode; status?: React.ReactNode; action?: React.ReactNode }) {
-  return <div className="section-intro"><div><div className="eyebrow">{eyebrow}</div><div className="title-row"><h1>{title}</h1>{status}</div><p>{children}</p></div>{action}</div>;
+function SectionIntro({ eyebrow, title, children, status, action }: { eyebrow: string; title: string; children?: React.ReactNode; status?: React.ReactNode; action?: React.ReactNode }) {
+  return <div className="section-intro"><div><div className="eyebrow">{eyebrow}</div><div className="title-row"><h1>{title}</h1>{status}</div>{children ? <p>{children}</p> : null}</div>{action}</div>;
 }
 
 function ForecastRange({ row, override, onSelect }: { row: ForecastRow; override?: OverrideSpec; onSelect: (row: ForecastRow) => void }) {
@@ -1810,7 +1808,7 @@ function CeilingCalibrationPage() {
 
   return (
     <>
-      <SectionIntro eyebrow="Calibration" title="Do the high estimates match past scores?" status={<StatusPill label="Near target" tone="good" />} action={<StatusPill label="PPR scoring" tone="blue" />}>We compare each high estimate with the final score from past weeks. The target is for about 85 of 100 scores to stay at or below the estimate.</SectionIntro>
+      <SectionIntro eyebrow="Calibration" title="Model Calibration" />
 
       <section className="calibration-model-card">
         <div className="calibration-model-main">
@@ -1828,21 +1826,13 @@ function CeilingCalibrationPage() {
             <div><strong>{formatCalibrationPercent(selectedPortfolioOverall.coverage)} of final scores stayed at or below the ceiling</strong><span>The target is 85%. This result uses 2024 and 2025 scores that the models did not see during training.</span></div>
           </div>
         </div>
-        <div className="calibration-model-meta">
-          <div><span>Test period</span><strong>{calibrationModel.oosSeasons}</strong></div>
-          <div><span>Scores checked</span><strong>Past final scores</strong></div>
-          <div><span>Positions</span><strong>QB, RB, WR, TE</strong></div>
-          <div><span>Scoring</span><strong>{calibrationModel.scoringFormat}</strong></div>
-        </div>
       </section>
 
-      <div className="calibration-model-note"><Info size={15} /><span>Scoring used here: {scoringContract.format}. Each reception is 1 point. This check adds no tight-end reception bonus and no receiving first-down points.</span></div>
-
       <div className="calibration-summary-grid">
-        <MetricCard label="Scores at or below ceiling" value={formatCalibrationPercent(selectedPortfolioOverall.coverage)} detail="Goal: about 85 of 100 final scores" tone="good" icon={<Target size={17} />} />
-        <MetricCard label="Scores above ceiling" value={formatCalibrationPercent(selectedPortfolioOverall.highSideMissRate)} detail="The final score beat the high estimate" tone="warn" icon={<ArrowUpRight size={17} />} />
-        <MetricCard label="Typical gap" value={formatCalibrationMetric(selectedPortfolioOverall.p85Mae) + " pts"} detail="Average distance between estimate and final score" tone="neutral" icon={<Activity size={17} />} />
-        <MetricCard label="High-estimate miss score" value={formatCalibrationMetric(selectedPortfolioOverall.pinballLoss)} detail="Weighted error for the high estimate. Lower is better." tone="good" icon={<Gauge size={17} />} />
+        <MetricCard label="Scores at or below ceiling" value={formatCalibrationPercent(selectedPortfolioOverall.coverage)} detail="Goal: about 85 of 100 final scores" tone="good" icon={<Target size={17} />} showDetail={false} />
+        <MetricCard label="Scores above ceiling" value={formatCalibrationPercent(selectedPortfolioOverall.highSideMissRate)} detail="The final score beat the high estimate" tone="warn" icon={<ArrowUpRight size={17} />} showDetail={false} />
+        <MetricCard label="Typical gap" value={formatCalibrationMetric(selectedPortfolioOverall.p85Mae) + " pts"} detail="Average distance between estimate and final score" tone="neutral" icon={<Activity size={17} />} showDetail={false} />
+        <MetricCard label="High-estimate miss score" value={formatCalibrationMetric(selectedPortfolioOverall.pinballLoss)} detail="Weighted error for the high estimate. Lower is better." tone="good" icon={<Gauge size={17} />} showDetail={false} />
       </div>
 
       <CalibrationMethodologyPanel rows={selectedPositionRows} estimate="high" />
@@ -1863,7 +1853,7 @@ function CeilingCalibrationPage() {
       </Panel>
 
       <div className="calibration-visual-toolbar">
-        <div><div className="panel-eyebrow">Past results</div><strong>Check the result by season or position</strong><span>Both charts use the selected method for each position.</span></div>
+        <div><div className="panel-eyebrow">Past results</div><strong>Filter by Season and position</strong></div>
         <div className="calibration-visual-filters">
           <FilterSelect label="Test season" value={seasonFilter} options={calibrationSeasonOptions} onChange={setSeasonFilter} compact />
           <FilterSelect label="Position" value={positionFilter} options={calibrationPositionOptions} onChange={setPositionFilter} compact />
@@ -1875,29 +1865,12 @@ function CeilingCalibrationPage() {
           {filteredBins.length ? <EChart option={reliabilityOption} height={330} ariaLabel="Past result comparison for the selected models" /> : <EmptyState icon={<Database size={22} />} title="No chart data" body="This filter has no position and season groups with enough past results." />}
           <Explainer>Each dot groups past results with similar high estimates. Points near the diagonal mean the estimate and final-score result are similar. Each group has at least {calibrationBinMinimum} final scores.</Explainer>
         </Panel>
-        <Panel eyebrow="Ceiling check" title="How often did scores stay at or below the ceiling?" action={<span className="calibration-panel-note">85% target</span>}>
+        <Panel className="calibration-check-panel" eyebrow="Ceiling check" title="How often did scores stay at or below the ceiling?" action={<span className="calibration-panel-note">85% target</span>}>
           {coverageRows.length ? <EChart option={coverageOption} height={330} ariaLabel="Past score coverage at or below the ceiling for the selected models" /> : <EmptyState icon={<Database size={22} />} title="No coverage data" body="This filter has no past scores to compare." />}
           <Explainer>A bar near 85% means about 85 of 100 final scores stayed at or below the high estimate.</Explainer>
         </Panel>
       </div>
 
-      <div className="two-column-grid calibration-policy-grid">
-        <Panel eyebrow="Test basis" title="Where does this result come from?">
-          <div className="calibration-data-facts calibration-evidence-summary">
-            <div><strong>{calibrationModel.oosSeasons}</strong><span>Test seasons</span></div>
-            <div><strong>{calibrationModel.positionModels}</strong><span>Positions</span></div>
-          </div>
-          <p className="calibration-copy">Each test season uses only earlier seasons for model history. A result enters the check only when the forecast and final score belong to the same player and game.</p>
-          <Explainer>This check uses {calibrationModel.oosRows.toLocaleString()} matched forecast rows. Review the result again as more seasons finish.</Explainer>
-        </Panel>
-        <Panel eyebrow="Use this result" title="What should you take away?">
-          <ul className="calibration-list">
-            <li>The high estimate is a ceiling for a group of players. It is not an exact-score prediction.</li>
-            <li>The combined result is close to the 85% target. One player can still fall above or below it.</li>
-            <li>The 70% full-range check is separate because the projection model supplies only the high estimate.</li>
-          </ul>
-        </Panel>
-      </div>
     </>
   );
 }
@@ -2059,7 +2032,7 @@ function FloorCalibrationPage() {
 
   return (
     <>
-      <SectionIntro eyebrow="Calibration" title="Do the low estimates match past scores?" status={<StatusPill label="Review target" tone="warn" />} action={<StatusPill label="PPR scoring" tone="blue" />}>We compare each low estimate with the final score from past weeks. The target is for about 15 of 100 scores to stay at or below the estimate.</SectionIntro>
+      <SectionIntro eyebrow="Calibration" title="Model Calibration" />
 
       <section className="calibration-model-card">
         <div className="calibration-model-main">
@@ -2077,21 +2050,13 @@ function FloorCalibrationPage() {
             <div><strong>{formatCalibrationPercent(floorSelectedPortfolioOverall.coverage)} of final scores stayed at or below the floor</strong><span>The target is 15%. This result uses 2024 and 2025 scores that the models did not see during training.</span></div>
           </div>
         </div>
-        <div className="calibration-model-meta">
-          <div><span>Test period</span><strong>{floorCalibrationModel.oosSeasons}</strong></div>
-          <div><span>Scores checked</span><strong>Past final scores</strong></div>
-          <div><span>Positions</span><strong>QB, RB, WR, TE</strong></div>
-          <div><span>Scoring</span><strong>{floorCalibrationModel.scoringFormat}</strong></div>
-        </div>
       </section>
 
-      <div className="calibration-model-note"><Info size={15} /><span>Scoring used here: {floorScoringContract.format}. Each reception is 1 point. This check adds no tight-end reception bonus and no receiving first-down points.</span></div>
-
       <div className="calibration-summary-grid">
-        <MetricCard label="Scores at or below floor" value={formatCalibrationPercent(floorSelectedPortfolioOverall.coverage)} detail="Goal: about 15 of 100 final scores" tone="good" icon={<Target size={17} />} />
-        <MetricCard label="Scores below floor" value={formatCalibrationPercent(floorSelectedPortfolioOverall.lowSideMissRate)} detail="The final score fell below the low estimate" tone="warn" icon={<ArrowDownRight size={17} />} />
-        <MetricCard label="Typical gap" value={formatCalibrationMetric(floorSelectedPortfolioOverall.p15Mae) + " pts"} detail="Average distance between estimate and final score" tone="neutral" icon={<Activity size={17} />} />
-        <MetricCard label="Floor miss score" value={formatCalibrationMetric(floorSelectedPortfolioOverall.pinballLoss)} detail="Weighted error for the low estimate. Lower is better." tone="good" icon={<Gauge size={17} />} />
+        <MetricCard label="Scores at or below floor" value={formatCalibrationPercent(floorSelectedPortfolioOverall.coverage)} detail="Goal: about 15 of 100 final scores" tone="good" icon={<Target size={17} />} showDetail={false} />
+        <MetricCard label="Scores below floor" value={formatCalibrationPercent(floorSelectedPortfolioOverall.lowSideMissRate)} detail="The final score fell below the low estimate" tone="warn" icon={<ArrowDownRight size={17} />} showDetail={false} />
+        <MetricCard label="Typical gap" value={formatCalibrationMetric(floorSelectedPortfolioOverall.p15Mae) + " pts"} detail="Average distance between estimate and final score" tone="neutral" icon={<Activity size={17} />} showDetail={false} />
+        <MetricCard label="Floor miss score" value={formatCalibrationMetric(floorSelectedPortfolioOverall.pinballLoss)} detail="Weighted error for the low estimate. Lower is better." tone="good" icon={<Gauge size={17} />} showDetail={false} />
       </div>
 
       <CalibrationMethodologyPanel rows={selectedPositionRows} estimate="low" />
@@ -2112,7 +2077,7 @@ function FloorCalibrationPage() {
       </Panel>
 
       <div className="calibration-visual-toolbar">
-        <div><div className="panel-eyebrow">Past results</div><strong>Check the result by season or position</strong><span>Both charts use the selected method for each position.</span></div>
+        <div><div className="panel-eyebrow">Past results</div><strong>Filter by Season and position</strong></div>
         <div className="calibration-visual-filters">
           <FilterSelect label="Test season" value={seasonFilter} options={calibrationSeasonOptions} onChange={setSeasonFilter} compact />
           <FilterSelect label="Position" value={positionFilter} options={calibrationPositionOptions} onChange={setPositionFilter} compact />
@@ -2130,23 +2095,6 @@ function FloorCalibrationPage() {
         </Panel>
       </div>
 
-      <div className="two-column-grid calibration-policy-grid">
-        <Panel eyebrow="Test basis" title="Where does this result come from?">
-          <div className="calibration-data-facts calibration-evidence-summary">
-            <div><strong>{floorCalibrationModel.oosSeasons}</strong><span>Test seasons</span></div>
-            <div><strong>{floorCalibrationModel.positionModels}</strong><span>Positions</span></div>
-          </div>
-          <p className="calibration-copy">Each test season uses only earlier seasons for model history. A result enters the check only when the forecast and final score belong to the same player and game.</p>
-          <Explainer>This check uses {floorCalibrationModel.oosRows.toLocaleString()} matched forecast rows. Review the result again as more seasons finish.</Explainer>
-        </Panel>
-        <Panel eyebrow="Use this result" title="What should you take away?">
-          <ul className="calibration-list">
-            <li>The low estimate is a floor for a group of players. It is an estimate of the lower end, not an exact-score prediction.</li>
-            <li>The combined result is above the 15% target in this backtest. Treat the floor as a conservative estimate until more seasons are tested.</li>
-            <li>The 70% full-range check is separate because the projection model supplies only the low estimate.</li>
-          </ul>
-        </Panel>
-      </div>
     </>
   );
 }

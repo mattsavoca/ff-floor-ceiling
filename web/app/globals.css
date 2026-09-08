@@ -451,12 +451,12 @@ a { color: inherit; }
 .calibration-summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
 .calibration-chart-grid { display: grid; grid-template-columns: 1.5fr 1fr 1fr; gap: 14px; margin-bottom: 14px; }
 .calibration-chart-grid > .calibration-chart-large { grid-column: span 2; }
-.calibration-chart-grid > .calibration-floor-check-panel { grid-column: 1 / -1; }
+.calibration-chart-grid > .calibration-check-panel, .calibration-chart-grid > .calibration-floor-check-panel { grid-column: 1 / -1; }
 .calibration-chart-grid > .panel { min-height: 350px; }
 .calibration-chart-grid > .panel:not(.calibration-chart-large) { min-height: 350px; }
 .calibration-chart-grid > .panel .explainer { min-height: 32px; }
 .calibration-sidebar-card > strong { color: #cfe5ef; }
-.calibration-model-card { display: grid; grid-template-columns: 1.22fr .78fr; margin-bottom: 14px; overflow: hidden; border: 1px solid #bfd1dc; border-radius: 9px; background: #fff; box-shadow: var(--shadow); }
+.calibration-model-card { display: grid; grid-template-columns: 1fr; margin-bottom: 14px; overflow: hidden; border: 1px solid #bfd1dc; border-radius: 9px; background: #fff; box-shadow: var(--shadow); }
 .calibration-model-main { padding: 19px; background: linear-gradient(135deg, #f8fbfd 0%, #eef6fa 100%); }
 .calibration-model-heading { display: grid; grid-template-columns: 38px 1fr auto; align-items: start; gap: 11px; }
 .calibration-model-heading h2 { margin: 5px 0 5px; color: var(--navy); font-size: 22px; font-weight: 790; letter-spacing: -0.035em; }
@@ -467,14 +467,8 @@ a { color: inherit; }
 .calibration-model-result > div { display: grid; gap: 3px; }
 .calibration-model-result strong { color: #246b59; font-size: 11px; }
 .calibration-model-result span { color: #5b7a73; font-size: 10px; line-height: 1.4; }
-.calibration-model-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--line-light); }
-.calibration-model-meta > div { display: grid; align-content: center; gap: 5px; min-width: 0; padding: 12px 14px; background: #fff; }
-.calibration-model-meta span { color: var(--muted); font-size: 9px; }
-.calibration-model-meta strong { overflow: hidden; color: var(--navy); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
-.calibration-model-note { display: flex; align-items: flex-start; gap: 7px; margin-bottom: 14px; padding: 11px 13px; border: 1px solid #cbdde7; border-radius: 7px; background: #f7fbfd; color: #526e7e; font-size: 10px; line-height: 1.45; }
-.calibration-model-note > svg { flex: 0 0 auto; margin-top: 1px; color: var(--action); }
 .compact-note { margin: 0 19px 16px; }
-.calibration-methodology-panel, .calibration-derivation-grid, .calibration-policy-grid { margin-bottom: 14px; }
+.calibration-methodology-panel, .calibration-derivation-grid { margin-bottom: 14px; }
 .calibration-methodology-table-wrap { margin: 0 19px 14px; overflow-x: auto; border: 1px solid var(--line-light); border-radius: 7px; }
 .calibration-methodology-table { width: 100%; border-collapse: collapse; color: var(--muted); font: 10px "SFMono-Regular", Consolas, monospace; }
 .calibration-methodology-table th, .calibration-methodology-table td { padding: 9px 10px; border-bottom: 1px solid var(--line-light); text-align: left; }
@@ -815,7 +809,6 @@ a { color: inherit; }
   .model-card-intro { grid-template-columns: 1fr; }
   .model-card-section-grid { grid-template-columns: 1fr; }
   .calibration-model-card { grid-template-columns: 1fr; }
-  .calibration-model-meta { border-top: 1px solid var(--line-light); }
   .timeline-column { order: 2; }
   .evidence-column { order: 1; }
   .roster-panel { min-height: 0; }
