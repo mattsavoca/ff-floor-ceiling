@@ -28,13 +28,11 @@ import {
   RefreshCcw,
   RotateCcw,
   Search,
-  ShieldCheck,
   SlidersHorizontal,
   Sparkles,
   Table2,
   Target,
   Upload,
-  UserRound,
   Users,
   Video,
   X,
@@ -307,9 +305,6 @@ export function FloorCeilingApp() {
   const [week, setWeek] = useState("1");
   const [monitoringSeason, setMonitoringSeason] = useState(defaultMonitoringSeason);
   const [monitoringWeek, setMonitoringWeek] = useState(defaultMonitoringWeek);
-  const [workspaceId, setWorkspaceId] = useState("ws_w1_2026_7f3a1c");
-  const [expiresAt, setExpiresAt] = useState("2026-09-07T10:00:00.000Z");
-  const [sessionMenuOpen, setSessionMenuOpen] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [upload, setUpload] = useState<UploadReport>(demoUploadReport);
   const [runState, setRunState] = useState<RunState>("Complete");
@@ -360,17 +355,12 @@ export function FloorCeilingApp() {
   useEffect(() => {
     let cancelled = false;
     async function restoreWorkspace() {
-      const storedWorkspace = window.sessionStorage.getItem("fc-workspace-id");
-      if (storedWorkspace) setWorkspaceId(storedWorkspace);
       const storedDemoOverrides = window.sessionStorage.getItem("fc-demo-overrides");
       if (storedDemoOverrides) {
         try { setOverrides(JSON.parse(storedDemoOverrides) as Record<string, OverrideSpec>); } catch { window.sessionStorage.removeItem("fc-demo-overrides"); }
       }
       const sessionResponse = await fetch("/api/session").catch(() => null);
       if (!sessionResponse?.ok || cancelled) return;
-      const sessionData = await sessionResponse.json() as { workspaceId?: string; expiresAt?: string };
-      if (sessionData.workspaceId) { setWorkspaceId(sessionData.workspaceId); window.sessionStorage.setItem("fc-workspace-id", sessionData.workspaceId); }
-      if (sessionData.expiresAt) setExpiresAt(sessionData.expiresAt);
       async function restoreUpload(uploadId: string) {
         if (!uploadId) return;
         const uploadResponse = await fetch(`/api/uploads/${uploadId}`).catch(() => null);
@@ -518,31 +508,6 @@ export function FloorCeilingApp() {
       setMobileNavOpen(false);
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
-  }
-
-  function resetWorkspace() {
-    setOverrides({});
-    setOverrideHistory([]);
-    setLiveOverrideSet(null);
-    setLiveRows([]);
-    setLiveUploadId("");
-    setSourceInputRevision("");
-    setSourceFile(null);
-    setActiveRunId("");
-    setResultRunId("");
-    setRunFailure(null);
-    setDataMode("demo");
-    setUpload(demoUploadReport);
-    setUploadErrors([]);
-    setRunState("Complete");
-    setRunId("run_w1_2026_7f3a");
-    setMonitoringSeason(defaultMonitoringSeason);
-    setMonitoringWeek(defaultMonitoringWeek);
-    window.sessionStorage.removeItem("fc-active-run-id");
-    setSimulationCount(String(DEFAULT_SIMULATION_COUNT));
-    setProjectionSearch("");
-    setToast("The temporary workspace now shows the public demonstration.");
-    setSessionMenuOpen(false);
   }
 
   async function handleFile(file: File, selectedSetId?: string) {
@@ -793,11 +758,11 @@ export function FloorCeilingApp() {
         <div className="sidebar-label">Workspace</div>
         <nav className="primary-nav" aria-label="Primary navigation">{navItems.map((item) => { const Icon = item.icon; return <button type="button" key={item.id} onClick={() => navigate(item.id)} className={cx("nav-item", activeTab === item.id && "nav-item-active")}><Icon size={18} /><span><strong>{item.label}</strong></span>{activeTab === item.id ? <ChevronRight size={16} className="nav-arrow" /> : null}</button>; })}</nav>
         <div className="sidebar-spacer" />
-        <div className="sidebar-footer"><div className="privacy-note"><LockKeyhole size={13} /> Temporary data stays in this browser.</div></div>
+        <div className="sidebar-footer"><div className="privacy-note"><LockKeyhole size={13} /> Proj. changes are client-side</div></div>
       </aside>
       {mobileNavOpen ? <button className="nav-scrim" type="button" onClick={() => setMobileNavOpen(false)} aria-label="Close navigation" /> : null}
       <main className="main-area">
-        <header className={cx("topbar", activeTab === "projection" && "projection-topbar")}><div className="mobile-brand"><button type="button" className="menu-button" onClick={() => setMobileNavOpen(true)} aria-label="Open navigation"><Menu size={20} /></button><span>Floor &amp; Ceiling</span></div><div className="topbar-context"><span className="topbar-kicker">{activeTab === "calibration" ? "Calibration" : "Forecast workspace"}</span><span className="topbar-separator">/</span><strong>{activeTab === "calibration" ? calibrationModel.shortName : `${displayedSeason} · Week ${displayedWeek}`}</strong></div><div className="topbar-actions"><span className="saved-state"><span className="saved-dot" /> Saved locally</span><button type="button" className="session-button" onClick={() => setSessionMenuOpen((open) => !open)}><span className="session-avatar"><UserRound size={14} /></span><span>{shortId(workspaceId)}</span><ChevronDown size={14} /></button>{sessionMenuOpen ? <div className="session-menu"><div className="session-menu-heading"><span className="session-avatar large"><UserRound size={16} /></span><div><strong>Temporary workspace</strong><span>{shortId(workspaceId)}</span></div></div><div className="session-menu-row"><Clock3 size={15} /><span>Expires {formatRelativeTime(expiresAt)}</span></div><div className="session-menu-row"><ShieldCheck size={15} /><span>Private to this browser</span></div><div className="session-menu-divider" /><Button variant="quiet" onClick={resetWorkspace} icon={<RotateCcw size={15} />}>Reset workspace</Button><p>Download work before the session expires. Lost or expired data cannot be recovered.</p></div> : null}</div></header>
+        <header className={cx("topbar", activeTab === "projection" && "projection-topbar")}><div className="mobile-brand"><button type="button" className="menu-button" onClick={() => setMobileNavOpen(true)} aria-label="Open navigation"><Menu size={20} /></button><span>Floor &amp; Ceiling</span></div><div className="topbar-context"><span className="topbar-kicker">{activeTab === "calibration" ? "Calibration" : "Forecast workspace"}</span><span className="topbar-separator">/</span><strong>{activeTab === "calibration" ? calibrationModel.shortName : `${displayedSeason} · Week ${displayedWeek}`}</strong></div></header>
         {activeTab === "overview" || activeTab === "projection" || activeTab === "overrides" ? <ContextStrip season={monitoringSeason} week={monitoringWeek} onSeason={updateContextSeason} onWeek={updateContextWeek} onNavigateOverview={() => navigate("overview")} /> : null}
         <div className="page-content">
           {activeTab === "video-submission" ? <VideoSubmissionPage /> : null}
@@ -817,7 +782,6 @@ export function FloorCeilingApp() {
             setToast(`Copied ${data.report?.copiedPlayerIds.length ?? 0} overrides. ${unmatched.length} source IDs were unmatched${unmatched.length ? `: ${unmatched.slice(0, 8).join(", ")}${unmatched.length > 8 ? ", ..." : ""}` : ""}.`);
           }} /> : null}
         </div>
-        <footer className="app-footer"><span><Database size={14} /> Public evidence build · v0.1</span><span>Last data check Aug 31, 2026</span><a href="#methodology" onClick={(event) => { event.preventDefault(); navigate("methodology"); }}>How to read this site <ChevronRight size={13} /></a></footer>
       </main>
       {toast ? <div className="toast" role="status"><CheckCircle2 size={17} /><span>{toast}</span><button type="button" onClick={() => setToast(null)} aria-label="Dismiss message"><X size={15} /></button></div> : null}
     </div>
@@ -1562,10 +1526,6 @@ function MethodologyPage() {
   const choiceIsCeiling = choiceView === "ceiling";
   const choiceRows = choiceIsCeiling ? positionModelSelections : floorPositionModelSelections;
   const choicePercentile = choiceIsCeiling ? "p85" : "p15";
-  const choiceCoverageRange = choiceIsCeiling ? "80% to 90%" : "10% to 20%";
-  const choiceEstimate = choiceIsCeiling ? "ceiling" : "floor";
-  const choiceMissDirection = choiceIsCeiling ? "low" : "high";
-  const choiceOtherDirection = choiceIsCeiling ? "high" : "low";
   const modelBadge = (model: "ffsimulator" | "XGBoost") => <span className={cx("methodology-model-badge", model === "ffsimulator" ? "methodology-model-badge-simulation" : "methodology-model-badge-xgboost")}>{model}</span>;
 
   return (
@@ -1615,7 +1575,7 @@ function MethodologyPage() {
       </div>
 
       <Panel className="methodology-choice-panel" eyebrow="Model choice" title="Positional Model Selection">
-        <div className="methodology-choice-copy"><p>The table shows the best historical method for each percentile. The live web result uses the v2 XGBoost booster for all three percentiles and keeps ffsimulator as a diagnostic baseline.</p><ol className="methodology-choice-rules"><li><strong>Coverage first.</strong> A candidate survives only if {choiceCoverageRange} of actual scores land at or below its {choicePercentile}.</li><li><strong>Then pinball loss.</strong> Lowest wins. The loss punishes a {choiceEstimate} set too {choiceMissDirection} harder than one set too {choiceOtherDirection}, which is what you want from a {choiceEstimate}.</li></ol></div>
+        <div className="methodology-choice-copy"><p><strong>Coverage:</strong> Share of actual scores at or below the predicted quantile.</p><p><strong>Pinball loss:</strong> Quantile error in PPR points. Lower is better.</p></div>
         <div className="calibration-subnav methodology-choice-toggle" role="tablist" aria-label="Model choice estimate"><button type="button" role="tab" aria-selected={choiceIsCeiling} className={cx(choiceIsCeiling && "active")} onClick={() => setChoiceView("ceiling")}>Ceiling / P85</button><button type="button" role="tab" aria-selected={!choiceIsCeiling} className={cx(!choiceIsCeiling && "active")} onClick={() => setChoiceView("floor")}>Floor / P15</button></div>
         <div className="methodology-choice-table-wrap"><table className="methodology-choice-table"><caption className="sr-only">Held-out {choicePercentile} coverage and pinball loss by position</caption><thead><tr><th rowSpan={2}>Position</th><th colSpan={2}>ffsimulator</th><th colSpan={2}>XGBoost</th><th rowSpan={2}>Selected</th></tr><tr><th>Coverage</th><th>Loss</th><th>Coverage</th><th>Loss</th></tr></thead><tbody>{choiceRows.map((row) => <tr key={row.position}><th scope="row"><span className="position-chip">{row.position}</span></th><td>{formatCalibrationPercent(row.ffsimulatorCoverage)}</td><td>{formatCalibrationMetric(row.ffsimulatorPinballLoss)}</td><td>{formatCalibrationPercent(row.xgbCoverage)}</td><td>{formatCalibrationMetric(row.xgbPinballLoss)}</td><td>{modelBadge(row.selectedModel)}</td></tr>)}</tbody></table></div>
         <Explainer>Held-out results, not this week&apos;s forecast. A new completed season can change a pick. Until then it&apos;s frozen.</Explainer>
@@ -1625,7 +1585,7 @@ function MethodologyPage() {
       <P85ModelCard />
       <P15ModelCard />
 
-      <div id="methodology-source-map"><Panel className="methodology-sources-panel" eyebrow="Source map" title="Where to inspect the implementation"><div className="methodology-source-grid"><div><strong>Diagnostic simulation</strong><code>R/01_rankings.R</code><code>R/02_ffsimulator.R</code><code>R/03_summaries.R</code><small>Ranking normalization, draws, and diagnostic percentiles.</small></div><div><strong>Active XGBoost v2</strong><code>scripts/15_xgb_v2_quantile_projection.py</code><code>scripts/10_build_calibration_page_data.py</code><code>services/model-worker/predict_service_v2.py</code><small>Multi-quantile training, calibration data, and serving checks.</small></div><div><strong>Release evidence</strong><code>backtest_fbg_2023_2025/outputs/xgb_v2_quantile_projection/metadata.json</code><code>backtest_fbg_2023_2025/outputs/xgb_v2_quantile_projection/comparison_report.md</code><code>docs/ml_model_card_xgb_v2.md</code><small>Features, training seasons, validation result, comparisons, identity audit, and model limits.</small></div></div><Explainer>Private uploads and temporary session records do not enter the published calibration data.</Explainer></Panel></div>
+      <a className="methodology-github-link" href="https://github.com/mattsavoca/ff-floor-ceiling" target="_blank" rel="noreferrer">View project on GitHub</a>
     </>
   );
 }
@@ -1831,11 +1791,6 @@ function CeilingCalibrationPage() {
     method: String(row.selectedModel) === "ffsimulator" ? "Simulation" : "Projection model",
   }));
 
-  const chartScope = [
-    seasonFilter === "All test seasons" ? "2024 and 2025" : seasonFilter,
-    positionFilter === "All positions" ? "all positions" : positionFilter,
-  ].join(" · ");
-
   return (
     <>
       <SectionIntro eyebrow="Calibration" title="Model Calibration" />
@@ -1867,7 +1822,7 @@ function CeilingCalibrationPage() {
 
       <CalibrationMethodologyPanel rows={selectedPositionRows} estimate="high" />
 
-      <Panel className="calibration-scorecard-panel" eyebrow="Method by position" title="Which method do we use?" action={<span className="calibration-panel-note">85% target</span>}>
+      <Panel className="calibration-scorecard-panel" eyebrow="Method by position" title="Which method do we use?">
         <DataTable
           data={selectedPositionRows}
           columns={[
@@ -1891,11 +1846,11 @@ function CeilingCalibrationPage() {
       </div>
 
       <div className="calibration-chart-grid calibration-oos-charts">
-        <Panel className="calibration-chart-large" eyebrow="Estimate vs final score" title="Do high estimates match final scores?" action={<span className="calibration-panel-note">{chartScope}</span>}>
+        <Panel className="calibration-chart-large" eyebrow="Estimate vs final score" title="Do high estimates match final scores?">
           {filteredBins.length ? <EChart option={reliabilityOption} height={330} ariaLabel="Past result comparison for the selected models" /> : <EmptyState icon={<Database size={22} />} title="No chart data" body="This filter has no position and season groups with enough past results." />}
           <Explainer>Each dot groups past results with similar high estimates. Points near the diagonal mean the estimate and final-score result are similar. Each group has at least {calibrationBinMinimum} final scores.</Explainer>
         </Panel>
-        <Panel className="calibration-check-panel" eyebrow="Ceiling check" title="How often did scores stay at or below the ceiling?" action={<span className="calibration-panel-note">85% target</span>}>
+        <Panel className="calibration-check-panel" eyebrow="Ceiling check" title="How often did scores stay at or below the ceiling?">
           {coverageRows.length ? <EChart option={coverageOption} height={330} ariaLabel="Past score coverage at or below the ceiling for the selected models" /> : <EmptyState icon={<Database size={22} />} title="No coverage data" body="This filter has no past scores to compare." />}
           <Explainer>A bar near 85% means about 85 of 100 final scores stayed at or below the high estimate.</Explainer>
         </Panel>
@@ -2055,11 +2010,6 @@ function FloorCalibrationPage() {
     method: row.selectedModel === "ffsimulator" ? "Simulation" : "Projection model",
   }));
 
-  const chartScope = [
-    seasonFilter === "All test seasons" ? "2024 and 2025" : seasonFilter,
-    positionFilter === "All positions" ? "all positions" : positionFilter,
-  ].join(" · ");
-
   return (
     <>
       <SectionIntro eyebrow="Calibration" title="Model Calibration" />
@@ -2091,7 +2041,7 @@ function FloorCalibrationPage() {
 
       <CalibrationMethodologyPanel rows={selectedPositionRows} estimate="low" />
 
-      <Panel className="calibration-scorecard-panel" eyebrow="Method by position" title="Which method do we use?" action={<span className="calibration-panel-note">15% target</span>}>
+      <Panel className="calibration-scorecard-panel" eyebrow="Method by position" title="Which method do we use?">
         <DataTable
           data={selectedPositionRows}
           columns={[
@@ -2115,11 +2065,11 @@ function FloorCalibrationPage() {
       </div>
 
       <div className="calibration-chart-grid calibration-oos-charts">
-        <Panel className="calibration-chart-large" eyebrow="Estimate vs final score" title="Do low estimates match final scores?" action={<span className="calibration-panel-note">{chartScope}</span>}>
+        <Panel className="calibration-chart-large" eyebrow="Estimate vs final score" title="Do low estimates match final scores?">
           {filteredBins.length ? <EChart option={reliabilityOption} height={330} ariaLabel="Past result comparison for the selected floor models" /> : <EmptyState icon={<Database size={22} />} title="No chart data" body="This filter has no position and season groups with enough past results." />}
           <Explainer>Each dot groups past results with similar low estimates. Points near the diagonal mean the estimate and final-score result are similar. Each group has at least {floorCalibrationBinMinimum} final scores.</Explainer>
         </Panel>
-        <Panel className="calibration-floor-check-panel" eyebrow="Floor check" title="How often did scores stay at or below the floor?" action={<span className="calibration-panel-note">15% target</span>}>
+        <Panel className="calibration-floor-check-panel" eyebrow="Floor check" title="How often did scores stay at or below the floor?">
           {coverageRows.length ? <EChart option={coverageOption} height={330} ariaLabel="Past score coverage at or below the floor for the selected models" /> : <EmptyState icon={<Database size={22} />} title="No coverage data" body="This filter has no past scores to compare." />}
           <Explainer>A bar near 15% means about 15 of 100 final scores stayed at or below the low estimate.</Explainer>
         </Panel>
