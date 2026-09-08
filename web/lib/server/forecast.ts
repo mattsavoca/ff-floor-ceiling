@@ -3,18 +3,15 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
-import type { ForecastResult, ForecastResultRow, ForecastModelStatus } from "../types";
-import { buildFeatureRows, FEATURE_VERSION, groupServingFeatures, MissingFeatureError, MODEL_POSITIONS, type ServingFeatureRow } from "./features";
+import type { ForecastModelStatus, ForecastResult, ForecastResultRowV3 } from "../types";
+import { FEATURE_VERSION, MODEL_ARTIFACT_VERSION, MODEL_ENDPOINT_PATH, MODEL_OBJECTIVE, MODEL_POSITIONS, MODEL_TARGET, MODEL_TRAINING_SEASONS, MODEL_VALIDATION_RESULT, METRIC_DEFINITION_VERSION, QUANTILE_LEVELS, RANGE_POLICY_VERSION, RESULT_SCHEMA_VERSION, SCORING_CONTRACT_VERSION, SCORING_FORMAT, XGBOOST_VERSION, MODEL_RELEASE } from "../model-release";
+import { buildFeatureRowsV2, groupServingFeaturesV2, MissingFeatureError, type ServingFeatureRowV2 } from "./features-v2";
 import { joinRankUncertainty, loadRankReferenceSnapshot, type RankedProjectionRow } from "./rank-reference";
 import { attachOpponents, canonicalTeam } from "./schedule";
 import { type ExternalModelCall, store, type RunFailure, type RunRecord } from "./store";
 
-export const SCORING_CONTRACT_VERSION = "ppr_v1";
-export const METRIC_DEFINITION_VERSION = "ppr_v1_projection_formula";
-export const MODEL_RELEASE = "forecast-ppr-v1";
+export { FEATURE_VERSION, MODEL_ARTIFACT_VERSION, MODEL_ENDPOINT_PATH, MODEL_OBJECTIVE, MODEL_POSITIONS, MODEL_TARGET, MODEL_TRAINING_SEASONS, MODEL_VALIDATION_RESULT, METRIC_DEFINITION_VERSION, QUANTILE_LEVELS, RANGE_POLICY_VERSION, RESULT_SCHEMA_VERSION, SCORING_CONTRACT_VERSION, SCORING_FORMAT, XGBOOST_VERSION, MODEL_RELEASE };
 export const MAX_SERVICE_RETRIES = 2;
-
-type Quantile = "p15" | "p85";
 
 type FfsimulatorRow = {
   stable_player_id: string;
@@ -37,16 +34,25 @@ type FfsimulatorResponse = {
   rows: FfsimulatorRow[];
 };
 
-type PredictionResponse = {
+type PredictionResponseV2 = {
+  schema_version: "model-prediction.v2";
   model_release: string;
   feature_version: string;
   scoring_contract_version: string;
-  quantile: Quantile;
+  quantile_output_columns: { "0": "p15"; "1": "p50"; "2": "p85" };
+  prediction_call_count: number;
+  quantile_crossing_count: number;
+  quantile_crossing_player_ids: string[];
   position: string;
   season: number;
   week: number;
+  model_target_season: number;
+  model_artifact_version: string;
+  feature_names: string[];
   prediction_count: number;
-  predictions: Array<{ stable_player_id: string; p15?: number; p85?: number }>;
+  negative_prediction_count: number;
+  negative_prediction_player_ids: string[];
+  predictions: Array<{ stable_player_id: string; p15: number; p50: number; p85: number }>;
 };
 
 class ForecastError extends Error {
@@ -189,15 +195,25 @@ function validateFfsimulator(response: FfsimulatorResponse, rows: RankedProjecti
   if (missing.length) throw new ForecastError("The ffsimulator omitted accepted player IDs.", { affectedPlayerIds: missing });
 }
 
-function validateModelResponse(response: PredictionResponse, expectedRows: ServingFeatureRow[], quantile: Quantile, position: string, season: number, week: number) {
-  if (response.model_release !== MODEL_RELEASE || response.feature_version !== FEATURE_VERSION || response.scoring_contract_version !== SCORING_CONTRACT_VERSION) {
-    throw new ForecastError("The model response metadata does not match the requested release.", { affectedPosition: position, serviceResponse: response, nextAction: "Deploy the matching model release and retry." });
+function validateModelResponse(response: PredictionResponseV2, expectedRows: ServingFeatureRowV2[], position: string, season: number, week: number) {
+  const expectedFeatures = Object.keys(expectedRows[0]?.features ?? {});
+  if (response.schema_version !== "model-prediction.v2" || response.model_release !== MODEL_RELEASE || response.model_artifact_version !== MODEL_ARTIFACT_VERSION || response.feature_version !== FEATURE_VERSION || response.scoring_contract_version !== SCORING_CONTRACT_VERSION) {
+    throw new ForecastError("The model response metadata does not match the requested v2 release.", { affectedPosition: position, serviceResponse: response, nextAction: "Deploy the matching model release and retry." });
   }
-  if (response.quantile !== quantile || response.position !== position || response.season !== season || response.week !== week) {
-    throw new ForecastError("The model response context does not match the run.", { affectedPosition: position, serviceResponse: response });
+  if (response.position !== position || response.season !== season || response.week !== week || response.prediction_call_count !== 1) {
+    throw new ForecastError("The model response context or prediction-call contract does not match the run.", { affectedPosition: position, serviceResponse: response });
+  }
+  if (JSON.stringify(response.quantile_output_columns) !== JSON.stringify({ "0": "p15", "1": "p50", "2": "p85" }) || JSON.stringify(response.feature_names) !== JSON.stringify(expectedFeatures)) {
+    throw new ForecastError("The model response feature or quantile columns do not match the v2 contract.", { affectedPosition: position, serviceResponse: response, nextAction: "Deploy the matching feature metadata and retry." });
   }
   if (response.prediction_count !== expectedRows.length || response.predictions.length !== expectedRows.length) {
     throw new ForecastError("The model response count does not match the request.", { affectedPosition: position, serviceResponse: response });
+  }
+  if (response.quantile_crossing_count !== 0 || response.quantile_crossing_player_ids.length > 0) {
+    throw new ForecastError("The v2 model returned a quantile crossing.", { affectedPlayerIds: response.quantile_crossing_player_ids, affectedPosition: position, serviceResponse: response, nextAction: "Review the raw quantile output before retrying the run." });
+  }
+  if (response.negative_prediction_count !== 0 || response.negative_prediction_player_ids.length > 0) {
+    throw new ForecastError("The v2 model returned a negative prediction.", { affectedPlayerIds: response.negative_prediction_player_ids, affectedPosition: position, serviceResponse: response, nextAction: "Review the raw model output before retrying the run." });
   }
   const expected = new Set(expectedRows.map((row) => row.stablePlayerId));
   const seen = new Set<string>();
@@ -205,17 +221,18 @@ function validateModelResponse(response: PredictionResponse, expectedRows: Servi
     if (!expected.has(prediction.stable_player_id)) throw new ForecastError(`The model returned an unknown player ID: ${prediction.stable_player_id}.`, { affectedPlayerIds: [prediction.stable_player_id], affectedPosition: position, serviceResponse: response });
     if (seen.has(prediction.stable_player_id)) throw new ForecastError(`The model returned a duplicate player ID: ${prediction.stable_player_id}.`, { affectedPlayerIds: [prediction.stable_player_id], affectedPosition: position, serviceResponse: response });
     seen.add(prediction.stable_player_id);
-    const value = prediction[quantile];
-    if (!Number.isFinite(value)) throw new ForecastError(`The model returned no finite ${quantile} value for ${prediction.stable_player_id}.`, { affectedPlayerIds: [prediction.stable_player_id], affectedPosition: position, serviceResponse: response });
+    const values = [prediction.p15, prediction.p50, prediction.p85];
+    if (values.some((value) => !Number.isFinite(value) || value < 0)) throw new ForecastError(`The model returned an invalid non-negative quantile set for ${prediction.stable_player_id}.`, { affectedPlayerIds: [prediction.stable_player_id], affectedPosition: position, serviceResponse: response });
+    if (prediction.p15 > prediction.p50 || prediction.p50 > prediction.p85) throw new ForecastError(`The model returned an out-of-order quantile set for ${prediction.stable_player_id}.`, { affectedPlayerIds: [prediction.stable_player_id], affectedPosition: position, serviceResponse: response });
   }
   const missing = expectedRows.map((row) => row.stablePlayerId).filter((id) => !seen.has(id));
   if (missing.length) throw new ForecastError("The model omitted accepted player IDs.", { affectedPlayerIds: missing, affectedPosition: position, serviceResponse: response });
 }
 
-async function callModelService(quantile: Quantile, position: string, season: number, week: number, rows: ServingFeatureRow[], run: RunRecord, calls: ExternalModelCall[]) {
+async function callModelService(position: string, season: number, week: number, rows: ServingFeatureRowV2[], run: RunRecord, calls: ExternalModelCall[]) {
   const startedAt = Date.now();
   const baseUrl = inferenceServiceBaseUrl();
-  const endpoint = baseUrl ? `${baseUrl}/v1/models/${quantile}/predict` : `local://services/model-worker/predict_service.py/v1/models/${quantile}/predict`;
+  const endpoint = baseUrl ? `${baseUrl}${MODEL_ENDPOINT_PATH}` : `local://services/model-worker/predict_service_v2.py${MODEL_ENDPOINT_PATH}`;
   let attempts = 0;
   let lastError: unknown;
   const requestBody = JSON.stringify({
@@ -230,31 +247,31 @@ async function callModelService(quantile: Quantile, position: string, season: nu
   for (let attempt = 0; attempt <= MAX_SERVICE_RETRIES; attempt += 1) {
     attempts = attempt + 1;
     try {
-      let response: PredictionResponse;
+      let response: PredictionResponseV2;
       if (baseUrl) {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 45_000);
         try {
           const httpResponse = await fetch(endpoint, { method: "POST", headers: inferenceHeaders(), body: requestBody, signal: controller.signal });
-          const body = await httpResponse.json() as PredictionResponse | Record<string, unknown>;
-          if (!httpResponse.ok) throw new ForecastError(`The ${quantile} model service rejected the request.`, { affectedPosition: position, serviceResponse: body, retryable: httpResponse.status === 408 || httpResponse.status === 429 || httpResponse.status >= 500, nextAction: "Retry the run after checking the model service response." });
-          response = body as PredictionResponse;
+          const body = await httpResponse.json() as PredictionResponseV2 | Record<string, unknown>;
+          if (!httpResponse.ok) throw new ForecastError("The v2 model service rejected the request.", { affectedPosition: position, serviceResponse: body, retryable: httpResponse.status === 408 || httpResponse.status === 429 || httpResponse.status >= 500, nextAction: "Retry the run after checking the model service response." });
+          response = body as PredictionResponseV2;
         } catch (error) {
           if (error instanceof ForecastError) throw error;
-          throw new ForecastError(`The ${quantile} model service could not be reached.`, { affectedPosition: position, serviceResponse: String(error), retryable: true, nextAction: "Retry the run. If the timeout repeats, inspect the model service." });
+          throw new ForecastError("The v2 model service could not be reached.", { affectedPosition: position, serviceResponse: String(error), retryable: true, nextAction: "Retry the run. If the timeout repeats, inspect the model service." });
         } finally {
           clearTimeout(timeout);
         }
       } else {
         const root = projectRoot();
         const python = process.env.PYTHON_EXECUTABLE ?? (process.platform === "win32" ? "python" : "python3");
-        const script = path.resolve(root, "services", "model-worker", "predict_service.py");
-        const modelRoot = path.resolve(root, "backtest_fbg_2023_2025", "outputs", `xgb_${quantile}_projection`);
-        const output = await spawnProcess(python, [script, "--quantile", quantile, "--once", "--release", MODEL_RELEASE, "--model-root", modelRoot], { cwd: root, input: requestBody, timeoutMs: 45_000 });
-        response = parseJsonOutput<PredictionResponse>(output.stdout, `${quantile} model service`);
+        const script = path.resolve(root, "services", "model-worker", "predict_service_v2.py");
+        const modelRoot = path.resolve(root, "backtest_fbg_2023_2025", "outputs", "xgb_v2_quantile_projection");
+        const output = await spawnProcess(python, [script, "--model-root", modelRoot, "--release", MODEL_RELEASE, "--once"], { cwd: root, input: requestBody, timeoutMs: 45_000 });
+        response = parseJsonOutput<PredictionResponseV2>(output.stdout, "v2 model service");
       }
-      validateModelResponse(response, rows, quantile, position, season, week);
-      const call: ExternalModelCall = { model: quantile === "p15" ? "xgb_p15" : "xgb_p85", position: position as "RB" | "WR" | "TE", endpoint, attempts, status: "complete", elapsedMs: Date.now() - startedAt, predictionCount: response.predictions.length };
+      validateModelResponse(response, rows, position, season, week);
+      const call: ExternalModelCall = { model: "xgb_multi_quantile", position: position as "QB" | "RB" | "WR" | "TE", endpoint, attempts, status: "complete", elapsedMs: Date.now() - startedAt, predictionCount: response.predictions.length };
       calls.push(call);
       await store.updateRun(run.workspaceId, run.runId, { externalModelCalls: calls.slice() });
       return response;
@@ -265,8 +282,8 @@ async function callModelService(quantile: Quantile, position: string, season: nu
       break;
     }
   }
-  const finalError = lastError instanceof ForecastError ? lastError : new ForecastError(`${quantile} model service failed.`, { affectedPosition: position, serviceResponse: String(lastError), nextAction: "Retry the run after checking the model service." });
-  const call: ExternalModelCall = { model: quantile === "p15" ? "xgb_p15" : "xgb_p85", position: position as "RB" | "WR" | "TE", endpoint, attempts, status: "failed", elapsedMs: Date.now() - startedAt };
+  const finalError = lastError instanceof ForecastError ? lastError : new ForecastError("The v2 model service failed.", { affectedPosition: position, serviceResponse: String(lastError), nextAction: "Retry the run after checking the model service." });
+  const call: ExternalModelCall = { model: "xgb_multi_quantile", position: position as "QB" | "RB" | "WR" | "TE", endpoint, attempts, status: "failed", elapsedMs: Date.now() - startedAt };
   calls.push(call);
   await store.updateRun(run.workspaceId, run.runId, { externalModelCalls: calls.slice() });
   throw finalError;
@@ -344,11 +361,11 @@ async function runFfsimulator(rows: RankedProjectionRow[], run: RunRecord, tempo
   return parseJsonOutput<FfsimulatorResponse>(await readFile(outputPath, "utf8"), "ffsimulator");
 }
 
-function modelStatus(status: ForecastModelStatus["status"], release?: string, featureVersion?: string, predictionCount?: number, error?: string): ForecastModelStatus {
-  return { status, release, featureVersion, predictionCount, error };
+function modelStatus(status: ForecastModelStatus["status"], release?: string, featureVersion?: string, predictionCount?: number, error?: string, details: Partial<ForecastModelStatus> = {}): ForecastModelStatus {
+  return { status, release, featureVersion, predictionCount, error, ...details };
 }
 
-function makeCombinedRows(rows: RankedProjectionRow[], ffsim: FfsimulatorResponse, predictions: Map<string, { p15: number; p85: number }>, run: RunRecord, opponentByTeam: Map<string, { opponent: string; gameId: string }>) {
+function makeCombinedRows(rows: RankedProjectionRow[], ffsim: FfsimulatorResponse, predictions: Map<string, { p15: number; p50: number; p85: number }>, run: RunRecord, opponentByTeam: Map<string, { opponent: string; gameId: string }>) {
   const ffsimById = new Map(ffsim.rows.map((row) => [row.stable_player_id, row]));
   return rows.map((row) => {
     const simulation = ffsimById.get(row.stablePlayerId);
@@ -356,17 +373,17 @@ function makeCombinedRows(rows: RankedProjectionRow[], ffsim: FfsimulatorRespons
     const matchup = opponentByTeam.get(canonicalTeam(row.team));
     if (!matchup) throw new ForecastError(`The combined result is missing the approved matchup for ${row.stablePlayerId}.`, { affectedPlayerIds: [row.stablePlayerId] });
     const modelValues = predictions.get(row.stablePlayerId);
-    const floor = row.position === "QB" ? simulation.p15 : modelValues?.p15;
-    const average = row.position === "QB" ? simulation.mean : row.csvProjection;
-    const median = simulation.p50;
-    const ceiling = row.position === "QB" ? simulation.p85 : modelValues?.p85;
+    const floor = modelValues?.p15 ?? Number.NaN;
+    const average = row.csvProjection;
+    const median = modelValues?.p50 ?? Number.NaN;
+    const ceiling = modelValues?.p85 ?? Number.NaN;
     if (![floor, average, median, ceiling].every((value) => Number.isFinite(value))) {
       throw new ForecastError(`The combined result is incomplete for ${row.stablePlayerId}.`, { affectedPlayerIds: [row.stablePlayerId] });
     }
     if ((floor as number) > median || median > (ceiling as number)) {
       throw new ForecastError(`The combined range order is invalid for ${row.stablePlayerId}: floor=${floor}, median=${median}, ceiling=${ceiling}.`, { affectedPlayerIds: [row.stablePlayerId] });
     }
-    const result: ForecastResultRow = {
+    const result: ForecastResultRowV3 = {
       stablePlayerId: row.stablePlayerId,
       playerName: row.playerName,
       position: row.position,
@@ -387,29 +404,28 @@ function makeCombinedRows(rows: RankedProjectionRow[], ffsim: FfsimulatorRespons
       ffsimP85: simulation.p85,
       ffsimZeroRate: simulation.probability_zero,
       ffsimActiveRate: simulation.probability_active,
-      xgbP15: row.position === "QB" ? null : modelValues?.p15 ?? null,
-      xgbP85: row.position === "QB" ? null : modelValues?.p85 ?? null,
+      xgbP15: modelValues?.p15 ?? 0,
+      xgbP50: modelValues?.p50 ?? 0,
+      xgbP85: modelValues?.p85 ?? 0,
       floor: floor as number,
       average: average as number,
       median,
       ceiling: ceiling as number,
       rangeWidth: (ceiling as number) - (floor as number),
-      valueSources: row.position === "QB"
-        ? { floor: "ffsimulator p15", average: "ffsimulator mean", median: "ffsimulator p50", ceiling: "ffsimulator p85" }
-        : { floor: "XGBoost p15", average: "CSV PPR projection", median: "ffsimulator p50", ceiling: "XGBoost p85" },
+      valueSources: { floor: "XGBoost p15", average: "CSV PPR projection", median: "XGBoost p50", ceiling: "XGBoost p85" },
     };
     return result;
   });
 }
 
-function validateCombinedRows(rows: ForecastResultRow[], acceptedRows: RankedProjectionRow[]) {
+function validateCombinedRows(rows: ForecastResultRowV3[], acceptedRows: RankedProjectionRow[]) {
   const acceptedIds = acceptedRows.map((row) => row.stablePlayerId);
   if (rows.length !== acceptedRows.length) throw new ForecastError("The combined output count does not match the accepted input count.");
   if (new Set(rows.map((row) => row.stablePlayerId)).size !== rows.length) throw new ForecastError("The combined output contains duplicate player IDs.");
   const outputIds = rows.map((row) => row.stablePlayerId);
   if (outputIds.some((id, index) => id !== acceptedIds[index])) throw new ForecastError("The combined output changed the uploaded source order.");
   for (const row of rows) {
-    if (![row.floor, row.average, row.median, row.ceiling].every((value) => Number.isFinite(value) && value >= 0) || row.floor > row.median || row.median > row.ceiling) {
+    if (![row.floor, row.average, row.median, row.ceiling, row.xgbP15, row.xgbP50, row.xgbP85].every((value) => Number.isFinite(value) && value >= 0) || row.floor > row.median || row.median > row.ceiling || row.xgbP15 > row.xgbP50 || row.xgbP50 > row.xgbP85) {
       throw new ForecastError(`The combined output has an invalid range for ${row.stablePlayerId}.`, { affectedPlayerIds: [row.stablePlayerId] });
     }
   }
@@ -446,41 +462,52 @@ export async function processRun(runId: string, workspaceId: string) {
     const ffsimulator = await runFfsimulator(rankedRows, run, temporaryDirectory);
     validateFfsimulator(ffsimulator, rankedRows, run.simulationCount, run.week, run.seed);
     await updateStage("building_model_features");
-    const servingRows = buildFeatureRows(rankedRows, run.week);
-    const predictions = new Map<string, { p15: number; p85: number }>();
-    const groups = groupServingFeatures(servingRows);
+    const servingRows = buildFeatureRowsV2(rankedRows, run.week);
+    const predictions = new Map<string, { p15: number; p50: number; p85: number }>();
+    const groups = groupServingFeaturesV2(servingRows);
     for (const position of MODEL_POSITIONS) {
       const positionRows = groups.get(position) ?? [];
       if (!positionRows.length) continue;
-      await updateStage(`running_xgb_p15_${position.toLowerCase()}`);
-      const p15Response = await callModelService("p15", position, run.season, run.week, positionRows, run, calls);
-      await updateStage(`running_xgb_p85_${position.toLowerCase()}`);
-      const p85Response = await callModelService("p85", position, run.season, run.week, positionRows, run, calls);
-      const p85ById = new Map(p85Response.predictions.map((prediction) => [prediction.stable_player_id, prediction.p85 as number]));
-      for (const prediction of p15Response.predictions) {
-        const p85 = p85ById.get(prediction.stable_player_id);
-        if (!Number.isFinite(prediction.p15) || !Number.isFinite(p85)) throw new ForecastError(`The XGBoost result is incomplete for ${prediction.stable_player_id}.`, { affectedPlayerIds: [prediction.stable_player_id], affectedPosition: position });
-        predictions.set(prediction.stable_player_id, { p15: prediction.p15 as number, p85: p85 as number });
+      await updateStage(`running_xgb_multi_quantile_${position.toLowerCase()}`);
+      const response = await callModelService(position, run.season, run.week, positionRows, run, calls);
+      for (const prediction of response.predictions) {
+        predictions.set(prediction.stable_player_id, { p15: prediction.p15, p50: prediction.p50, p85: prediction.p85 });
       }
     }
     await updateStage("validating_combined_result");
     const combinedRows = makeCombinedRows(rankedRows, ffsimulator, predictions, run, opponentByTeam);
     validateCombinedRows(combinedRows, rankedRows);
     const completedAt = new Date().toISOString();
-    const xgbCount = combinedRows.filter((row) => row.position !== "QB").length;
+    const xgbCount = combinedRows.length;
     const result: ForecastResult = {
-      schemaVersion: "forecast-result.v2",
+      schemaVersion: RESULT_SCHEMA_VERSION,
       runId,
       uploadId: run.uploadId,
       state: "Complete",
       metadata: {
         season: run.season,
         week: run.week,
+        scoringFormat: SCORING_FORMAT,
         scoringContractVersion: run.scoringContractVersion,
         metricDefinitionVersion: run.metricDefinitionVersion,
         simulationCount: run.simulationCount,
         seed: run.seed,
         modelRelease: run.modelRelease,
+        featureVersion: FEATURE_VERSION,
+        modelTarget: MODEL_TARGET,
+        modelObjective: MODEL_OBJECTIVE,
+        xgboostVersion: XGBOOST_VERSION,
+        modelArtifactVersion: MODEL_ARTIFACT_VERSION,
+        modelTrainingSeasons: MODEL_TRAINING_SEASONS,
+        validationResult: MODEL_VALIDATION_RESULT,
+        predictionCallCount: calls.filter((call) => call.model === "xgb_multi_quantile" && call.status === "complete").length,
+        quantileCrossingCount: 0,
+        quantileCrossingPlayerIds: [],
+        negativePredictionCount: 0,
+        negativePredictionPlayerIds: [],
+        quantileLevels: QUANTILE_LEVELS,
+        rangePolicyVersion: RANGE_POLICY_VERSION,
+        inferenceEndpoint: MODEL_ENDPOINT_PATH,
         rankReferenceSnapshot: rankSnapshot.snapshotId,
         sourceInputRevision: run.sourceInputRevision,
         createdAt: run.createdAt,
@@ -494,8 +521,13 @@ export async function processRun(runId: string, workspaceId: string) {
       },
       modelStatus: {
         ffsimulator: modelStatus("complete", `ffsimulator-${ffsimulator.package_version}`, undefined, combinedRows.length),
-        xgbP85: modelStatus("complete", MODEL_RELEASE, FEATURE_VERSION, xgbCount),
-        xgbP15: modelStatus("complete", MODEL_RELEASE, FEATURE_VERSION, xgbCount),
+        xgb: modelStatus("complete", MODEL_RELEASE, FEATURE_VERSION, xgbCount, undefined, {
+          predictionCallCount: calls.filter((call) => call.model === "xgb_multi_quantile" && call.status === "complete").length,
+          quantileCrossingCount: 0,
+          quantileCrossingPlayerIds: [],
+          negativePredictionCount: 0,
+          negativePredictionPlayerIds: [],
+        }),
       },
       rows: combinedRows,
     };

@@ -34,8 +34,8 @@ export type RunFailure = {
 };
 
 export type ExternalModelCall = {
-  model: "xgb_p15" | "xgb_p85";
-  position: "RB" | "WR" | "TE";
+  model: "ffsimulator" | "xgb_multi_quantile" | "xgb_p15" | "xgb_p85";
+  position: "QB" | "RB" | "WR" | "TE" | "ALL";
   endpoint: string;
   attempts: number;
   status: "complete" | "failed";

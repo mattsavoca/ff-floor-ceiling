@@ -1,15 +1,48 @@
 {
-    "generated_at_utc":  "2026-09-07T20:32:59.9487181Z",
-    "model_release":  "forecast-ppr-v1",
-    "model_positions":  [
-                            "RB",
-                            "WR",
-                            "TE"
-                        ],
-    "model_quantiles":  [
-                            "p15",
-                            "p85"
-                        ],
+    "generated_at_utc":  "2026-09-08T02:07:30.1156572Z",
+    "active_model_release":  "forecast-ppr-v2",
+    "active_artifact_version":  "xgb_v2_quantile_20260907",
+    "active_feature_version":  "fbg_rank_projection_v2",
+    "active_model_target":  "actual_score",
+    "active_model_objective":  "reg:quantileerror",
+    "active_scoring_format":  "PPR",
+    "active_scoring_contract_version":  "ppr_v1",
+    "active_model_positions":  [
+                                   "QB",
+                                   "RB",
+                                   "WR",
+                                   "TE"
+                               ],
+    "active_model_quantiles":  [
+                                   "p15",
+                                   "p50",
+                                   "p85"
+                               ],
+    "active_endpoint":  "/v2/models/predict",
     "source_outcome_pool":  "artifacts/ffsimulator/adp_outcomes.json",
-    "source_model_release":  "backtest_fbg_2023_2025/outputs/xgb_p15_projection and xgb_p85_projection"
+    "source_model_release":  "backtest_fbg_2023_2025/outputs/xgb_v2_quantile_projection",
+    "active_xgboost_version":  "3.4.1",
+    "active_training_seasons":  [
+                                    2023,
+                                    2024,
+                                    2025
+                                ],
+    "active_validation_result":  {
+                                     "walk_forward":  true,
+                                     "validation_weeks":  [
+                                                              14,
+                                                              15,
+                                                              16,
+                                                              17
+                                                          ],
+                                     "selected_model_records":  8,
+                                     "path":  "selected_models.csv"
+                                 },
+    "active_model_card_path":  "models/v2/model_card.md",
+    "rollback_model_release":  "forecast-ppr-v1",
+    "rollback_asset_paths":  [
+                                 "models/p15",
+                                 "models/p85"
+                             ],
+    "legacy_v1_assets_present":  true
 }

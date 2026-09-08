@@ -3,22 +3,31 @@
 load_identity_overrides <- function() {
   path <- path_in_project("data", "player_id_overrides.csv")
   if (!file.exists(path)) {
-    return(data.table::data.table(fbg_id = character(), position = character(), gsis_id = character()))
+    return(data.table::data.table(
+      fbg_id = character(), position = character(), gsis_id = character(), reason = character()
+    ))
   }
   overrides <- data.table::fread(path, na.strings = c("", "NA"), showProgress = FALSE)
   check_columns(overrides, c("fbg_id", "position", "gsis_id"), "player_id_overrides.csv")
   overrides[, `:=`(
     fbg_id = trimws(as.character(fbg_id)),
     position = toupper(trimws(as.character(position))),
-    gsis_id = trimws(as.character(gsis_id))
+    gsis_id = trimws(as.character(gsis_id)),
+    reason = if ("reason" %in% names(overrides)) trimws(as.character(reason)) else NA_character_
   )]
-  overrides[!nzchar(fbg_id) | !nzchar(position) | !nzchar(gsis_id),
-    `:=`(fbg_id = NA_character_, position = NA_character_, gsis_id = NA_character_)]
+  overrides[!nzchar(fbg_id) | !nzchar(position) | !nzchar(gsis_id) | is.na(reason) | !nzchar(reason),
+    `:=`(fbg_id = NA_character_, position = NA_character_, gsis_id = NA_character_, reason = NA_character_)]
   overrides <- overrides[!is.na(fbg_id) & position %in% BACKTEST_POSITIONS & !is.na(gsis_id)]
   if (!nrow(overrides)) {
-    return(data.table::data.table(fbg_id = character(), position = character(), gsis_id = character()))
+    return(data.table::data.table(
+      fbg_id = character(), position = character(), gsis_id = character(), reason = character()
+    ))
   }
-  overrides[, .(gsis_id = gsis_id[[1L]]), by = .(fbg_id, position)]
+  duplicate_keys <- overrides[, data.table::uniqueN(gsis_id), by = .(fbg_id, position)][V1 > 1L]
+  if (nrow(duplicate_keys)) {
+    abort("player_id_overrides.csv has conflicting GSIS IDs for: ", paste(duplicate_keys$fbg_id, collapse = ", "))
+  }
+  overrides[, .(gsis_id = gsis_id[[1L]], reason = reason[[1L]]), by = .(fbg_id, position)]
 }
 
 prepare_roster_candidates <- function(rosters) {
@@ -32,7 +41,7 @@ prepare_roster_candidates <- function(rosters) {
     name_key = normalize_name(full_name),
     gsis_id = as.character(gsis_id)
   )]
-  x[!is.na(team_key) & nzchar(name_key), .(gsis_id = gsis_id[[1L]]),
+  x[!is.na(team_key) & nzchar(name_key), .(candidate_ids = list(sort(unique(gsis_id)))),
     by = .(season, week, team_key, position_key, name_key)]
 }
 
@@ -47,7 +56,7 @@ prepare_stats_candidates <- function(stats) {
     name_key = normalize_name(player_name),
     gsis_id = as.character(player_id)
   )]
-  x[!is.na(team_key) & nzchar(name_key), .(gsis_id = gsis_id[[1L]]),
+  x[!is.na(team_key) & nzchar(name_key), .(candidate_ids = list(sort(unique(gsis_id)))),
     by = .(season, week, team_key, position_key, name_key)]
 }
 
@@ -66,21 +75,34 @@ prepare_player_candidates <- function(players) {
     x[, .(gsis_id, position_key, name_key = normalize_name(paste(first_name, last_name)), latest_team_key)],
     x[, .(gsis_id, position_key, name_key = normalize_name(paste(football_name, last_name)), latest_team_key)]
   ), use.names = TRUE, fill = TRUE)
-  variants[nzchar(name_key), .(gsis_id = gsis_id[[1L]], latest_team_key = latest_team_key[[1L]]),
+  variants[nzchar(name_key), .(
+    candidate_ids = list(sort(unique(gsis_id))),
+    latest_team_keys = list(sort(unique(latest_team_key[!is.na(latest_team_key) & nzchar(latest_team_key)])))
+  ),
     by = .(position_key, name_key)]
 }
 
 load_drafter_crosswalk <- function() {
   path <- file.path(dirname(dirname(BACKTEST_ROOT)), "ff_drafter_2026", "raw", "dynastyprocess", "db_playerids.csv")
   if (!file.exists(path)) {
-    return(data.table::data.table(fbg_id = character(), gsis_id = character()))
+    return(data.table::data.table(
+      fbg_id = character(), gsis_id = character(), name_key = character(),
+      position_key = character(), team_key = character()
+    ))
   }
   x <- data.table::fread(path, na.strings = c("", "NA"), showProgress = FALSE)
-  check_columns(x, c("pfr_id", "gsis_id"), "drafter player crosswalk")
+  check_columns(x, c("pfr_id", "gsis_id", "name", "position", "team"), "drafter player crosswalk")
   x[, `:=`(fbg_id = trimws(as.character(pfr_id)), gsis_id = trimws(as.character(gsis_id)))]
-  x <- x[!is.na(fbg_id) & nzchar(fbg_id) & !is.na(gsis_id) & nzchar(gsis_id)]
-  x[, ids := data.table::uniqueN(gsis_id), by = fbg_id]
-  x[ids == 1L, .(gsis_id = gsis_id[[1L]]), by = fbg_id]
+  x[, `:=`(
+    name_key = normalize_name(name),
+    position_key = toupper(trimws(as.character(position))),
+    team_key = normalize_team(team)
+  )]
+  x <- x[
+    !is.na(fbg_id) & nzchar(fbg_id) & !is.na(gsis_id) & nzchar(gsis_id) &
+      nzchar(name_key) & position_key %in% BACKTEST_POSITIONS & !is.na(team_key)
+  ]
+  x[]
 }
 
 map_fbg_to_gsis <- function(rank_rows, rosters, stats, players, overrides = load_identity_overrides()) {
@@ -98,65 +120,76 @@ map_fbg_to_gsis <- function(rank_rows, rosters, stats, players, overrides = load
   player_candidates <- prepare_player_candidates(players)
   drafter_crosswalk <- load_drafter_crosswalk()
 
-  roster_by_key <- roster_candidates[, .(candidate_ids = list(unique(gsis_id))),
-    by = .(season, week, team_key, position_key, name_key)]
-  stats_by_key <- stats_candidates[, .(candidate_ids = list(unique(gsis_id))),
-    by = .(season, week, team_key, position_key, name_key)]
-  roster_by_name <- roster_candidates[, .(candidate_ids = list(unique(gsis_id))),
-    by = .(season, week, position_key, name_key)]
-  stats_by_name <- stats_candidates[, .(candidate_ids = list(unique(gsis_id))),
-    by = .(season, week, position_key, name_key)]
-  players_by_name <- player_candidates[, .(candidate_ids = list(unique(gsis_id))),
-    by = .(position_key, name_key)]
+  x[stats_candidates, on = .(season, week, team_key, position_key, name_key), stats_ids := i.candidate_ids]
+  x[roster_candidates, on = .(season, week, team_key, position_key, name_key), roster_ids := i.candidate_ids]
+  x[player_candidates, on = .(position_key, name_key), player_ids := i.candidate_ids]
 
-  x[roster_by_key, on = .(season, week, team_key, position_key, name_key), roster_ids := i.candidate_ids]
-  x[stats_by_key, on = .(season, week, team_key, position_key, name_key), stats_ids := i.candidate_ids]
-  x[roster_by_name, on = .(season, week, position_key, name_key), roster_name_ids := i.candidate_ids]
-  x[stats_by_name, on = .(season, week, position_key, name_key), stats_name_ids := i.candidate_ids]
-  x[players_by_name, on = .(position_key, name_key), player_ids := i.candidate_ids]
-
-  x[, `:=`(gsis_id = NA_character_, match_method = "unmatched", candidate_count = 0L)]
+  # The crosswalk is keyed by FBG/PFR ID only after its name, position, and
+  # team fields have already been normalized. This prevents an ID collision
+  # from assigning a player whose fields disagree with the projection row.
   if (nrow(drafter_crosswalk)) {
-    x[drafter_crosswalk, on = .(fbg_id), `:=`(
-      gsis_id = i.gsis_id,
-      match_method = "pfr_crosswalk",
-      candidate_count = 1L
-    )]
+    crosswalk_by_key <- drafter_crosswalk[
+      , .(candidate_ids = list(sort(unique(gsis_id)))),
+      by = .(fbg_id, name_key, position_key, team_key)
+    ]
+    x[crosswalk_by_key, on = .(fbg_id, name_key, position_key, team_key), crosswalk_ids := i.candidate_ids]
+    x[, crosswalk_has_id := fbg_id %in% drafter_crosswalk$fbg_id]
+  } else {
+    x[, crosswalk_has_id := FALSE]
   }
+
+  x[, `:=`(
+    gsis_id = NA_character_,
+    match_method = "unmatched",
+    candidate_count = 0L,
+    override_reason = NA_character_,
+    resolution_notes = NA_character_
+  )]
   for (i in seq_len(nrow(x))) {
-    if (!is.na(x$gsis_id[[i]]) && nzchar(x$gsis_id[[i]])) next
-    candidates <- x$roster_ids[[i]]
-    method <- "weekly_roster_name_position_team"
-    if (is.null(candidates) || !length(candidates)) {
-      candidates <- x$stats_ids[[i]]
-      method <- "weekly_stats_name_position_team"
+    stats_ids <- unique(as.character(x$stats_ids[[i]]))
+    roster_ids <- unique(as.character(x$roster_ids[[i]]))
+    master_ids <- unique(as.character(x$player_ids[[i]]))
+    crosswalk_ids <- unique(as.character(x$crosswalk_ids[[i]]))
+    sources <- list(
+      weekly_stats_name_position_team = stats_ids,
+      weekly_roster_name_position_team = roster_ids,
+      master_name_position = master_ids,
+      pfr_crosswalk_verified = crosswalk_ids
+    )
+    sources <- lapply(sources, function(ids) ids[!is.na(ids) & nzchar(ids)])
+    chosen <- character()
+    method <- "unmatched"
+    for (source_name in names(sources)) {
+      candidates <- sources[[source_name]]
+      if (length(candidates) == 1L) {
+        chosen <- candidates
+        method <- source_name
+        break
+      }
     }
-    if (is.null(candidates) || !length(candidates)) {
-      candidates <- unique(c(x$roster_name_ids[[i]], x$stats_name_ids[[i]]))
-      candidates <- candidates[!is.na(candidates)]
-      method <- "weekly_name_position"
+    source_ids <- unique(unlist(sources, use.names = FALSE))
+    x$candidate_count[[i]] <- length(if (length(chosen)) chosen else source_ids)
+    notes <- character()
+    exact_ids <- unique(c(stats_ids, roster_ids))
+    if (length(exact_ids) > 1L) notes <- c(notes, "conflicting_weekly_source_ids")
+    if (isTRUE(x$crosswalk_has_id[[i]]) && !length(crosswalk_ids)) {
+      notes <- c(notes, "crosswalk_fields_disagree")
     }
-    if (is.null(candidates) || !length(candidates)) {
-      candidates <- x$player_ids[[i]]
-      method <- "master_name_position"
-    }
-    candidates <- unique(as.character(candidates))
-    candidates <- candidates[!is.na(candidates) & nzchar(candidates)]
-    x$candidate_count[[i]] <- length(candidates)
-    if (length(candidates) == 1L) {
-      x$gsis_id[[i]] <- candidates[[1L]]
+    if (length(chosen)) {
+      x$gsis_id[[i]] <- chosen[[1L]]
       x$match_method[[i]] <- method
     }
+    override <- overrides[fbg_id == x$fbg_id[[i]] & position == x$position_key[[i]]]
+    if (nrow(override)) {
+      x$gsis_id[[i]] <- override$gsis_id[[1L]]
+      x$match_method[[i]] <- "manual_override"
+      x$candidate_count[[i]] <- 1L
+      x$override_reason[[i]] <- override$reason[[1L]]
+      notes <- c(notes, "manual_override_applied")
+    }
+    if (length(notes)) x$resolution_notes[[i]] <- paste(unique(notes), collapse = ";")
   }
 
-  if (nrow(overrides)) {
-    x[overrides, on = .(fbg_id, position_key = position), `:=`(
-      gsis_id = i.gsis_id,
-      match_method = "manual_override",
-      candidate_count = 1L
-    )]
-  }
-
-  x[, c("position_key", "team_key", "name_key", "row_id", "roster_ids", "stats_ids", "roster_name_ids", "stats_name_ids", "player_ids") := NULL]
+  x[, c("position_key", "team_key", "name_key", "row_id", "roster_ids", "stats_ids", "player_ids", "crosswalk_ids", "crosswalk_has_id") := NULL]
   x[]
 }

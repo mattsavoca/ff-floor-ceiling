@@ -1,0 +1,729 @@
+{
+  "model_release": "forecast-ppr-v2",
+  "artifact_version": "xgb_v2_quantile_20260907",
+  "model_type": "native_xgboost_multi_quantile_booster",
+  "objective": "reg:quantileerror",
+  "quantile_alpha": [
+    0.15,
+    0.5,
+    0.85
+  ],
+  "quantile_output_columns": {
+    "0": "p15",
+    "1": "p50",
+    "2": "p85"
+  },
+  "one_prediction_call_returns_all_quantiles": true,
+  "feature_version": "fbg_rank_projection_v2",
+  "feature_names_by_position": {
+    "QB": [
+      "week",
+      "ecr",
+      "pass-att",
+      "pass-cmp",
+      "pass-1d",
+      "pass-int",
+      "pass-sck",
+      "pass-td",
+      "pass-yds",
+      "rush-car",
+      "rush-1d",
+      "rush-td",
+      "rush-yds",
+      "fum-lost",
+      "projection_fpts"
+    ],
+    "RB": [
+      "week",
+      "ecr",
+      "pass-att",
+      "pass-cmp",
+      "pass-1d",
+      "pass-int",
+      "pass-td",
+      "pass-yds",
+      "rush-car",
+      "rush-1d",
+      "rush-td",
+      "rush-yds",
+      "rec-rec",
+      "rec-tgt",
+      "rec-td",
+      "rec-yds",
+      "fum-lost",
+      "projection_fpts"
+    ],
+    "WR": [
+      "week",
+      "ecr",
+      "pass-int",
+      "rush-car",
+      "rush-1d",
+      "rush-td",
+      "rush-yds",
+      "rec-rec",
+      "rec-tgt",
+      "rec-td",
+      "rec-yds",
+      "fum-lost",
+      "projection_fpts"
+    ],
+    "TE": [
+      "week",
+      "ecr",
+      "rush-car",
+      "rush-1d",
+      "rush-td",
+      "rush-yds",
+      "rec-rec",
+      "rec-tgt",
+      "rec-td",
+      "rec-yds",
+      "fum-lost",
+      "projection_fpts"
+    ]
+  },
+  "serving_feature_contract": {
+    "features_by_position": {
+      "QB": [
+        "week",
+        "ecr",
+        "pass-att",
+        "pass-cmp",
+        "pass-1d",
+        "pass-int",
+        "pass-sck",
+        "pass-td",
+        "pass-yds",
+        "rush-car",
+        "rush-1d",
+        "rush-td",
+        "rush-yds",
+        "fum-lost",
+        "projection_fpts"
+      ],
+      "RB": [
+        "week",
+        "ecr",
+        "pass-att",
+        "pass-cmp",
+        "pass-1d",
+        "pass-int",
+        "pass-td",
+        "pass-yds",
+        "rush-car",
+        "rush-1d",
+        "rush-td",
+        "rush-yds",
+        "rec-rec",
+        "rec-tgt",
+        "rec-td",
+        "rec-yds",
+        "fum-lost",
+        "projection_fpts"
+      ],
+      "WR": [
+        "week",
+        "ecr",
+        "pass-int",
+        "rush-car",
+        "rush-1d",
+        "rush-td",
+        "rush-yds",
+        "rec-rec",
+        "rec-tgt",
+        "rec-td",
+        "rec-yds",
+        "fum-lost",
+        "projection_fpts"
+      ],
+      "TE": [
+        "week",
+        "ecr",
+        "rush-car",
+        "rush-1d",
+        "rush-td",
+        "rush-yds",
+        "rec-rec",
+        "rec-tgt",
+        "rec-td",
+        "rec-yds",
+        "fum-lost",
+        "projection_fpts"
+      ]
+    },
+    "requires_stable_player_id": true,
+    "does_not_send_source_set_count": true
+  },
+  "training_seasons": [
+    2023,
+    2024,
+    2025
+  ],
+  "target_seasons_requested": [
+    2024,
+    2025
+  ],
+  "target_seasons_scored": [
+    2024,
+    2025
+  ],
+  "release_target_season": 2026,
+  "scoring_format": "PPR",
+  "scoring_contract_version": "ppr_v1",
+  "target_column": "actual_score",
+  "projection_score_field": "projection_fpts",
+  "validation_result": {
+    "walk_forward": true,
+    "validation_weeks": [
+      14,
+      15,
+      16,
+      17
+    ],
+    "selected_model_records": 8,
+    "path": "selected_models.csv"
+  },
+  "model_artifact_version": "xgb_v2_quantile_20260907",
+  "model_records": [
+    {
+      "target_season": 2026,
+      "position": "QB",
+      "model_path": "models/xgb_v2_qb_through_2025.json",
+      "training_rows": 1403,
+      "training_seasons": [
+        2023,
+        2024,
+        2025
+      ],
+      "max_historical_season_used": 2025,
+      "feature_count": 15,
+      "features": [
+        "week",
+        "ecr",
+        "pass-att",
+        "pass-cmp",
+        "pass-1d",
+        "pass-int",
+        "pass-sck",
+        "pass-td",
+        "pass-yds",
+        "rush-car",
+        "rush-1d",
+        "rush-td",
+        "rush-yds",
+        "fum-lost",
+        "projection_fpts"
+      ],
+      "boosting_rounds": 219,
+      "validation_result": {
+        "selected_from_target_season": 2025,
+        "validation_season": 2024,
+        "validation_weeks": [
+          14,
+          15,
+          16,
+          17
+        ],
+        "multi_pinball_loss": 2.4858403676928895,
+        "p15_pinball_loss": 1.7991394575213597,
+        "p50_pinball_loss": 3.303947290349598,
+        "p85_pinball_loss": 2.354434355207711
+      },
+      "scoring_format": "PPR",
+      "scoring_contract_version": "ppr_v1",
+      "objective": "reg:quantileerror",
+      "quantile_alpha": [
+        0.15,
+        0.5,
+        0.85
+      ]
+    },
+    {
+      "target_season": 2026,
+      "position": "RB",
+      "model_path": "models/xgb_v2_rb_through_2025.json",
+      "training_rows": 2860,
+      "training_seasons": [
+        2023,
+        2024,
+        2025
+      ],
+      "max_historical_season_used": 2025,
+      "feature_count": 18,
+      "features": [
+        "week",
+        "ecr",
+        "pass-att",
+        "pass-cmp",
+        "pass-1d",
+        "pass-int",
+        "pass-td",
+        "pass-yds",
+        "rush-car",
+        "rush-1d",
+        "rush-td",
+        "rush-yds",
+        "rec-rec",
+        "rec-tgt",
+        "rec-td",
+        "rec-yds",
+        "fum-lost",
+        "projection_fpts"
+      ],
+      "boosting_rounds": 448,
+      "validation_result": {
+        "selected_from_target_season": 2025,
+        "validation_season": 2024,
+        "validation_weeks": [
+          14,
+          15,
+          16,
+          17
+        ],
+        "multi_pinball_loss": 1.4581469596901961,
+        "p15_pinball_loss": 0.9381341799183548,
+        "p50_pinball_loss": 1.9958038938196399,
+        "p85_pinball_loss": 1.4405028053325943
+      },
+      "scoring_format": "PPR",
+      "scoring_contract_version": "ppr_v1",
+      "objective": "reg:quantileerror",
+      "quantile_alpha": [
+        0.15,
+        0.5,
+        0.85
+      ]
+    },
+    {
+      "target_season": 2026,
+      "position": "WR",
+      "model_path": "models/xgb_v2_wr_through_2025.json",
+      "training_rows": 4244,
+      "training_seasons": [
+        2023,
+        2024,
+        2025
+      ],
+      "max_historical_season_used": 2025,
+      "feature_count": 13,
+      "features": [
+        "week",
+        "ecr",
+        "pass-int",
+        "rush-car",
+        "rush-1d",
+        "rush-td",
+        "rush-yds",
+        "rec-rec",
+        "rec-tgt",
+        "rec-td",
+        "rec-yds",
+        "fum-lost",
+        "projection_fpts"
+      ],
+      "boosting_rounds": 483,
+      "validation_result": {
+        "selected_from_target_season": 2025,
+        "validation_season": 2024,
+        "validation_weeks": [
+          14,
+          15,
+          16,
+          17
+        ],
+        "multi_pinball_loss": 1.8725154481025512,
+        "p15_pinball_loss": 1.2934901882795344,
+        "p50_pinball_loss": 2.454166801994638,
+        "p85_pinball_loss": 1.8698893540334807
+      },
+      "scoring_format": "PPR",
+      "scoring_contract_version": "ppr_v1",
+      "objective": "reg:quantileerror",
+      "quantile_alpha": [
+        0.15,
+        0.5,
+        0.85
+      ]
+    },
+    {
+      "target_season": 2026,
+      "position": "TE",
+      "model_path": "models/xgb_v2_te_through_2025.json",
+      "training_rows": 2380,
+      "training_seasons": [
+        2023,
+        2024,
+        2025
+      ],
+      "max_historical_season_used": 2025,
+      "feature_count": 12,
+      "features": [
+        "week",
+        "ecr",
+        "rush-car",
+        "rush-1d",
+        "rush-td",
+        "rush-yds",
+        "rec-rec",
+        "rec-tgt",
+        "rec-td",
+        "rec-yds",
+        "fum-lost",
+        "projection_fpts"
+      ],
+      "boosting_rounds": 255,
+      "validation_result": {
+        "selected_from_target_season": 2025,
+        "validation_season": 2024,
+        "validation_weeks": [
+          14,
+          15,
+          16,
+          17
+        ],
+        "multi_pinball_loss": 1.300165953784705,
+        "p15_pinball_loss": 1.0054676597072676,
+        "p50_pinball_loss": 1.6845951024716652,
+        "p85_pinball_loss": 1.2104350991751822
+      },
+      "scoring_format": "PPR",
+      "scoring_contract_version": "ppr_v1",
+      "objective": "reg:quantileerror",
+      "quantile_alpha": [
+        0.15,
+        0.5,
+        0.85
+      ]
+    }
+  ],
+  "walk_forward_model_records": [
+    {
+      "target_season": 2024,
+      "position": "QB",
+      "model_path": "walk_forward_models\\xgb_v2_qb_through_2023.json",
+      "training_rows": 422,
+      "feature_count": 15,
+      "features": [
+        "week",
+        "ecr",
+        "pass-att",
+        "pass-cmp",
+        "pass-1d",
+        "pass-int",
+        "pass-sck",
+        "pass-td",
+        "pass-yds",
+        "rush-car",
+        "rush-1d",
+        "rush-td",
+        "rush-yds",
+        "fum-lost",
+        "projection_fpts"
+      ],
+      "boosting_rounds": 256,
+      "training_seasons": [
+        2023
+      ],
+      "validation_season": 2023,
+      "validation_weeks": [
+        14,
+        15,
+        16,
+        17
+      ],
+      "validation_multi_pinball": 2.1859583139884937,
+      "scoring_format": "PPR",
+      "scoring_contract_version": "ppr_v1",
+      "prediction_call_count": 1
+    },
+    {
+      "target_season": 2024,
+      "position": "RB",
+      "model_path": "walk_forward_models\\xgb_v2_rb_through_2023.json",
+      "training_rows": 771,
+      "feature_count": 18,
+      "features": [
+        "week",
+        "ecr",
+        "pass-att",
+        "pass-cmp",
+        "pass-1d",
+        "pass-int",
+        "pass-td",
+        "pass-yds",
+        "rush-car",
+        "rush-1d",
+        "rush-td",
+        "rush-yds",
+        "rec-rec",
+        "rec-tgt",
+        "rec-td",
+        "rec-yds",
+        "fum-lost",
+        "projection_fpts"
+      ],
+      "boosting_rounds": 255,
+      "training_seasons": [
+        2023
+      ],
+      "validation_season": 2023,
+      "validation_weeks": [
+        14,
+        15,
+        16,
+        17
+      ],
+      "validation_multi_pinball": 1.5808057905748196,
+      "scoring_format": "PPR",
+      "scoring_contract_version": "ppr_v1",
+      "prediction_call_count": 1
+    },
+    {
+      "target_season": 2024,
+      "position": "WR",
+      "model_path": "walk_forward_models\\xgb_v2_wr_through_2023.json",
+      "training_rows": 1223,
+      "feature_count": 13,
+      "features": [
+        "week",
+        "ecr",
+        "pass-int",
+        "rush-car",
+        "rush-1d",
+        "rush-td",
+        "rush-yds",
+        "rec-rec",
+        "rec-tgt",
+        "rec-td",
+        "rec-yds",
+        "fum-lost",
+        "projection_fpts"
+      ],
+      "boosting_rounds": 234,
+      "training_seasons": [
+        2023
+      ],
+      "validation_season": 2023,
+      "validation_weeks": [
+        14,
+        15,
+        16,
+        17
+      ],
+      "validation_multi_pinball": 1.8024786032896776,
+      "scoring_format": "PPR",
+      "scoring_contract_version": "ppr_v1",
+      "prediction_call_count": 1
+    },
+    {
+      "target_season": 2024,
+      "position": "TE",
+      "model_path": "walk_forward_models\\xgb_v2_te_through_2023.json",
+      "training_rows": 714,
+      "feature_count": 12,
+      "features": [
+        "week",
+        "ecr",
+        "rush-car",
+        "rush-1d",
+        "rush-td",
+        "rush-yds",
+        "rec-rec",
+        "rec-tgt",
+        "rec-td",
+        "rec-yds",
+        "fum-lost",
+        "projection_fpts"
+      ],
+      "boosting_rounds": 487,
+      "training_seasons": [
+        2023
+      ],
+      "validation_season": 2023,
+      "validation_weeks": [
+        14,
+        15,
+        16,
+        17
+      ],
+      "validation_multi_pinball": 1.3261476778661123,
+      "scoring_format": "PPR",
+      "scoring_contract_version": "ppr_v1",
+      "prediction_call_count": 1
+    },
+    {
+      "target_season": 2025,
+      "position": "QB",
+      "model_path": "walk_forward_models\\xgb_v2_qb_through_2024.json",
+      "training_rows": 902,
+      "feature_count": 15,
+      "features": [
+        "week",
+        "ecr",
+        "pass-att",
+        "pass-cmp",
+        "pass-1d",
+        "pass-int",
+        "pass-sck",
+        "pass-td",
+        "pass-yds",
+        "rush-car",
+        "rush-1d",
+        "rush-td",
+        "rush-yds",
+        "fum-lost",
+        "projection_fpts"
+      ],
+      "boosting_rounds": 219,
+      "training_seasons": [
+        2023,
+        2024
+      ],
+      "validation_season": 2024,
+      "validation_weeks": [
+        14,
+        15,
+        16,
+        17
+      ],
+      "validation_multi_pinball": 2.4858403676928895,
+      "scoring_format": "PPR",
+      "scoring_contract_version": "ppr_v1",
+      "prediction_call_count": 1
+    },
+    {
+      "target_season": 2025,
+      "position": "RB",
+      "model_path": "walk_forward_models\\xgb_v2_rb_through_2024.json",
+      "training_rows": 1747,
+      "feature_count": 18,
+      "features": [
+        "week",
+        "ecr",
+        "pass-att",
+        "pass-cmp",
+        "pass-1d",
+        "pass-int",
+        "pass-td",
+        "pass-yds",
+        "rush-car",
+        "rush-1d",
+        "rush-td",
+        "rush-yds",
+        "rec-rec",
+        "rec-tgt",
+        "rec-td",
+        "rec-yds",
+        "fum-lost",
+        "projection_fpts"
+      ],
+      "boosting_rounds": 448,
+      "training_seasons": [
+        2023,
+        2024
+      ],
+      "validation_season": 2024,
+      "validation_weeks": [
+        14,
+        15,
+        16,
+        17
+      ],
+      "validation_multi_pinball": 1.4581469596901961,
+      "scoring_format": "PPR",
+      "scoring_contract_version": "ppr_v1",
+      "prediction_call_count": 1
+    },
+    {
+      "target_season": 2025,
+      "position": "WR",
+      "model_path": "walk_forward_models\\xgb_v2_wr_through_2024.json",
+      "training_rows": 2664,
+      "feature_count": 13,
+      "features": [
+        "week",
+        "ecr",
+        "pass-int",
+        "rush-car",
+        "rush-1d",
+        "rush-td",
+        "rush-yds",
+        "rec-rec",
+        "rec-tgt",
+        "rec-td",
+        "rec-yds",
+        "fum-lost",
+        "projection_fpts"
+      ],
+      "boosting_rounds": 483,
+      "training_seasons": [
+        2023,
+        2024
+      ],
+      "validation_season": 2024,
+      "validation_weeks": [
+        14,
+        15,
+        16,
+        17
+      ],
+      "validation_multi_pinball": 1.8725154481025512,
+      "scoring_format": "PPR",
+      "scoring_contract_version": "ppr_v1",
+      "prediction_call_count": 1
+    },
+    {
+      "target_season": 2025,
+      "position": "TE",
+      "model_path": "walk_forward_models\\xgb_v2_te_through_2024.json",
+      "training_rows": 1505,
+      "feature_count": 12,
+      "features": [
+        "week",
+        "ecr",
+        "rush-car",
+        "rush-1d",
+        "rush-td",
+        "rush-yds",
+        "rec-rec",
+        "rec-tgt",
+        "rec-td",
+        "rec-yds",
+        "fum-lost",
+        "projection_fpts"
+      ],
+      "boosting_rounds": 255,
+      "training_seasons": [
+        2023,
+        2024
+      ],
+      "validation_season": 2024,
+      "validation_weeks": [
+        14,
+        15,
+        16,
+        17
+      ],
+      "validation_multi_pinball": 1.300165953784705,
+      "scoring_format": "PPR",
+      "scoring_contract_version": "ppr_v1",
+      "prediction_call_count": 1
+    }
+  ],
+  "comparison_rows": 9376,
+  "quantile_crossing_event_count": 0,
+  "quantile_crossing_affected_stable_player_ids": [],
+  "data_quality_report_path": "data_quality_report.json",
+  "predictions_path": "predictions.parquet",
+  "comparison_metrics_path": "comparison_metrics.csv",
+  "runtime": {
+    "python": "3.14.0 (tags/v3.14.0:ebf955d, Oct  7 2025, 10:15:03) [MSC v.1944 64 bit (AMD64)]",
+    "xgboost": "3.4.1",
+    "pandas": "2.3.3",
+    "numpy": "2.4.1"
+  },
+  "elapsed_seconds_before_card": 172.16758399999526,
+  "model_card_path": "model_card.md",
+  "elapsed_seconds": 172.17309779999778
+}

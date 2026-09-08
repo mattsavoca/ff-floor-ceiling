@@ -21,6 +21,8 @@ export async function GET(_request: Request, context: { params: Promise<{ runId:
     simulationCount: run.simulationCount,
     seed: run.seed,
     modelRelease: run.modelRelease,
+    scoringContractVersion: run.scoringContractVersion,
+    metricDefinitionVersion: run.metricDefinitionVersion,
     sourceInputRevision: run.sourceInputRevision,
     createdAt: run.createdAt,
     startedAt: run.startedAt,
@@ -29,6 +31,7 @@ export async function GET(_request: Request, context: { params: Promise<{ runId:
     externalModelCalls: run.externalModelCalls,
     runtime: run.runtime,
     positionCounts: run.result?.metadata.positionCounts ?? null,
+    resultSchemaVersion: run.result?.schemaVersion ?? null,
     lastCompleteRunId: lastComplete?.runId ?? null,
   }, { headers: { "Cache-Control": "no-store" } });
 }

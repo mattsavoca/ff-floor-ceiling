@@ -65,9 +65,9 @@ import {
   floorOosSeasonPositionMetrics,
   floorPositionModelSelections,
   floorModelFits,
-  floorFeatureFamilies,
   ffsimulatorModel,
   scorecardMetrics,
+  overallMetrics,
 } from "@/lib/calibration-data";
 import {
   demoForecasts,
@@ -75,6 +75,7 @@ import {
 } from "@/lib/project-data";
 import { applyOverride, calculateDemoSummary, clampFactor, formatNumber, validateRange } from "@/lib/metrics";
 import { DEFAULT_SIMULATION_COUNT, MAX_SIMULATIONS, MIN_SIMULATIONS, SIMULATION_STEP, isValidSimulationCount } from "@/lib/simulation-config";
+import { METRIC_DEFINITION_VERSION, MODEL_RELEASE, RESULT_SCHEMA_VERSION, SCORING_CONTRACT_VERSION } from "@/lib/model-release";
 import type { ForecastResult, ForecastRow, OverrideHistoryEntry, OverridePreset, OverrideSet, OverrideSpec, RangeValues, RunState, TabId, UploadReport, ViewMode } from "@/lib/types";
 import type { EChartsOption } from "echarts";
 
@@ -173,6 +174,7 @@ function forecastRowsFromResult(result: ForecastResult): ForecastRow[] {
       activeRate: row.ffsimActiveRate,
     },
     xgbP15: row.xgbP15 ?? undefined,
+    xgbP50: row.xgbP50 ?? undefined,
     xgbP85: row.xgbP85 ?? undefined,
     valueSources: row.valueSources,
     original: { floor: row.floor, median: row.median, ceiling: row.ceiling },
@@ -622,8 +624,8 @@ export function FloorCeilingApp() {
         body: JSON.stringify({
           season: Number(season),
           week: numericWeek,
-          metricDefinitionVersion: "ppr_v1_projection_formula",
-          scoringContractVersion: "ppr_v1",
+          metricDefinitionVersion: METRIC_DEFINITION_VERSION,
+          scoringContractVersion: SCORING_CONTRACT_VERSION,
           simulationCount: numericSimulationCount,
           uploadId: liveUploadId,
           inputRevision: sourceInputRevision,
@@ -665,8 +667,8 @@ export function FloorCeilingApp() {
         opponent: row.opponent,
         season: row.season ?? Number(season),
         week: row.week ?? Number(week),
-        scoring_contract_version: dataMode === "live" ? "ppr_v1" : "demo",
-        metric_definition_version: dataMode === "live" ? "ppr_v1_projection_formula" : metricDefinition,
+        scoring_contract_version: dataMode === "live" ? SCORING_CONTRACT_VERSION : "demo",
+        metric_definition_version: dataMode === "live" ? METRIC_DEFINITION_VERSION : metricDefinition,
         model_release: row.modelRelease ?? "demo-bundled-output",
         run_id: row.runId ?? runId,
         input_revision: row.inputRevision ?? "demo",
@@ -678,7 +680,9 @@ export function FloorCeilingApp() {
         ffsim_p50: row.ffsim?.p50 ?? row.original.median,
         ffsim_p85: row.ffsim?.p85 ?? "",
         xgb_p15: row.xgbP15 ?? "",
+        xgb_p50: row.xgbP50 ?? "",
         xgb_p85: row.xgbP85 ?? "",
+        result_schema_version: dataMode === "live" ? RESULT_SCHEMA_VERSION : "demo",
         original_floor: row.original.floor,
         original_average: row.originalAverage ?? row.average ?? row.sourceProjection,
         original_median: row.original.median,
@@ -1031,8 +1035,8 @@ function OverviewPage({ navigate, season, week, onWeekChange }: { navigate: (tab
     <>
       <SectionIntro eyebrow="Weekly monitoring" title={`${season} · Week ${week} model performance`} status={<StatusPill label="OOS results" tone="good" />} action={<Button variant="secondary" onClick={() => navigate("calibration")} icon={<Target size={15} />}>Review model selection</Button>}>This view uses completed out-of-sample scores. Change the week above to compare the fixed best model for each position.</SectionIntro>
       <div className="overview-hero-grid">
-        <Panel className="next-forecast-panel" eyebrow="Ceiling model mix" title="Fixed by position"><div className="weekly-model-list">{selectedPositionRows.map((row) => <div className="weekly-model-row" key={row.position}><div className="weekly-model-position"><span className="position-chip">{row.position}</span><span>{positionDisplayNames[row.position]}</span></div><span className={cx("methodology-model-badge", row.model === "ffsimulator" ? "methodology-model-badge-simulation" : "methodology-model-badge-xgboost")}>{row.model}</span></div>)}</div><Explainer>QB uses ffsimulator. RB, WR, and TE use XGBoost.</Explainer></Panel>
-        <Panel className="next-forecast-panel" eyebrow="Floor model mix" title="Fixed by position"><div className="weekly-model-list">{selectedFloorPositionRows.map((row) => <div className="weekly-model-row" key={row.position}><div className="weekly-model-position"><span className="position-chip">{row.position}</span><span>{positionDisplayNames[row.position]}</span></div><span className={cx("methodology-model-badge", row.model === "ffsimulator" ? "methodology-model-badge-simulation" : "methodology-model-badge-xgboost")}>{row.model}</span></div>)}</div><Explainer>Serving contract: QB floor uses ffsimulator p15. RB, WR, and TE floor use the released XGBoost p15 service.</Explainer></Panel>
+        <Panel className="next-forecast-panel" eyebrow="Ceiling model mix" title="Fixed by position"><div className="weekly-model-list">{selectedPositionRows.map((row) => <div className="weekly-model-row" key={row.position}><div className="weekly-model-position"><span className="position-chip">{row.position}</span><span>{positionDisplayNames[row.position]}</span></div><span className={cx("methodology-model-badge", String(row.model) === "ffsimulator" ? "methodology-model-badge-simulation" : "methodology-model-badge-xgboost")}>{row.model}</span></div>)}</div><Explainer>Historical ceiling comparison selects XGBoost for all four positions. The live range also uses the v2 XGBoost outputs for all four positions.</Explainer></Panel>
+        <Panel className="next-forecast-panel" eyebrow="Floor model mix" title="Historical comparison"><div className="weekly-model-list">{selectedFloorPositionRows.map((row) => <div className="weekly-model-row" key={row.position}><div className="weekly-model-position"><span className="position-chip">{row.position}</span><span>{positionDisplayNames[row.position]}</span></div><span className={cx("methodology-model-badge", String(row.model) === "ffsimulator" ? "methodology-model-badge-simulation" : "methodology-model-badge-xgboost")}>{row.model}</span></div>)}</div><Explainer>These are historical p15 winners by position. The live range uses the forecast-ppr-v2 XGBoost p15 output for every position.</Explainer></Panel>
       </div>
       <div className="metric-grid"><MetricCard label="Scores at or below ceiling" value={selectedCoverage} detail="Target: about 85 of 100 scores" tone="good" icon={<Target size={17} />} /><MetricCard label="Scores above ceiling" value={selectedMissRate} detail="The final score beat p85" tone="warn" icon={<ArrowUpRight size={17} />} /><MetricCard label="Ceiling model pinball loss" value={formatCalibrationMetric(selectedSummary.pinballLoss)} detail="Lower is better" tone="good" icon={<Gauge size={17} />} /><MetricCard label="Ceiling model mean absolute error" value={formatCalibrationMetric(selectedSummary.p85Mae)} detail="Average distance from the final score" tone="neutral" icon={<Activity size={17} />} /><MetricCard label="Rank correlation" value={selectedSummary.rankSpearman.toFixed(2)} detail="Forecast order versus final score order" tone="neutral" icon={<Link2 size={17} />} /></div>
        <div className="metric-grid"><MetricCard label="Scores at or below floor" value={selectedFloorCoverage} detail="Target: about 15 of 100 scores" tone="good" icon={<Target size={17} />} /><MetricCard label="Scores below floor" value={selectedFloorMissRate} detail="The final score fell below p15" tone="warn" icon={<ArrowDownRight size={17} />} /><MetricCard label="Floor model pinball loss" value={formatCalibrationMetric(selectedFloorSummary.pinballLoss)} detail="Lower is better" tone="good" icon={<Gauge size={17} />} /><MetricCard label="Floor model mean absolute error" value={formatCalibrationMetric(selectedFloorSummary.p15Mae)} detail="Average distance from the final score" tone="neutral" icon={<Activity size={17} />} /><MetricCard label="Rank correlation" value={selectedFloorSummary.rankSpearman.toFixed(2)} detail="Forecast order versus final score order" tone="neutral" icon={<Link2 size={17} />} /></div>
@@ -1044,7 +1048,7 @@ function OverviewPage({ navigate, season, week, onWeekChange }: { navigate: (tab
         <Panel className="chart-panel" eyebrow="Last 4 Weeks" title="Floor Model Calibration, Last 4 Weeks"><EChart option={floorCoverageOption} height={300} ariaLabel="Floor model calibration coverage across the last four 2025 out-of-sample weeks" /><Explainer>The line tracks the selected best-model mix. The dashed line marks the 15% floor target.</Explainer></Panel>
         <Panel className="chart-panel position-chart-panel" eyebrow="Position coverage" title="Best model P15 coverage"><EChart option={floorPositionCoverageOption} height={300} ariaLabel="Best model P15 coverage by position across the last four 2025 out-of-sample weeks" onClick={handlePositionCoverageClick} /><Explainer>Each line shows one position. Hover for the weekly value, use the legend to focus the chart, or click a point to select that week.</Explainer></Panel>
       </div>
-      <Panel className="input-change-panel" eyebrow="Ceiling Model Calibration by Position" title={`Best model results for ${season} · Week ${week}`} action={<span className="calibration-panel-note">Weekly Observations: {selectedSummary.n.toLocaleString()}</span>}><div className="table-scroll"><table className="weekly-metrics-table"><thead><tr><th scope="col">Position</th><th scope="col">Selected model</th><th scope="col">P85 coverage</th><th scope="col">P85 loss</th><th scope="col">P85 MAE</th><th scope="col">Scores</th></tr></thead><tbody>{selectedPositionRows.map((row) => <tr key={row.position}><th scope="row"><span className="position-chip">{row.position}</span><span>{positionDisplayNames[row.position]}</span></th><td><span className={cx("methodology-model-badge", row.model === "ffsimulator" ? "methodology-model-badge-simulation" : "methodology-model-badge-xgboost")}>{row.model}</span></td><td>{formatCalibrationPercent(row.coverage)}</td><td>{formatCalibrationMetric(row.pinballLoss)}</td><td>{formatCalibrationMetric(row.p85Mae)}</td><td>{row.n.toLocaleString()}</td></tr>)}</tbody></table></div><Explainer>P85 Coverage: percentage of position who scored at or below the predicted 85th percentile outcome. A perfectly calibrated model would hit exactly 85% (the model target).</Explainer></Panel>
+      <Panel className="input-change-panel" eyebrow="Ceiling Model Calibration by Position" title={`Best model results for ${season} · Week ${week}`} action={<span className="calibration-panel-note">Weekly Observations: {selectedSummary.n.toLocaleString()}</span>}><div className="table-scroll"><table className="weekly-metrics-table"><thead><tr><th scope="col">Position</th><th scope="col">Selected model</th><th scope="col">P85 coverage</th><th scope="col">P85 loss</th><th scope="col">P85 MAE</th><th scope="col">Scores</th></tr></thead><tbody>{selectedPositionRows.map((row) => <tr key={row.position}><th scope="row"><span className="position-chip">{row.position}</span><span>{positionDisplayNames[row.position]}</span></th><td><span className={cx("methodology-model-badge", String(row.model) === "ffsimulator" ? "methodology-model-badge-simulation" : "methodology-model-badge-xgboost")}>{row.model}</span></td><td>{formatCalibrationPercent(row.coverage)}</td><td>{formatCalibrationMetric(row.pinballLoss)}</td><td>{formatCalibrationMetric(row.p85Mae)}</td><td>{row.n.toLocaleString()}</td></tr>)}</tbody></table></div><Explainer>P85 Coverage: percentage of position who scored at or below the predicted 85th percentile outcome. A perfectly calibrated model would hit exactly 85% (the model target).</Explainer></Panel>
       <Panel className="input-change-panel" eyebrow="Floor Model Calibration by Position" title={`Best model results for ${season} · Week ${week}`} action={<span className="calibration-panel-note">Weekly Observations: {selectedFloorSummary.n.toLocaleString()}</span>}><div className="table-scroll"><table className="weekly-metrics-table"><thead><tr><th scope="col">Position</th><th scope="col">Selected model</th><th scope="col">P15 coverage</th><th scope="col">P15 loss</th><th scope="col">P15 MAE</th><th scope="col">Scores</th></tr></thead><tbody>{selectedFloorPositionRows.map((row) => <tr key={row.position}><th scope="row"><span className="position-chip">{row.position}</span><span>{positionDisplayNames[row.position]}</span></th><td><span className={cx("methodology-model-badge", row.model === "ffsimulator" ? "methodology-model-badge-simulation" : "methodology-model-badge-xgboost")}>{row.model}</span></td><td>{formatCalibrationPercent(row.coverage)}</td><td>{formatCalibrationMetric(row.pinballLoss)}</td><td>{formatCalibrationMetric(row.p15Mae)}</td><td>{row.n.toLocaleString()}</td></tr>)}</tbody></table></div><Explainer>P15 Coverage: percentage of position who scored at or below the predicted 15th percentile outcome. A perfectly calibrated model would hit exactly 15% (the model target).</Explainer></Panel>
       <div className="two-column-grid lower-overview-grid"><Panel eyebrow="Weekly Results at a Glance" title={`Week ${week}`}><div className="weekly-readout-grid"><div><span>Best ceiling position</span><strong>{formatCalibrationPercent(bestCeilingPosition.coverage)}</strong><small>{bestCeilingPosition.position} had the highest P85 coverage.</small></div><div><span>Closest floor position</span><strong>{formatCalibrationPercent(closestFloorPosition.coverage)}</strong><small>{closestFloorPosition.position} was closest to the 15% P15 target.</small></div><div><span>Ceiling coverage error</span><strong>{selectedCoverageError}</strong><small>Difference from the 85% model target.</small></div><div><span>Floor coverage error</span><strong>{floorCoverageError}</strong><small>Difference from the 15% model target.</small></div></div><Explainer>Model drift is the distance between weekly coverage and each model target.</Explainer></Panel></div>
     </>
@@ -1054,42 +1058,40 @@ function OverviewPage({ navigate, season, week, onWeekChange }: { navigate: (tab
 
 type MethodologyPageProps = { navigate: (tab: TabId) => void };
 
-const p85ModelTrainingRows = [
-  { targetSeason: 2024, trainingSeasons: "2023", trainingRows: 3988, heldOutRows: 4580 },
-  { targetSeason: 2025, trainingSeasons: "2023, 2024", trainingRows: 8568, heldOutRows: 4810 },
-] as const;
+const p85ModelTrainingRows = [2024, 2025].map((targetSeason) => {
+  const fits = floorModelFits.filter((row) => row.targetSeason === targetSeason);
+  const heldOutRows = oosSeasonPositionMetrics.filter((row) => row.season === targetSeason).reduce((sum, row) => sum + row.n, 0);
+  return {
+    targetSeason,
+    trainingSeasons: fits[0]?.trainingSeasons ?? "",
+    trainingRows: fits.reduce((sum, row) => sum + row.trainingRows, 0),
+    heldOutRows,
+  };
+});
 
-const p85ModelSettings = [
-  { targetSeason: 2024, position: "QB", trainingRows: 457, maxDepth: 4, minChildWeight: 15, subsample: 0.9, colsample: 0.7, learningRate: 0.03, regLambda: 1, rounds: 414 },
-  { targetSeason: 2024, position: "RB", trainingRows: 984, maxDepth: 2, minChildWeight: 5, subsample: 0.7, colsample: 1, learningRate: 0.03, regLambda: 1, rounds: 325 },
-  { targetSeason: 2024, position: "WR", trainingRows: 1488, maxDepth: 2, minChildWeight: 1, subsample: 0.9, colsample: 1, learningRate: 0.03, regLambda: 1, rounds: 575 },
-  { targetSeason: 2024, position: "TE", trainingRows: 1059, maxDepth: 2, minChildWeight: 1, subsample: 0.9, colsample: 0.7, learningRate: 0.06, regLambda: 1, rounds: 159 },
-  { targetSeason: 2025, position: "QB", trainingRows: 940, maxDepth: 2, minChildWeight: 5, subsample: 0.9, colsample: 0.7, learningRate: 0.06, regLambda: 5, rounds: 271 },
-  { targetSeason: 2025, position: "RB", trainingRows: 2175, maxDepth: 2, minChildWeight: 1, subsample: 0.7, colsample: 1, learningRate: 0.06, regLambda: 1, rounds: 380 },
-  { targetSeason: 2025, position: "WR", trainingRows: 3236, maxDepth: 2, minChildWeight: 1, subsample: 0.7, colsample: 0.7, learningRate: 0.06, regLambda: 1, rounds: 485 },
-  { targetSeason: 2025, position: "TE", trainingRows: 2217, maxDepth: 3, minChildWeight: 1, subsample: 0.7, colsample: 1, learningRate: 0.06, regLambda: 1, rounds: 467 },
-] as const;
+const p85ModelSettings = floorModelFits;
 
 const p85FeatureSets = [
-  {
-    label: "QB models, 21 features",
-    fields: "week, ecr, rank_sd, n_projectors, rank_min, rank_max, consensus_rank, consensus_projected_score, pass-att, pass-cmp, pass-1d, pass-int, pass-sck, pass-td, pass-yds, rush-car, rush-1d, rush-td, rush-yds, fum-lost, projection_fpts",
-  },
-  {
-    label: "RB, WR, and TE models, 18 features",
-    fields: "week, ecr, rank_sd, n_projectors, rank_min, rank_max, consensus_rank, consensus_projected_score, rush-car, rush-1d, rush-td, rush-yds, rec-rec, rec-tgt, rec-td, rec-yds, fum-lost, projection_fpts",
-  },
+  { label: "QB models, 15 features", fields: "week, ecr, pass-att, pass-cmp, pass-1d, pass-int, pass-sck, pass-td, pass-yds, rush-car, rush-1d, rush-td, rush-yds, fum-lost, projection_fpts" },
+  { label: "RB models, 18 features", fields: "week, ecr, pass-att, pass-cmp, pass-1d, pass-int, pass-td, pass-yds, rush-car, rush-1d, rush-td, rush-yds, rec-rec, rec-tgt, rec-td, rec-yds, fum-lost, projection_fpts" },
+  { label: "WR models, 13 features", fields: "week, ecr, pass-int, rush-car, rush-1d, rush-td, rush-yds, rec-rec, rec-tgt, rec-td, rec-yds, fum-lost, projection_fpts" },
+  { label: "TE models, 12 features", fields: "week, ecr, rush-car, rush-1d, rush-td, rush-yds, rec-rec, rec-tgt, rec-td, rec-yds, fum-lost, projection_fpts" },
 ] as const;
 
-const p85OverallPerformance = {
-  rows: 9390,
-  baselineCoverage: 0.8805111821086262,
-  xgbCoverage: 0.8413205537806177,
-  baselineLoss: 1.8256161608093715,
-  xgbLoss: 1.637125402586459,
-  baselineRankSpearman: 0.5395841437158123,
-  xgbRankSpearman: 0.6288275947096983,
-} as const;
+const p85OverallPerformance = (() => {
+  const baseline = overallMetrics.find((row) => row.model === "ffsimulator");
+  const xgb = overallMetrics.find((row) => row.model === "XGBoost");
+  if (!baseline || !xgb) throw new Error("The calibration artifact has no overall model metrics.");
+  return {
+    rows: xgb.sampleCount,
+    baselineCoverage: baseline.p85Coverage,
+    xgbCoverage: xgb.p85Coverage,
+    baselineLoss: baseline.p85PinballLoss,
+    xgbLoss: xgb.p85PinballLoss,
+    baselineRankSpearman: baseline.rankSpearman,
+    xgbRankSpearman: xgb.rankSpearman,
+  };
+})();
 
 const ffsimulatorQbEvaluationRows = scorecardMetrics
   .filter((row) => row.model === "ffsimulator" && row.position === "QB" && row.season !== null)
@@ -1115,7 +1117,7 @@ function FfsimulatorQbModelCard() {
           <h2><code>ffsimulator</code> floor and ceiling model</h2>
           <p>Using positional consensus rank, historical outputs, and random sampling to sim ranges of outcome</p>
         </div>
-        <StatusPill label="Active QB path" tone="good" />
+        <StatusPill label="Diagnostic baseline" tone="blue" />
         <ChevronDown size={18} aria-hidden="true" />
       </summary>
 
@@ -1124,10 +1126,10 @@ function FfsimulatorQbModelCard() {
           <div>
             <span className="methodology-detail-label">Summary</span>
             <p><code>ffsimulator</code> samples historical weekly PPR outcomes near a player&apos;s expected rank. It creates one score distribution for each QB player-week.</p>
-            <p>The combined forward range uses the distribution for QB p15, p50, and p85. The percentiles describe possible scores. They do not set a hard minimum or maximum.</p>
+            <p>The web workflow runs this distribution beside the v2 XGBoost result for diagnostics. Its p15, p50, and p85 values do not define the active range.</p>
           </div>
           <div className="model-card-facts">
-            <div><span>Status</span><strong>Active QB path</strong><small>Full range output</small></div>
+            <div><span>Status</span><strong>Diagnostic only</strong><small>Comparison output</small></div>
             <div><span>Model type</span><strong>Rank-conditioned</strong><small>Historical outcome sampling</small></div>
             <div><span>Output</span><strong>p15, p50, p85</strong><small>Weekly PPR points</small></div>
             <div><span>Scoring</span><strong>PPR, <code>ppr_v1</code></strong><small>1 point per reception</small></div>
@@ -1152,7 +1154,7 @@ function FfsimulatorQbModelCard() {
           <section className="model-card-section" aria-labelledby="ffsimulator-qb-intended-use-title">
             <h3 id="ffsimulator-qb-intended-use-title">Intended use</h3>
             <ul className="methodology-data-list">
-              <li>Estimate a QB&apos;s weekly PPR range before the game.</li>
+            <li>Compare a QB&apos;s weekly PPR range with the v2 model.</li>
               <li>Show a lower marker, median, and upper marker for one player-week.</li>
               <li>Give analysts a rank-based baseline for model comparison.</li>
             </ul>
@@ -1233,7 +1235,7 @@ function FfsimulatorQbModelCard() {
               <tbody>{ffsimulatorQbEvaluationRows.map((row) => <tr key={String(row.season)}><th scope="row">{row.season}</th><td>{row.sampleCount.toLocaleString()}</td><td>{formatMaybePercent(row.p15Coverage)}</td><td>{formatMaybePercent(row.p50Coverage)}</td><td>{formatMaybePercent(row.p85Coverage)}</td><td>{formatMaybePercent(row.p15ToP85IntervalCoverage)}</td><td>{formatMaybeMetric(row.p85PinballLoss)}</td><td>{formatMaybeMetric(row.rankSpearman)}</td></tr>)}</tbody>
             </table>
           </div>
-          {ffsimulatorQbCurrentAggregate ? <p className="model-card-result-note">The web artifact combines {ffsimulatorQbCurrentAggregate.n.toLocaleString()} QB rows from 2024 and 2025. Its p85 coverage is {formatMaybePercent(ffsimulatorQbCurrentAggregate.selectedCoverage)}, and its p85 pinball loss is {formatMaybeMetric(ffsimulatorQbCurrentAggregate.selectedPinballLoss)}.</p> : null}
+          {ffsimulatorQbCurrentAggregate ? <p className="model-card-result-note">The web artifact combines {ffsimulatorQbCurrentAggregate.n.toLocaleString()} QB rows from 2024 and 2025. The diagnostic baseline has p85 coverage of {formatMaybePercent(ffsimulatorQbCurrentAggregate.ffsimulatorCoverage)} and p85 pinball loss of {formatMaybeMetric(ffsimulatorQbCurrentAggregate.ffsimulatorPinballLoss)}.</p> : null}
         </section>
 
         <section className="model-card-section" aria-labelledby="ffsimulator-qb-ethics-title">
@@ -1268,8 +1270,8 @@ function P85ModelCard() {
         <div className="methodology-model-icon methodology-model-icon-xgboost"><FileText size={19} /></div>
         <div>
           <span className="panel-eyebrow">Model card</span>
-          <h2>Machine Learning-based Ceiling Model</h2>
-          <p>Purpose, training data, held-out evidence, and known limits for the direct ceiling candidate.</p>
+          <h2>Machine Learning-based Multi-quantile Model</h2>
+          <p>Purpose, training data, held-out evidence, and known limits for the active v2 model.</p>
         </div>
         <ChevronDown size={18} aria-hidden="true" />
       </summary>
@@ -1278,15 +1280,15 @@ function P85ModelCard() {
         <div className="model-card-intro">
           <div>
             <span className="methodology-detail-label">Summary</span>
-            <p>This model estimates a player&apos;s 85th-percentile weekly fantasy score in points per reception scoring. The output is a ceiling estimate, not a hard upper limit.</p>
-            <p>The model predicts p85 only. The combined workflow gets p15 from the floor model and p50 from <code>ffsimulator</code>.</p>
+            <p>This model estimates p15, p50, and p85 weekly PPR scores for one player-week. The values describe a range. They do not set a hard minimum or maximum.</p>
+            <p>One booster serves each of QB, RB, WR, and TE. One prediction call returns all three quantiles. The live result uses these values for floor, median, and ceiling.</p>
           </div>
           <div className="model-card-facts">
-            <div><span>Status</span><strong>Candidate</strong><small>Historical comparison only</small></div>
-            <div><span>Model family</span><strong>8 models</strong><small>One per position and target season</small></div>
-            <div><span>Objective</span><strong>Quantile regression</strong><small><code>reg:quantileerror</code>, alpha 0.85</small></div>
+            <div><span>Status</span><strong>Active</strong><small>forecast-ppr-v2</small></div>
+            <div><span>Model family</span><strong>4 boosters</strong><small>One per position</small></div>
+            <div><span>Objective</span><strong>Quantile regression</strong><small><code>reg:quantileerror</code>, alpha 0.15, 0.50, 0.85</small></div>
             <div><span>Scoring</span><strong>PPR, <code>ppr_v1</code></strong><small>Weekly player points</small></div>
-            <div><span>Framework</span><strong>XGBoost 3.4.1</strong><small>Python 3.12</small></div>
+            <div><span>Framework</span><strong>XGBoost 3.4.1</strong><small>Python 3.14</small></div>
             <div><span>Run</span><strong>{calibrationModel.runDate}</strong><small>Artifact version {calibrationModel.version}</small></div>
           </div>
         </div>
@@ -1295,16 +1297,16 @@ function P85ModelCard() {
           <section className="model-card-section" aria-labelledby="p85-model-card-use-title">
             <h3 id="p85-model-card-use-title">Intended use</h3>
             <ul className="methodology-data-list">
-              <li>Estimate weekly player upside before kickoff.</li>
-              <li>Rank players by projected ceiling.</li>
-              <li>Compare direct projection models with the simulation baseline.</li>
+            <li>Estimate a weekly PPR floor, median, and ceiling before kickoff.</li>
+            <li>Use the same three model outputs for all four supported positions.</li>
+            <li>Compare the direct model with the rank-conditioned simulation baseline.</li>
             </ul>
           </section>
           <section className="model-card-section" aria-labelledby="p85-model-card-out-title">
             <h3 id="p85-model-card-out-title">Out of scope</h3>
             <ul className="methodology-data-list">
-              <li>Do not use the output as a maximum score.</li>
-              <li>Do not use it to create a complete player range by itself.</li>
+            <li>Do not use a quantile as a guaranteed minimum, maximum, or exact score.</li>
+            <li>Do not use it without checking release, scoring, feature, and quantile metadata.</li>
               <li>Do not use it as a causal explanation or a profit forecast.</li>
             </ul>
           </section>
@@ -1314,8 +1316,8 @@ function P85ModelCard() {
           <h3 id="p85-model-card-data-title">Training data and target</h3>
           <p>The experiment uses Footballguys Projections Consensus rows from the 2023 through 2025 backtest seasons. It joins projection rows with rank summaries and realized weekly outcomes.</p>
           <ul className="methodology-data-list">
-            <li>14,985 projection rows matched through a one-to-one join.</li>
-            <li>13,378 eligible rows after identity, projector-count, outcome, and projection checks.</li>
+            <li>Historical identity and outcome checks run before model fitting.</li>
+            <li>Training requires <code>actual_score &gt; 0</code>. Missing observed outcomes are recorded separately.</li>
             <li>Target: <code>actual_score</code>, the realized weekly PPR score.</li>
             <li>Eligibility requires a matched player identity, at least 3 projectors, and a non-free-agent team.</li>
           </ul>
@@ -1330,18 +1332,18 @@ function P85ModelCard() {
 
         <section className="model-card-section" aria-labelledby="p85-model-card-features-title">
           <h3 id="p85-model-card-features-title">Input features</h3>
-          <p>The model uses rank summaries, raw stat projections, and one derived PPR projection score. Player identifiers, names, teams, target outcomes, and future-season rows stay out of the feature set.</p>
+          <p>The model uses the exact position-specific feature lists in the v2 metadata. Player identifiers, names, teams, target outcomes, projector counts, and rank summary fields with changed meaning stay out of the feature set.</p>
           <div className="model-card-feature-list">{p85FeatureSets.map((featureSet) => <div key={featureSet.label}><strong>{featureSet.label}</strong><code>{featureSet.fields}</code></div>)}</div>
-          <div className="methodology-limit model-card-inline-limit"><Info size={16} /><div><strong>Duplicate projection inputs</strong><p><code>consensus_projected_score</code> and <code>projection_fpts</code> match exactly. Interpret their importance as one combined signal.</p></div></div>
+          <div className="methodology-limit model-card-inline-limit"><Info size={16} /><div><strong>Feature contract</strong><p>The serving row must match the stored feature names and order. The web path rejects <code>n_projectors</code> and other unsupported fields.</p></div></div>
         </section>
 
         <section className="model-card-section" aria-labelledby="p85-model-card-method-title">
           <h3 id="p85-model-card-method-title">Training method</h3>
           <ol className="methodology-step-list">
             <li><span>01</span><div><strong>Split by season</strong><p>Train on seasons before the target season.</p></div></li>
-            <li><span>02</span><div><strong>Choose settings</strong><p>Test 144 parameter combinations on weeks 14 through 17 of the latest training season.</p></div></li>
+            <li><span>02</span><div><strong>Choose settings</strong><p>Test bounded parameter settings on weeks 14 through 17 of the latest training season with multi-quantile loss.</p></div></li>
             <li><span>03</span><div><strong>Refit the model</strong><p>Fit the selected settings on all earlier rows.</p></div></li>
-            <li><span>04</span><div><strong>Score the next season</strong><p>Clip negative predictions to zero and store the result as <code>xgb_p85</code>.</p></div></li>
+            <li><span>04</span><div><strong>Score the next season</strong><p>One prediction call returns p15, p50, and p85. The worker checks finite values, non-negative values, and quantile order.</p></div></li>
           </ol>
           <div className="model-card-table-wrap">
             <table className="model-card-table model-card-settings-table">
@@ -1365,18 +1367,18 @@ function P85ModelCard() {
               </tbody>
             </table>
           </div>
-          <p className="model-card-result-note">The direct model improves pinball loss for RB, WR, and TE. QB coverage is 77.7%, below the 85% target, and its pinball loss is worse than the baseline.</p>
+          <p className="model-card-result-note">The v2 model has lower p85 pinball loss than the diagnostic ffsimulator baseline for each position in the common held-out comparison. Review p15, p50, interval coverage, and crossing checks with the same release.</p>
         </section>
 
         <div className="model-card-section-grid">
           <section className="model-card-section" aria-labelledby="p85-model-card-explain-title">
             <h3 id="p85-model-card-explain-title">Explainability</h3>
-            <p>Tree SHAP explains raw p85 output for 8 models and 9,390 held-out rows. The maximum additivity error was 0.00003052 points.</p>
+            <p>The model card stores the feature contract, validation result, held-out comparison, and raw quantile crossing audit. This release has zero recorded quantile crossings in the common comparison.</p>
             <ul className="methodology-data-list">
-              <li>RB: consensus projected score and rushing yards.</li>
-              <li>TE: receiving yards and targets.</li>
-              <li>WR: receiving yards, receptions, and consensus projected score.</li>
-              <li>QB: consensus projected score, projected sacks, and rank features.</li>
+              <li>QB: passing, rushing, fumbles, ECR, week, and PPR projection.</li>
+              <li>RB: passing, rushing, receiving, fumbles, ECR, week, and PPR projection.</li>
+              <li>WR: rushing, receiving, fumbles, ECR, week, and PPR projection.</li>
+              <li>TE: rushing, receiving, fumbles, ECR, week, and PPR projection.</li>
             </ul>
             <p>SHAP values show model association. They do not establish causation.</p>
           </section>
@@ -1393,7 +1395,7 @@ function P85ModelCard() {
           </section>
         </div>
 
-        <div className="methodology-limit model-card-recommendation"><Info size={16} /><div><strong>Recommendation</strong><p>Use the direct p85 model for RB, WR, and TE with the implemented p15 floor model and <code>ffsimulator</code> p50. Keep the complete QB range on <code>ffsimulator</code>. Review the combined interval as its own model release.</p></div></div>
+        <div className="methodology-limit model-card-recommendation"><Info size={16} /><div><strong>Active policy</strong><p>Use the forecast-ppr-v2 XGBoost p15, p50, and p85 values for QB, RB, WR, and TE. Keep <code>ffsimulator</code> as a diagnostic baseline and compare both systems on the same held-out rows.</p></div></div>
       </div>
     </details>
   );
@@ -1406,8 +1408,8 @@ function P15ModelCard() {
         <div className="methodology-model-icon methodology-model-icon-floor"><FileText size={19} /></div>
         <div>
           <span className="panel-eyebrow">Model card</span>
-          <h2>Machine Learning-based Floor Model</h2>
-          <p>Purpose, training data, held-out evidence, and limits for the implemented lower-tail model.</p>
+          <h2>Historical p15 Component Model</h2>
+          <p>Evidence for the retained p15 component from the previous web release.</p>
         </div>
         <ChevronDown size={18} aria-hidden="true" />
       </summary>
@@ -1416,12 +1418,12 @@ function P15ModelCard() {
         <div className="model-card-intro">
           <div>
             <span className="methodology-detail-label">Summary</span>
-            <p>This model estimates a player&apos;s 15th-percentile weekly fantasy score in points per reception scoring. The output is a floor estimate, not a guaranteed minimum.</p>
-            <p>The model is implemented in the XGBoost artifact path and is available to the forecast backend. The workflow uses it for RB, WR, and TE. QB uses <code>ffsimulator</code> p15.</p>
+            <p>This card describes the separate p15 artifact from <code>forecast-ppr-v1</code>. The output is a historical floor estimate, not a guaranteed minimum.</p>
+            <p>The active <code>forecast-ppr-v2</code> release uses one multi-quantile booster for QB, RB, WR, and TE. It supplies p15, p50, and p85 in one call.</p>
           </div>
           <div className="model-card-facts">
-            <div><span>Status</span><strong>Implemented</strong><small>Available to the forecast workflow</small></div>
-            <div><span>Model family</span><strong>{floorModelFits.length} models</strong><small>One per position and target season</small></div>
+            <div><span>Status</span><strong>Superseded</strong><small>Retained for rollback and old runs</small></div>
+            <div><span>Model family</span><strong>Legacy p15</strong><small>Previous web release</small></div>
             <div><span>Objective</span><strong>Quantile regression</strong><small><code>reg:quantileerror</code>, alpha 0.15</small></div>
             <div><span>Scoring</span><strong>PPR, <code>ppr_v1</code></strong><small>Weekly player points</small></div>
             <div><span>Framework</span><strong>XGBoost 3.4.1</strong><small>Python 3.12</small></div>
@@ -1433,16 +1435,16 @@ function P15ModelCard() {
           <section className="model-card-section" aria-labelledby="p15-model-card-use-title">
             <h3 id="p15-model-card-use-title">Intended use</h3>
             <ul className="methodology-data-list">
-              <li>Estimate the lower end of weekly player outcomes before kickoff.</li>
-              <li>Supply the p15 floor for RB, WR, and TE in the combined forecast range.</li>
-              <li>Compare a direct lower-tail model with the <code>ffsimulator</code> baseline.</li>
+              <li>Read the historical p15 evidence for the previous web release.</li>
+              <li>Explain the retained rollback asset and old result records.</li>
+              <li>Compare the old lower-tail component with the <code>ffsimulator</code> baseline.</li>
             </ul>
           </section>
           <section className="model-card-section" aria-labelledby="p15-model-card-out-title">
             <h3 id="p15-model-card-out-title">Out of scope</h3>
             <ul className="methodology-data-list">
+              <li>Do not use this component for a new forecast run.</li>
               <li>Do not use the output as a hard minimum.</li>
-              <li>Do not use it as the QB floor in the forecast workflow.</li>
               <li>Do not use it to supply the median or a complete range by itself.</li>
             </ul>
           </section>
@@ -1462,9 +1464,9 @@ function P15ModelCard() {
 
         <section className="model-card-section" aria-labelledby="p15-model-card-features-title">
           <h3 id="p15-model-card-features-title">Input features</h3>
-          <p>The model uses rank summaries, raw stat projections, and one derived PPR projection score. Player identifiers, names, teams, target outcomes, and future-season rows stay out of the feature set.</p>
-          <div className="model-card-feature-list">{floorFeatureFamilies.map((featureSet) => <div key={featureSet.name}><strong>{featureSet.name}</strong><code>{featureSet.detail}</code></div>)}</div>
-          <div className="methodology-limit model-card-inline-limit"><Info size={16} /><div><strong>Shared projection inputs</strong><p><code>consensus_projected_score</code> and <code>projection_fpts</code> match exactly in the training data. Treat them as one combined signal.</p></div></div>
+          <p>The legacy model uses the feature contract stored with the previous release. Player identifiers, names, teams, target outcomes, and future-season rows stay out of the feature set.</p>
+          <div className="model-card-feature-list"><div><strong>Previous release contract</strong><code>See web/api/producer-assets/models/p15/metadata.json</code></div><div><strong>Current release contract</strong><code>See web/api/producer-assets/models/v2/metadata.json</code></div></div>
+          <div className="methodology-limit model-card-inline-limit"><Info size={16} /><div><strong>Release boundary</strong><p>The active v2 feature contract uses only the exact position-specific fields in its metadata. This card does not authorize the legacy p15 component for new runs.</p></div></div>
         </section>
 
         <section className="model-card-section" aria-labelledby="p15-model-card-method-title">
@@ -1473,7 +1475,7 @@ function P15ModelCard() {
             <li><span>01</span><div><strong>Split by season</strong><p>Train on seasons before the target season.</p></div></li>
             <li><span>02</span><div><strong>Choose settings</strong><p>Test 144 parameter combinations on weeks 14 through 17 of the latest training season with p15 pinball loss.</p></div></li>
             <li><span>03</span><div><strong>Refit the model</strong><p>Fit the selected settings on all eligible earlier rows.</p></div></li>
-            <li><span>04</span><div><strong>Score the next season</strong><p>Clip negative predictions to zero and store the result as <code>xgb_p15</code>.</p></div></li>
+              <li><span>04</span><div><strong>Read the historical result</strong><p>Store the legacy p15 value as a component of the old result schema.</p></div></li>
           </ol>
           <div className="model-card-table-wrap">
             <table className="model-card-table model-card-settings-table">
@@ -1497,27 +1499,27 @@ function P15ModelCard() {
               </tbody>
             </table>
           </div>
-          <p className="model-card-result-note">The implemented p15 path has a {formatCalibrationPercent(floorSelectedPortfolioOverall.coverage)} coverage result for the selected mix against a 15% target. Keep this lower-tail calibration gap visible when the model is used.</p>
+           <p className="model-card-result-note">The retained p15 component has a {formatCalibrationPercent(floorSelectedPortfolioOverall.coverage)} coverage result for the selected historical mix against a 15% target. Keep this result attached to old runs.</p>
         </section>
 
         <div className="model-card-section-grid">
           <section className="model-card-section" aria-labelledby="p15-model-card-explain-title">
             <h3 id="p15-model-card-explain-title">Explainability</h3>
-            <p>Tree SHAP explains the p15 output for {floorModelFits.length} models and {floorCalibrationModel.oosRows.toLocaleString()} held-out rows. SHAP values show model association. They do not establish causation.</p>
-            <p>Saved explanations live under <code>outputs/xgb_p15_projection/shap</code>.</p>
+            <p>Tree SHAP explains the retained p15 output for {floorModelFits.length} legacy fits and {floorCalibrationModel.oosRows.toLocaleString()} held-out rows. SHAP values show model association. They do not establish causation.</p>
+            <p>Saved legacy explanations live under <code>outputs/xgb_p15_projection/shap</code>.</p>
           </section>
           <section className="model-card-section" aria-labelledby="p15-model-card-limits-title">
             <h3 id="p15-model-card-limits-title">Limitations and monitoring</h3>
             <ul className="methodology-data-list">
               <li>Evaluation covers only {floorCalibrationModel.oosSeasons}.</li>
-              <li>The model supports PPR QB, RB, WR, and TE artifacts. The workflow assigns the p15 output to RB, WR, and TE.</li>
+              <li>The active workflow uses the v2 multi-quantile artifact. This card describes the retained v1 component.</li>
               <li>Coverage can vary by position, season, rank, and input quality.</li>
-              <li>Monitor p15 coverage, pinball loss, lower-side miss rate, and rank correlation.</li>
+              <li>Monitor the v2 p15 output, p50 output, p85 output, interval coverage, and quantile crossings.</li>
             </ul>
           </section>
         </div>
 
-        <div className="methodology-limit model-card-recommendation"><Info size={16} /><div><strong>Recommendation</strong><p>Use the implemented p15 model for RB, WR, and TE. Use <code>ffsimulator</code> p15 for QB, p50 for the median, and the direct p85 model for the skill-position ceiling. The combined result needs its own model release and interval checks.</p></div></div>
+        <div className="methodology-limit model-card-recommendation"><Info size={16} /><div><strong>Historical record</strong><p>Use the forecast-ppr-v2 multi-quantile model for new runs. Keep this p15 component for rollback support and for reading forecast-ppr-v1 results.</p></div></div>
       </div>
     </details>
   );
@@ -1533,16 +1535,16 @@ function MethodologyPage({ navigate }: MethodologyPageProps) {
   const choiceMissDirection = choiceIsCeiling ? "low" : "high";
   const choiceOtherDirection = choiceIsCeiling ? "high" : "low";
   const outputModelRows = [
-    { position: "QB", floor: "ffsimulator", median: "ffsimulator", ceiling: "ffsimulator" },
-    { position: "RB", floor: "XGBoost", median: "ffsimulator", ceiling: "XGBoost" },
-    { position: "WR", floor: "XGBoost", median: "ffsimulator", ceiling: "XGBoost" },
-    { position: "TE", floor: "XGBoost", median: "ffsimulator", ceiling: "XGBoost" },
+    { position: "QB", floor: "XGBoost", median: "XGBoost", ceiling: "XGBoost" },
+    { position: "RB", floor: "XGBoost", median: "XGBoost", ceiling: "XGBoost" },
+    { position: "WR", floor: "XGBoost", median: "XGBoost", ceiling: "XGBoost" },
+    { position: "TE", floor: "XGBoost", median: "XGBoost", ceiling: "XGBoost" },
   ] as const;
   const modelBadge = (model: "ffsimulator" | "XGBoost") => <span className={cx("methodology-model-badge", model === "ffsimulator" ? "methodology-model-badge-simulation" : "methodology-model-badge-xgboost")}>{model}</span>;
 
   return (
     <>
-      <SectionIntro eyebrow="Methodology" title="Floor and Ceiling Modeling Process" status={<StatusPill label="Two model paths" tone="blue" />} action={<Button variant="secondary" onClick={() => navigate("calibration")} icon={<Target size={15} />}>View calibration</Button>}>Two different methods, one machine-learning based and another using random sampling, were backtested to predict player ranges of outcomes in future weeks. A key assumption for this project: <strong>ceiling is defined as an 85th percentile outcome and floor is defined as a 15th percentile outcome.</strong></SectionIntro>
+      <SectionIntro eyebrow="Methodology" title="Floor and Ceiling Modeling Process" status={<StatusPill label="forecast-ppr-v2" tone="good" />} action={<Button variant="secondary" onClick={() => navigate("calibration")} icon={<Target size={15} />}>View calibration</Button>}>The active release uses one multi-quantile XGBoost booster for each of QB, RB, WR, and TE. It returns p15, p50, and p85 in one prediction call. A rank-conditioned ffsimulator run stays available as a diagnostic comparison. <strong>Floor is p15 and ceiling is p85.</strong></SectionIntro>
 
       <div className="methodology-range-markers" role="group" aria-label="Forecast range markers">
         <div className="methodology-range-marker methodology-range-marker-floor"><strong>p15</strong><span>Floor</span><small>A bad week, not the worst week. About 15 games in 100 finish under it.</small></div>
@@ -1568,23 +1570,23 @@ function MethodologyPage({ navigate }: MethodologyPageProps) {
         <article className="methodology-model-card methodology-model-card-xgboost">
           <div className="methodology-model-heading">
             <div className="methodology-model-icon methodology-model-icon-xgboost"><Activity size={21} /></div>
-            <div><span className="panel-eyebrow">Path 2 · Python</span><h2>XGBoost direct p85 model</h2><p>Predicts the ceiling from the projection fields themselves instead of sampling a historical outcome pool.</p></div>
+            <div><span className="panel-eyebrow">Path 2 · Python</span><h2>XGBoost v2 multi-quantile model</h2><p>Predicts p15, p50, and p85 from the projection fields in one position-specific booster.</p></div>
           </div>
-          <p className="methodology-path-summary">Skip the history pile. Learn the ceiling straight from the projection numbers.</p>
-          <div className="methodology-detail-block"><span className="methodology-detail-label">Stack</span><div className="methodology-pill-list"><span>Python 3.12</span><span>XGBoost</span><span>pandas</span><span>NumPy</span><span>PyArrow</span><span>SHAP</span><span>matplotlib</span></div></div>
-          <div className="methodology-detail-block"><span className="methodology-detail-label">Data used</span><ul className="methodology-data-list"><li>Footballguys weekly Projections Consensus rows from the 2023 through 2025 backtest seasons.</li><li>Rank features such as week, ECR, rank SD, projector count, rank range, consensus rank, and consensus projected score.</li><li>Raw projected passing, rushing, receiving, and fumble statistics, plus one derived PPR projection score.</li><li>Actual weekly PPR points from `nflreadr` are the training label. They never enter the feature columns. The `ffsimulator` output is a comparison baseline, not an XGBoost feature.</li></ul></div>
-          <div className="methodology-detail-block"><span className="methodology-detail-label">How one prediction is derived</span><ol className="methodology-step-list"><li><span>01</span><div><strong>Build one player-week row</strong><p>Join the rank summary, raw projection fields, derived PPR projection, and final PPR score for each historical row.</p></div></li><li><span>02</span><div><strong>Fit one model per position</strong><p>Train separate QB, RB, WR, and TE models with XGBoost&apos;s `reg:quantileerror` objective and `quantile_alpha = 0.85`.</p></div></li><li><span>03</span><div><strong>Tune on the latest prior weeks</strong><p>Test 144 bounded parameter settings on weeks 14 through 17 of the latest training season. Choose the setting with the lowest p85 pinball loss, then refit on all earlier seasons.</p></div></li><li><span>04</span><div><strong>Score the next season</strong><p>Pass only pre-kickoff features to the position model. Clamp a negative prediction to zero and store the result as `xgb_p85`.</p></div></li></ol></div>
-          <div className="methodology-output-box"><span>Current output</span><strong>Direct p85 ceiling only</strong><small>This model returns one number, the ceiling. The floor comes from a separate p15 model. Neither produces a median.</small></div>
+          <p className="methodology-path-summary">Use the pregame projection row to estimate the full weekly PPR range.</p>
+          <div className="methodology-detail-block"><span className="methodology-detail-label">Stack</span><div className="methodology-pill-list"><span>Python 3.14</span><span>XGBoost</span><span>pandas</span><span>NumPy</span><span>PyArrow</span><span>SHAP</span><span>matplotlib</span></div></div>
+          <div className="methodology-detail-block"><span className="methodology-detail-label">Data used</span><ul className="methodology-data-list"><li>Footballguys weekly Projections Consensus rows from the 2023 through 2025 backtest seasons.</li><li>Week, ECR, position-specific projected statistics, and one derived PPR projection score.</li><li>Actual weekly PPR points from `nflreadr` are the training label. They never enter the feature columns. The `ffsimulator` output is a comparison baseline, not an XGBoost feature.</li><li>The projector count and rank summary fields stay in the data-quality report. They are not model features.</li></ul></div>
+          <div className="methodology-detail-block"><span className="methodology-detail-label">How one prediction is derived</span><ol className="methodology-step-list"><li><span>01</span><div><strong>Build one player-week row</strong><p>Join the rank summary, raw projection fields, derived PPR projection, and final PPR score for each historical row.</p></div></li><li><span>02</span><div><strong>Fit one model per position</strong><p>Train separate QB, RB, WR, and TE boosters with XGBoost&apos;s `reg:quantileerror` objective and `quantile_alpha = [0.15, 0.50, 0.85]`.</p></div></li><li><span>03</span><div><strong>Tune on the latest prior weeks</strong><p>Test bounded parameter settings on weeks 14 through 17 of the latest training season. Choose the setting with the lowest multi-quantile loss, then refit on all earlier seasons.</p></div></li><li><span>04</span><div><strong>Score the next season</strong><p>Pass only pre-kickoff features to the position model. One prediction call returns p15, p50, and p85. Raw outputs are checked for finite values and quantile order.</p></div></li></ol></div>
+          <div className="methodology-output-box"><span>Current output</span><strong>One multi-quantile call</strong><small>p15 defines floor, p50 defines median, and p85 defines ceiling for QB, RB, WR, and TE.</small></div>
         </article>
       </div>
 
-      <Panel className="methodology-output-map-panel" eyebrow="Model output" title="Which model supplies each number?">
+      <Panel className="methodology-output-map-panel" eyebrow="Active model output" title="Which model supplies each number?">
         <div className="methodology-output-map-wrap"><table className="methodology-output-map"><caption className="sr-only">Model source for each range marker by position</caption><thead><tr><th scope="col">Position</th><th scope="col">Floor p15</th><th scope="col">Median p50</th><th scope="col">Ceiling p85</th></tr></thead><tbody>{outputModelRows.map((row) => <tr key={row.position}><th scope="row"><span className="position-chip">{row.position}</span></th><td>{modelBadge(row.floor)}</td><td>{modelBadge(row.median)}</td><td>{modelBadge(row.ceiling)}</td></tr>)}</tbody></table></div>
-        <Explainer>For RB, WR, and TE, the CSV projection remains a separate average. It does not fill the p50 column.</Explainer>
+        <Explainer>The live result uses XGBoost p15, p50, and p85 for all four positions. The CSV PPR projection remains a separate average, and ffsimulator values remain diagnostic.</Explainer>
       </Panel>
 
       <Panel className="methodology-choice-panel" eyebrow="Model choice" title="Positional Model Selection">
-        <div className="methodology-choice-copy"><p>Each position uses its own model, choosing between the simulation-based or machine learning-based methodology, whichever achieves the more calibrated result.</p><ol className="methodology-choice-rules"><li><strong>Coverage first.</strong> A candidate survives only if {choiceCoverageRange} of actual scores land at or below its {choicePercentile}.</li><li><strong>Then pinball loss.</strong> Lowest wins. The loss punishes a {choiceEstimate} set too {choiceMissDirection} harder than one set too {choiceOtherDirection}, which is what you want from a {choiceEstimate}.</li></ol></div>
+        <div className="methodology-choice-copy"><p>The table shows the best historical method for each percentile. The live web result uses the v2 XGBoost booster for all three percentiles and keeps ffsimulator as a diagnostic baseline.</p><ol className="methodology-choice-rules"><li><strong>Coverage first.</strong> A candidate survives only if {choiceCoverageRange} of actual scores land at or below its {choicePercentile}.</li><li><strong>Then pinball loss.</strong> Lowest wins. The loss punishes a {choiceEstimate} set too {choiceMissDirection} harder than one set too {choiceOtherDirection}, which is what you want from a {choiceEstimate}.</li></ol></div>
         <div className="calibration-subnav methodology-choice-toggle" role="tablist" aria-label="Model choice estimate"><button type="button" role="tab" aria-selected={choiceIsCeiling} className={cx(choiceIsCeiling && "active")} onClick={() => setChoiceView("ceiling")}>Ceiling / P85</button><button type="button" role="tab" aria-selected={!choiceIsCeiling} className={cx(!choiceIsCeiling && "active")} onClick={() => setChoiceView("floor")}>Floor / P15</button></div>
         <div className="methodology-choice-table-wrap"><table className="methodology-choice-table"><caption className="sr-only">Held-out {choicePercentile} coverage and pinball loss by position</caption><thead><tr><th rowSpan={2}>Position</th><th colSpan={2}>ffsimulator</th><th colSpan={2}>XGBoost</th><th rowSpan={2}>Selected</th></tr><tr><th>Coverage</th><th>Loss</th><th>Coverage</th><th>Loss</th></tr></thead><tbody>{choiceRows.map((row) => <tr key={row.position}><th scope="row"><span className="position-chip">{row.position}</span></th><td>{formatCalibrationPercent(row.ffsimulatorCoverage)}</td><td>{formatCalibrationMetric(row.ffsimulatorPinballLoss)}</td><td>{formatCalibrationPercent(row.xgbCoverage)}</td><td>{formatCalibrationMetric(row.xgbPinballLoss)}</td><td>{modelBadge(row.selectedModel)}</td></tr>)}</tbody></table></div>
         <Explainer>Held-out results, not this week&apos;s forecast. A new completed season can change a pick. Until then it&apos;s frozen.</Explainer>
@@ -1594,7 +1596,7 @@ function MethodologyPage({ navigate }: MethodologyPageProps) {
       <P85ModelCard />
       <P15ModelCard />
 
-      <div id="methodology-source-map"><Panel className="methodology-sources-panel" eyebrow="Source map" title="Where to inspect the implementation"><div className="methodology-source-grid"><div><strong>Ranked simulation</strong><code>R/01_rankings.R</code><code>R/02_ffsimulator.R</code><code>R/03_summaries.R</code><small>Ranking normalization, draws, and percentiles.</small></div><div><strong>Direct XGBoost</strong><code>scripts/08_xgb_p85_projection_experiment.py</code><code>scripts/08_xgb_p15_projection_experiment.py</code><code>scripts/10_build_calibration_page_data.py</code><small>Feature construction, walk-forward fits, and p85 and p15 comparison data.</small></div><div><strong>Historical evidence</strong><code>backtest_fbg_2023_2025/README.md</code><code>backtest_fbg_2023_2025/outputs/player_backtest_metadata.json</code><code>outputs/xgb_p85_projection/metadata.json</code><code>outputs/xgb_p15_projection/metadata.json</code><code>docs/model_card_ffsimulator_qb.md</code><small>Source choices, cutoffs, scoring rules, model settings, and the quarterback model card.</small></div></div><Explainer>Private uploads and temporary session records do not enter the published calibration data.</Explainer></Panel></div>
+      <div id="methodology-source-map"><Panel className="methodology-sources-panel" eyebrow="Source map" title="Where to inspect the implementation"><div className="methodology-source-grid"><div><strong>Diagnostic simulation</strong><code>R/01_rankings.R</code><code>R/02_ffsimulator.R</code><code>R/03_summaries.R</code><small>Ranking normalization, draws, and diagnostic percentiles.</small></div><div><strong>Active XGBoost v2</strong><code>scripts/15_xgb_v2_quantile_projection.py</code><code>scripts/10_build_calibration_page_data.py</code><code>services/model-worker/predict_service_v2.py</code><small>Multi-quantile training, calibration data, and serving checks.</small></div><div><strong>Release evidence</strong><code>backtest_fbg_2023_2025/outputs/xgb_v2_quantile_projection/metadata.json</code><code>backtest_fbg_2023_2025/outputs/xgb_v2_quantile_projection/comparison_report.md</code><code>docs/ml_model_card_xgb_v2.md</code><small>Features, training seasons, validation result, comparisons, identity audit, and model limits.</small></div></div><Explainer>Private uploads and temporary session records do not enter the published calibration data.</Explainer></Panel></div>
     </>
   );
 }
@@ -1671,7 +1673,7 @@ function CeilingCalibrationPage() {
       if (current) {
         current.rows.push(row);
       } else {
-        groups.set(groupKey, { position: row.position, label: row.position + " · " + (row.model === "ffsimulator" ? "Simulation" : "Projection model"), rows: [row] });
+        groups.set(groupKey, { position: row.position, label: row.position + " · " + (String(row.model) === "ffsimulator" ? "Simulation" : "Projection model"), rows: [row] });
       }
     });
     return calibrationPositionOrder
@@ -1747,7 +1749,7 @@ function CeilingCalibrationPage() {
       })
       .map((row) => ({
         ...row,
-        selectedModel: selectedModelByPosition[row.position],
+        selectedModel: String(selectedModelByPosition[row.position]),
         coverage: row.selectedCoverage,
         pinballLoss: row.selectedPinballLoss,
         rankSpearman: row.selectedRankSpearman,
@@ -1780,7 +1782,7 @@ function CeilingCalibrationPage() {
         type: "bar",
         data: coverageRows.map((row) => ({
           value: row.coverage,
-          itemStyle: { color: row.selectedModel === "ffsimulator" ? "#7C5BAA" : "#1264A3" },
+          itemStyle: { color: String(row.selectedModel) === "ffsimulator" ? "#7C5BAA" : "#1264A3" },
         })),
         barMaxWidth: 28,
         itemStyle: { borderRadius: [4, 4, 0, 0] },
@@ -1797,7 +1799,7 @@ function CeilingCalibrationPage() {
 
   const selectedPositionRows = positionModelSelections.map((row) => ({
     ...row,
-    method: row.selectedModel === "ffsimulator" ? "Simulation" : "Projection model",
+    method: String(row.selectedModel) === "ffsimulator" ? "Simulation" : "Projection model",
   }));
 
   const chartScope = [
@@ -1920,7 +1922,7 @@ function FloorCalibrationPage() {
       if (current) {
         current.rows.push(row);
       } else {
-        groups.set(groupKey, { position: row.position, label: row.position + " · " + (row.model === "ffsimulator" ? "Simulation" : "Projection model"), rows: [row] });
+        groups.set(groupKey, { position: row.position, label: row.position + " · " + (String(row.model) === "ffsimulator" ? "Simulation" : "Projection model"), rows: [row] });
       }
     });
     return calibrationPositionOrder
@@ -2221,7 +2223,7 @@ function ProjectionPage({ upload, uploadErrors, runState, runId, season, week, o
 
   return (
     <>
-      <SectionIntro eyebrow="Projection to sim" title="Turn a projection file into ranges" status={<StatusPill label={runState} tone={statusTone as "good" | "warn" | "neutral" | "blue"} />} action={<div className="action-group"><Button variant="secondary" onClick={onResetUpload} icon={<RotateCcw size={15} />}>Reset upload</Button><Button variant="quiet" icon={<CircleHelp size={15} />}>Input guide</Button></div>}>The real run uses the approved rank snapshot, ffsimulator, and released P15 and P85 services. Uploads do not train a model. Every run stores its input revision, seed, count, metric definition, and model release.</SectionIntro>
+      <SectionIntro eyebrow="Projection to range" title="Turn a projection file into ranges" status={<StatusPill label={runState} tone={statusTone as "good" | "warn" | "neutral" | "blue"} />} action={<div className="action-group"><Button variant="secondary" onClick={onResetUpload} icon={<RotateCcw size={15} />}>Reset upload</Button><Button variant="quiet" icon={<CircleHelp size={15} />}>Input guide</Button></div>}>The real run uses one multi-quantile XGBoost booster for each position. It returns p15, p50, and p85 in one call. ffsimulator remains a diagnostic comparison. Every run stores its input revision, seed, count, metric definition, and model release.</SectionIntro>
       <div className="projection-workflow-grid"><Panel className="upload-panel" eyebrow="1 · Upload and preview" title="Player outcome projections" action={<StatusPill label={`${upload.accepted.toLocaleString()} accepted`} tone={uploadErrors.length ? "warn" : "good"} />}><div className="upload-dropzone"><div className="upload-icon"><Upload size={20} /></div><div><strong>Drop a CSV here, or browse</strong><span>10 MB maximum · 50,000 rows · QB, RB, WR, TE</span></div><label htmlFor={inputId} className="button button-secondary">Browse file<input id={inputId} type="file" accept=".csv,text/csv" onChange={(event) => { const file = event.target.files?.[0]; if (file) void onFile(file); event.currentTarget.value = ""; }} /></label></div><button type="button" className="sample-link" onClick={onUseDemo}><Sparkles size={14} /> Use the bundled Week 1 output</button><div className="upload-file-card"><div className="file-icon"><FileText size={17} /></div><div className="file-copy"><strong>{upload.fileName}</strong><span>Loaded {upload.sourceTimestamp === demoUploadReport.sourceTimestamp ? "Aug 31, 2026 at 09:14 ET" : "just now"}</span></div><StatusPill label={uploadErrors.length ? "Needs review" : "Checked"} tone={uploadErrors.length ? "warn" : "good"} /></div><div className="upload-stats"><div><span>Rows</span><strong>{upload.rows.toLocaleString()}</strong></div><div><span>Accepted</span><strong className="text-green">{upload.accepted.toLocaleString()}</strong></div><div><span>Excluded</span><strong className={upload.excluded ? "text-orange" : ""}>{upload.excluded.toLocaleString()}</strong></div><div><span>Unresolved</span><strong className={upload.unresolved ? "text-orange" : ""}>{upload.unresolved.toLocaleString()}</strong></div></div><div className="set-select-row"><FilterSelect label="Projection set" value={upload.sets.find((set) => set.id === upload.selectedSet)?.label ?? upload.selectedSet} options={upload.sets.map((set) => set.label)} onChange={() => undefined} /><span className="set-note"><Info size={13} /> {upload.sets.find((set) => set.id === upload.selectedSet)?.rows ?? upload.rows} rows in selected set</span></div>{upload.sourceOrderUsed ? <Explainer>The file has no explicit rank field. The adapter preserves source order within each position.</Explainer> : null}{uploadErrors.length ? <div className="error-report"><div className="error-report-title"><AlertTriangle size={15} /><strong>Row report</strong><span>{uploadErrors.length} errors</span></div><div className="error-list">{uploadErrors.slice(0, 5).map((error) => <div key={`${error.row}-${error.field}-${error.message}`}><code>Row {error.row || "file"}</code><span><strong>{error.field}</strong> {error.message}</span></div>)}</div>{uploadErrors.length > 5 ? <small>Showing 5 of {uploadErrors.length} errors.</small> : null}</div> : null}</Panel><Panel className="run-panel" eyebrow="2 · Run the baseline" title="Update Floor/Ceiling" action={<span className="run-version">sim-2026.1</span>}><div className="run-model-card"><div className="model-symbol"><Activity size={20} /></div><div><strong>Independent rank-conditioned simulation</strong><span>Complete p15, p50, and p85 range · Baseline</span></div><StatusPill label="Available" tone="good" /></div><div className="run-settings"><label className="run-setting-input"><span>Simulation count</span><span className="simulation-count-field"><input type="number" min={MIN_SIMULATIONS} max={MAX_SIMULATIONS} step={SIMULATION_STEP} value={simulationCount} onChange={(event) => onSimulationCount(event.target.value)} disabled={simulationCountDisabled} aria-label="Simulation count" aria-invalid={!simulationCountValid} aria-describedby="simulation-count-help" /><em>sims</em></span></label><div><span>Run profile</span><strong>{simulationCountValid ? simulationProfile : "Check count"}</strong></div><div><span>Seed policy</span><strong>Stored per run</strong></div><div><span>Input checks</span><strong>Pass <Check size={14} className="text-green" /></strong></div></div><div id="simulation-count-help" className="run-setting-help">Use 100 to 1,000 simulations in steps of 100. A 100-simulation run is a preview; higher counts are standard runs.</div><div className="run-action"><Button variant="primary" onClick={onStartRun} disabled={runState === "Checking upload" || runState === "Queued" || runState === "Running" || uploadErrors.length > 0 || upload.accepted === 0 || !simulationCountValid} className="full-width" icon={runState === "Running" ? <RefreshCcw size={15} className="spin" /> : <Play size={15} />}>{runState === "Complete" ? "Run again" : runState === "Failed" ? "Retry run" : runState === "Running" ? "Simulation running" : "Update Floor/Ceiling"}</Button><span>Repeat clicks return the active job. A changed upload or simulation count creates a new run.</span></div>{runState !== "Empty" && runState !== "Ready" && runState !== "Complete" ? <div className="run-progress"><div className="run-progress-top"><span>{runState}</span><strong>{progress}%</strong></div><span className="progress-track"><span style={{ width: `${progress}%` }} /></span><small>Job {shortId(runId)} · {numericSimulationCount.toLocaleString()} simulations · The page can be refreshed while the worker runs.</small></div> : null}<div className="run-state-row">{runStates.map((state) => <span key={state} className={cx(runState === state && "run-state-active", runState === "Failed" && state === "Failed" && "run-state-failed")}>{runState === state ? <Check size={12} /> : null}{state}</span>)}</div><Explainer>Counts from 100 to 1,000 reduce random sampling noise. The 100-simulation option remains a preview.</Explainer></Panel></div>
       <Panel className="forecast-output-panel" eyebrow="3 · Inspect the result" title="Player ranges" action={<div className="panel-actions"><div className="view-toggle"><button type="button" className={viewMode === "original" ? "active" : ""} onClick={() => onViewMode("original")}>Original</button><button type="button" className={viewMode === "adjusted" ? "active" : ""} onClick={() => onViewMode("adjusted")}>Adjusted {Object.keys(overrides).length ? `(${Object.keys(overrides).length})` : ""}</button></div><StatusPill label={`${rows.length} shown`} tone="neutral" /></div>}>{hasCompletedResult ? <><div className="projection-toolbar"><SearchField value={search} onChange={onSearch} placeholder="Search by player or team" /><FilterSelect label="Position" value={position} options={positionOptions} onChange={onPosition} compact /><FilterSelect label="Team" value={team} options={teams} onChange={onTeam} compact /><FilterSelect label="Sort by" value={sort} options={["ceiling", "median", "floor", "name"]} onChange={onSort} compact /><div className="toolbar-spacer" /><div className="download-menu"><Button variant="secondary" icon={<Download size={15} />} onClick={() => onExport("filtered")}>Download filtered ({activeFilteredCount})</Button><Button variant="quiet" onClick={() => onExport("all")}>All {allRows.length}</Button></div></div><div className="range-chart-card"><div className="range-chart-header"><div><strong>Floor to ceiling</strong><span>Showing the first 25 rows · select a player for details</span></div><div className="range-chart-legend"><span><i className="legend-floor" /> Floor</span><span><i className="legend-median" /> Median</span><span><i className="legend-ceiling" /> Ceiling</span></div></div><div className="range-list">{rows.length ? rows.slice(0, 25).map((row) => <ForecastRange key={row.id} row={row} override={viewMode === "adjusted" ? overrides[row.id] : undefined} onSelect={selectPlayer} />) : <EmptyState icon={<Search size={24} />} title="No matching players" body="Change the search or filters to restore rows." />}</div><div className="range-chart-footer"><span>Player count limit: 25 of {rows.length}</span><span>Values display one decimal. Sorting and exports use full precision.</span></div></div><div className="linked-chart-grid"><Panel eyebrow="Median vs ceiling" title="Where is the upside?" className="small-range-panel"><div className="median-ceiling-chart">{rows.slice(0, 12).map((row, index) => { const values = viewMode === "adjusted" ? applyOverride(row, overrides[row.id]) : row.original; return <button type="button" className="median-ceiling-dot" key={row.id} style={{ left: `${Math.min(93, (values.median / 35) * 100)}%`, bottom: `${Math.min(86, (values.ceiling / 40) * 100)}%`, background: ["#1264A3", "#2E8B73", "#D87945", "#7C5BAA"][index % 4] }} onClick={() => selectPlayer(row)} aria-label={`Open ${row.name}`} />; })}<span className="axis-label-x">Median</span><span className="axis-label-y">Ceiling</span></div><Explainer>The dot uses the same player selection as the range chart and table.</Explainer></Panel><Panel eyebrow="Source and range" title="Current output"><div className="output-summary-list"><div><span>Average median</span><strong>{formatNumber(calculateDemoSummary(rows, overrides).averageMedian)}</strong></div><div><span>Average range width</span><strong>{formatNumber(calculateDemoSummary(rows, overrides).averageWidth)}</strong></div><div><span>Model version</span><strong>sim-2026.1</strong></div><div><span>Run ID</span><strong className="mono">{shortId(runId)}</strong></div></div><Explainer>The bar runs from the estimated floor to the ceiling. The dot marks the median. Observed outcomes can fall outside the range.</Explainer></Panel></div><DataTable data={forecastTableRows} columns={columns} onRowClick={selectPlayer} /></> : <EmptyState icon={runState === "Failed" ? <AlertTriangle size={24} /> : <Play size={15} />} title={runState === "Failed" ? "The run needs attention" : runState === "Ready" ? "Ready to run" : "Waiting for a result"} body={runState === "Failed" ? "Read the row report above, correct the input, and retry the same submission." : runState === "Ready" ? "The upload passed the baseline input checks. Start a simulation to create ranges." : "The worker result will appear here when the run completes."} action={runState === "Ready" ? <Button variant="primary" onClick={onStartRun} icon={<Play size={15} />}>Update Floor/Ceiling</Button> : undefined} />}</Panel>
       <div className="projection-footnotes"><span><LockKeyhole size={14} /> Raw source uploads remain private and expire with this temporary workspace.</span><span><Database size={14} /> Results use Outcome metric v1.0 · {runId}</span></div>
@@ -2266,7 +2268,7 @@ function ForecastProjectionPage({ upload, uploadErrors, runState, runId, season,
   const weekOptions = ["1"];
   return (
     <>
-      <SectionIntro eyebrow="Projection to sim" title="Turn a projection file into ranges" status={<StatusPill label={runState} tone={statusTone as "good" | "warn" | "neutral" | "blue"} />} action={<div className="action-group"><Button variant="secondary" onClick={onResetUpload} icon={<RotateCcw size={15} />}>Reset upload</Button><Button variant="quiet" icon={<CircleHelp size={15} />}>Input guide</Button></div>}>The real run uses the approved rank snapshot, ffsimulator, and released P15 and P85 services. Uploads do not train a model. Every run stores its input revision, seed, count, metric definition, and model release.</SectionIntro>
+      <SectionIntro eyebrow="Projection to range" title="Turn a projection file into ranges" status={<StatusPill label={runState} tone={statusTone as "good" | "warn" | "neutral" | "blue"} />} action={<div className="action-group"><Button variant="secondary" onClick={onResetUpload} icon={<RotateCcw size={15} />}>Reset upload</Button><Button variant="quiet" icon={<CircleHelp size={15} />}>Input guide</Button></div>}>The real run uses one multi-quantile XGBoost booster for each position. It returns p15, p50, and p85 in one call. ffsimulator remains a diagnostic comparison. Every run stores its input revision, seed, count, metric definition, and model release.</SectionIntro>
       <div className="projection-workflow-grid">
         <Panel className="upload-panel" eyebrow="1 · Upload and preview" title="Player outcome projections" action={<StatusPill label={`${upload.accepted.toLocaleString()} accepted`} tone={uploadErrors.length ? "warn" : "good"} />}>
           <div className="upload-dropzone"><div className="upload-icon"><Upload size={20} /></div><div><strong>Choose a projection CSV</strong><span>20 MB maximum · QB, RB, WR, TE</span></div><label htmlFor="real-projection-csv-input" className="button button-secondary">Browse file<input id="real-projection-csv-input" type="file" accept=".csv,text/csv" onChange={(event) => { const file = event.target.files?.[0]; if (file) void onFile(file); event.currentTarget.value = ""; }} /></label></div>
@@ -2277,8 +2279,8 @@ function ForecastProjectionPage({ upload, uploadErrors, runState, runId, season,
           {upload.sourceOrderUsed ? <Explainer>The file has no explicit rank field. The adapter uses source order within each position.</Explainer> : null}
           {uploadErrors.length ? <div className="error-report"><div className="error-report-title"><AlertTriangle size={15} /><strong>Row report</strong><span>{uploadErrors.length} findings</span></div><div className="error-list">{uploadErrors.slice(0, 5).map((error) => <div key={`${error.row}-${error.field}-${error.message}`}><code>Row {error.row || "file"}</code><span><strong>{error.field}</strong> {error.message}</span></div>)}</div>{uploadErrors.length > 5 ? <small>Showing 5 of {uploadErrors.length} findings.</small> : null}</div> : null}
         </Panel>
-        <Panel className="run-panel" eyebrow="2 · Run the baseline" title="Real inference" action={<span className="run-version">forecast-ppr-v1</span>}>
-          <div className="run-model-card"><div className="model-symbol"><Activity size={20} /></div><div><strong>ffsimulator plus quantile services</strong><span>QB from simulation · RB, WR, and TE from XGBoost p15 and p85</span></div><StatusPill label="Available" tone="good" /></div>
+        <Panel className="run-panel" eyebrow="2 · Run the model" title="Real inference" action={<span className="run-version">{MODEL_RELEASE}</span>}>
+          <div className="run-model-card"><div className="model-symbol"><Activity size={20} /></div><div><strong>Multi-quantile XGBoost</strong><span>QB, RB, WR, and TE · p15, p50, and p85 in one prediction call</span></div><StatusPill label="Available" tone="good" /></div>
           <div className="run-settings"><div><span>Forecast context</span><div className="run-context-selects"><FilterSelect label="Season" value={season} options={seasonOptions} onChange={onSeason} compact /><FilterSelect label="Week" value={week} options={weekOptions} onChange={onWeek} compact /></div></div><label className="run-setting-input"><span>Simulation count</span><span className="simulation-count-field"><input type="number" min={MIN_SIMULATIONS} max={MAX_SIMULATIONS} step={SIMULATION_STEP} value={simulationCount} onChange={(event) => onSimulationCount(event.target.value)} disabled={simulationCountDisabled} aria-label="Simulation count" aria-invalid={!simulationCountValid} /><em>sims</em></span></label><div><span>Run profile</span><strong>{simulationCountValid ? simulationProfile : "Check count"}</strong></div><div><span>Input checks</span><strong>{uploadBlocked ? "Review report" : <>Pass <Check size={14} className="text-green" /></>}</strong></div></div>
           <div className="run-setting-help">Use 100 to 1,000 simulations in steps of 100. The seed is stored with the run.</div>
           <div className="run-action"><Button variant="primary" onClick={onStartRun} disabled={runState === "Checking upload" || runState === "Queued" || runState === "Running" || uploadBlocked || !simulationCountValid} className="full-width" icon={runState === "Running" ? <RefreshCcw size={15} className="spin" /> : <Play size={15} />}>{runState === "Running" ? "Inference running" : runState === "Queued" ? "Queued" : "Run real inference"}</Button><span>A new source revision creates a separate durable run.</span></div>
@@ -2290,7 +2292,7 @@ function ForecastProjectionPage({ upload, uploadErrors, runState, runId, season,
       <Panel className="forecast-output-panel" eyebrow="3 · Inspect the result" title="Player ranges" action={<div className="panel-actions"><div className="view-toggle"><button type="button" className={viewMode === "original" ? "active" : ""} onClick={() => onViewMode("original")}>Original</button><button type="button" className={viewMode === "adjusted" ? "active" : ""} onClick={() => onViewMode("adjusted")}>Adjusted {Object.keys(overrides).length ? `(${Object.keys(overrides).length})` : ""}</button></div><StatusPill label={`${rows.length} shown`} tone="neutral" /></div>}>
         {hasResult ? <><div className="projection-toolbar"><SearchField value={search} onChange={onSearch} placeholder="Search by player or team" /><FilterSelect label="Position" value={position} options={positionOptions} onChange={onPosition} compact /><FilterSelect label="Team" value={team} options={teams} onChange={onTeam} compact /><FilterSelect label="Sort by" value={sort} options={["ceiling", "median", "floor", "name"]} onChange={onSort} compact /><div className="toolbar-spacer" /><div className="download-menu"><Button variant="secondary" icon={<Download size={15} />} onClick={() => onExport("filtered")}>Download filtered ({filteredCount})</Button><Button variant="quiet" onClick={() => onExport("all")}>All {allRows.length}</Button></div></div><div className="range-chart-card"><div className="range-chart-header"><div><strong>Floor to ceiling</strong><span>Showing the first 25 rows · select a player for details</span></div><div className="range-chart-legend"><span><i className="legend-floor" /> Floor</span><span><i className="legend-median" /> Median</span><span><i className="legend-ceiling" /> Ceiling</span></div></div><div className="range-list">{rows.length ? rows.slice(0, 25).map((row) => <ForecastRange key={row.id} row={row} override={viewMode === "adjusted" ? overrides[row.id] : undefined} onSelect={selectPlayer} />) : <EmptyState icon={<Search size={24} />} title="No matching players" body="Change the search or filters to restore rows." />}</div><div className="range-chart-footer"><span>Player count limit: 25 of {rows.length}</span><span>Average uses the declared source policy. Range values use full precision.</span></div></div><div className="linked-chart-grid"><Panel eyebrow="Median vs ceiling" title="Where is the upside?" className="small-range-panel"><div className="median-ceiling-chart">{rows.slice(0, 12).map((row, index) => { const values = viewMode === "adjusted" ? applyOverride(row, overrides[row.id]) : row.original; return <button type="button" className="median-ceiling-dot" key={row.id} style={{ left: `${Math.min(93, (values.median / 35) * 100)}%`, bottom: `${Math.min(86, (values.ceiling / 40) * 100)}%`, background: ["#1264A3", "#2E8B73", "#D87945", "#7C5BAA"][index % 4] }} onClick={() => selectPlayer(row)} aria-label={`Open ${row.name}`} />; })}<span className="axis-label-x">Median</span><span className="axis-label-y">Ceiling</span></div><Explainer>The dot uses the same player selection as the range chart and table.</Explainer></Panel><Panel eyebrow="Source and range" title="Current output"><div className="output-summary-list"><div><span>Average median</span><strong>{formatNumber(calculateDemoSummary(rows, overrides).averageMedian)}</strong></div><div><span>Average range width</span><strong>{formatNumber(calculateDemoSummary(rows, overrides).averageWidth)}</strong></div><div><span>Model release</span><strong>{rows[0]?.modelRelease ?? "demo-bundled-output"}</strong></div><div><span>Run ID</span><strong className="mono">{shortId(runId)}</strong></div></div><Explainer>Original model values stay available when adjusted values are shown.</Explainer></Panel></div><DataTable data={displayRows} columns={columns} onRowClick={selectPlayer} /></> : <EmptyState icon={runState === "Failed" ? <AlertTriangle size={24} /> : <Play size={15} />} title={runState === "Failed" ? "The run needs attention" : runState === "Ready" ? "Ready to run" : "Waiting for a result"} body={runState === "Failed" ? "The last complete result stays visible when one exists. Correct the issue and retry." : runState === "Ready" ? "The upload passed the baseline input checks. Start real inference to create ranges." : "The server result will appear here when the run completes."} action={runState === "Ready" ? <Button variant="primary" onClick={onStartRun} icon={<Play size={15} />}>Run real inference</Button> : undefined} />}
       </Panel>
-      <div className="projection-footnotes"><span><LockKeyhole size={14} /> Raw source uploads remain private and expire with this temporary workspace.</span><span><Database size={14} /> Results use ppr_v1 · {runId}</span></div>
+      <div className="projection-footnotes"><span><LockKeyhole size={14} /> Raw source uploads remain private and expire with this temporary workspace.</span><span><Database size={14} /> {MODEL_RELEASE} · {SCORING_CONTRACT_VERSION} · {runId}</span></div>
       <PlayerDetailDrawerV2 row={detailRow} override={detailRow ? overrides[detailRow.id] : undefined} onClose={() => setDetailRow(null)} onOpenOverrides={() => { if (detailRow) onOpenOverrides(detailRow); setDetailRow(null); }} />
     </>
   );
@@ -2318,7 +2320,7 @@ function PlayerDetailDrawerV2({ row, override, onClose, onOpenOverrides }: { row
   if (!row) return null;
   const adjusted = applyOverride(row, override);
   const sources = row.valueSources;
-  return <div className="drawer-backdrop" role="presentation" onClick={onClose}><aside className="detail-drawer" role="dialog" aria-modal="true" aria-labelledby="player-detail-title-v2" onClick={(event) => event.stopPropagation()}><div className="drawer-header"><div><span className="panel-eyebrow">Player detail</span><h2 id="player-detail-title-v2">{row.name}</h2><span>{row.position} · {row.team} vs {row.opponent} · {row.id}</span></div><button type="button" className="icon-button" onClick={onClose} aria-label="Close player detail"><X size={18} /></button></div><div className="drawer-actions"><Button variant="primary" onClick={onOpenOverrides} icon={<SlidersHorizontal size={15} />}>Open manual override</Button><StatusPill label={override ? "Adjusted view" : "Original view"} tone={override ? "warn" : "blue"} /></div><div className="drawer-value-grid"><div><span>Average</span><strong>{formatNumber(row.average ?? row.sourceProjection)}</strong><small>{sources?.average ?? "Source projection"}</small></div><div><span>Floor</span><strong>{formatNumber(adjusted.floor)}</strong><small>{sources?.floor ?? "Model output"}</small></div><div><span>Median</span><strong>{formatNumber(adjusted.median)}</strong><small>{sources?.median ?? "Model output"}</small></div><div><span>Ceiling</span><strong>{formatNumber(adjusted.ceiling)}</strong><small>{sources?.ceiling ?? "Model output"}</small></div></div><div className="drawer-source"><div><span>CSV PPR projection</span><strong>{formatNumber(row.csvProjection ?? row.sourceProjection)}</strong></div><div><span>Simulation count</span><strong>{row.nSimulations.toLocaleString()}</strong></div><div><span>Rank uncertainty</span><strong>{row.rankSd === undefined ? "Stored" : formatNumber(row.rankSd)}</strong></div></div><div className="drawer-draws"><div className="panel-eyebrow">Producer values</div>{row.ffsim ? <div className="draws-placeholder">ffsimulator p15 {formatNumber(row.ffsim.p15)} · p50 {formatNumber(row.ffsim.p50)} · p85 {formatNumber(row.ffsim.p85)}. {row.position === "QB" ? "These values define the full QB range." : `XGBoost p15 ${formatNumber(row.xgbP15 ?? 0)} and p85 ${formatNumber(row.xgbP85 ?? 0)} define the skill range.`}</div> : <div className="drawer-empty"><Info size={18} /><div><strong>Producer details are not in the bundled artifact</strong><p>Run real inference to view producer-level values.</p></div></div>}</div><div className="drawer-explainer"><Info size={15} /> Original model values stay unchanged when a manual override is saved.</div></aside></div>;
+  return <div className="drawer-backdrop" role="presentation" onClick={onClose}><aside className="detail-drawer" role="dialog" aria-modal="true" aria-labelledby="player-detail-title-v2" onClick={(event) => event.stopPropagation()}><div className="drawer-header"><div><span className="panel-eyebrow">Player detail</span><h2 id="player-detail-title-v2">{row.name}</h2><span>{row.position} · {row.team} vs {row.opponent} · {row.id}</span></div><button type="button" className="icon-button" onClick={onClose} aria-label="Close player detail"><X size={18} /></button></div><div className="drawer-actions"><Button variant="primary" onClick={onOpenOverrides} icon={<SlidersHorizontal size={15} />}>Open manual override</Button><StatusPill label={override ? "Adjusted view" : "Original view"} tone={override ? "warn" : "blue"} /></div><div className="drawer-value-grid"><div><span>Average</span><strong>{formatNumber(row.average ?? row.sourceProjection)}</strong><small>{sources?.average ?? "Source projection"}</small></div><div><span>Floor</span><strong>{formatNumber(adjusted.floor)}</strong><small>{sources?.floor ?? "Model output"}</small></div><div><span>Median</span><strong>{formatNumber(adjusted.median)}</strong><small>{sources?.median ?? "Model output"}</small></div><div><span>Ceiling</span><strong>{formatNumber(adjusted.ceiling)}</strong><small>{sources?.ceiling ?? "Model output"}</small></div></div><div className="drawer-source"><div><span>CSV PPR projection</span><strong>{formatNumber(row.csvProjection ?? row.sourceProjection)}</strong></div><div><span>Diagnostic simulations</span><strong>{row.nSimulations.toLocaleString()}</strong></div><div><span>Rank uncertainty</span><strong>{row.rankSd === undefined ? "Stored" : formatNumber(row.rankSd)}</strong></div></div><div className="drawer-draws"><div className="panel-eyebrow">Model values</div>{row.xgbP15 !== undefined && row.xgbP50 !== undefined && row.xgbP85 !== undefined ? <div className="draws-placeholder">XGBoost p15 {formatNumber(row.xgbP15)} · p50 {formatNumber(row.xgbP50)} · p85 {formatNumber(row.xgbP85)} define the range for every position.{row.ffsim ? ` Diagnostic ffsimulator p15 ${formatNumber(row.ffsim.p15)} · p50 ${formatNumber(row.ffsim.p50)} · p85 ${formatNumber(row.ffsim.p85)}.` : ""}</div> : <div className="drawer-empty"><Info size={18} /><div><strong>Model details are not in the bundled artifact</strong><p>Run real inference to view the v2 producer values.</p></div></div>}</div><div className="drawer-explainer"><Info size={15} /> Original model values stay unchanged when a manual override is saved.</div></aside></div>;
 }
 
 type OverridesPageProps = {

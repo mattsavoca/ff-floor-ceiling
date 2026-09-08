@@ -1,6 +1,7 @@
 # Floor & Ceiling site PRD
 
-Status: Proposed product requirements. The website is not implemented.
+Status: Active implementation. See the web replacement scope for release-specific cutover rules.
+Updated: 2026-09-07
 
 Scope correction, 2026-09-06: This site monitors player outcome forecasts. It does not implement personal-league rules or platform-specific metric variants. Keep those concepts out of the site, parser, API contracts, and worker inputs.
 
@@ -43,21 +44,27 @@ Lineup optimization, ownership forecasts, contest returns, payments, automated b
 
 ### 3.1 Current capabilities
 
-The R package normalizes rankings and produces simulated player outcomes. The historical backtest evaluates player ranges and experimental team results. Separate Python experiments fit direct p85 models and team defense models.
+The R package normalizes rankings and produces diagnostic simulated player outcomes. The historical backtest evaluates player ranges and experimental team results. The active Python release fits one multi-quantile XGBoost booster for each QB, RB, WR, and TE position.
 
-The current offensive default remains the independent rank-conditioned simulation. The direct XGBoost model predicts p85 only. It cannot supply a complete floor, median, and ceiling distribution by itself.
+The current offensive release is `forecast-ppr-v2`. It uses
+`reg:quantileerror` with p15, p50, and p85. XGBoost supplies the active floor,
+median, and ceiling. The independent rank-conditioned simulation remains a
+diagnostic comparison.
 
 | Model family | Existing evidence | First-release treatment |
 | --- | --- | --- |
-| Independent simulation | Historical player ranges and a working Week 1 workflow | Default complete range, after the serving checks in section 14 |
-| Direct XGBoost p85 | Better RB, WR, and TE quantile loss across two held-out seasons. Worse QB coverage | Separate historical comparison. Forward candidate only after a compatible serving adapter exists |
+| Independent simulation | Historical player ranges and a working Week 1 workflow | Diagnostic comparison for the active v2 range |
+| Multi-quantile XGBoost v2 | One p15, p50, and p85 booster for each supported position. Held-out comparison uses the same rows as the simulator | Active forecast range after release and serving checks |
 | QB conditioning | No broader ceiling improvement in the recorded comparison | Methodology and historical experiment only |
 | Python team defense | Historical and forward workflows run. Market baseline has lower error in both evaluated seasons | Clearly labeled experimental defense view |
 | Player outcomes to NFL margins | Independent player draws do not share a coherent game state | Methodology example, outside the main weekly forecast |
 
 Model status uses explicit labels: Baseline, Candidate, Experimental, and Retired. "Best settings" means settings selected on an earlier validation sample for a named model and position. It does not mean a universally superior model.
 
-The site must not combine a direct p85 candidate with baseline p15 and p50 and label the result a validated 70% interval. A future hybrid needs its own model version and joint interval evaluation.
+The site must not combine model values from different releases and label the
+result a validated interval. The active v2 result uses one XGBoost release for
+p15, p50, and p85. Its interval coverage remains a monitored result, not a
+guarantee.
 
 ### 3.2 Historical reference scorecard
 
@@ -72,7 +79,7 @@ These rounded values describe the saved direct-model comparison for held-out 202
 
 Required explainer: "The bar runs from the estimated floor to the ceiling. The dot marks the median. Observed outcomes can fall outside the range."
 
-Source: `backtest_fbg_2023_2025/outputs/xgb_p85_projection/metrics.csv`. Historical results remain historical after a model retrain. A new feature set or metric correction creates new results.
+Source: `backtest_fbg_2023_2025/outputs/xgb_v2_quantile_projection/comparison_metrics.csv` and the generated calibration artifact. Historical results remain historical after a model retrain. A new feature set or metric correction creates new results.
 
 ## 4. Visual direction and navigation
 
@@ -319,7 +326,7 @@ Required controls include position, team, player search, sort metric, original o
 
 A second chart compares median against ceiling, with position color and a linked selection. Selecting a player in either chart opens the same detail drawer and highlights the corresponding table row.
 
-The drawer shows the original simulation histogram when draws exist. It must not invent a distribution from three edited numbers or a direct p85 prediction.
+The drawer shows diagnostic simulation values when they exist. It must not invent a distribution from three edited numbers or a direct model value.
 
 Required explainer: "The bar runs from the estimated floor to the ceiling. The dot marks the median. Actual scores can fall outside the bar."
 
@@ -559,7 +566,7 @@ Run one real fixture end to end on the deployment target. Compare accepted, excl
 | Access | Public demonstration plus anonymous temporary browser sessions for uploads and overrides |
 | Authentication provider | No end-user account in the first release. Use a signed session cookie. Protect owner publication controls through a separate admin path |
 | Metric definition | One versioned project metric first. Additional definitions require metric-parity checks |
-| Default forecast | Complete independent simulation. Direct p85 remains a separate candidate |
+| Default forecast | `forecast-ppr-v2` multi-quantile XGBoost range. `ffsimulator` remains diagnostic |
 | Workload reductions | Scale floor, median, and ceiling together. Keep provider projection unchanged |
 | Hosting | Web service plus persistent worker, PostgreSQL, and private object storage. Select the vendor after a measured fixture run |
 | Published examples | Curated aggregate evidence and owner-cleared player samples |
@@ -567,12 +574,12 @@ Run one real fixture end to end on the deployment target. Compare accepted, excl
 
 ## 16. Source map
 
-Repository sources establish current behavior. This PRD's new behavior is a proposal.
+Repository sources establish current behavior. The active forecast release is `forecast-ppr-v2` with result contract `forecast-result.v3`.
 
 - [Project architecture](../field-guide/architecture.md), [model experimentation](../field-guide/model-experimentation.md), and [historical backtest](../backtest_fbg_2023_2025/README.md).
-- [Leakage correction](../.agent-sessions/2026-09-03-remove-backtest-data-leakage.md), [direct p85 experiment](../.agent-sessions/2026-09-04-xgb-p85-projection.md), [SHAP review](../.agent-sessions/2026-09-04-xgb-p85-shap.md), and [defense implementation](../.agent-sessions/2026-09-06-dst-xgb-prd.md).
+- [Leakage correction](../.agent-sessions/2026-09-03-remove-backtest-data-leakage.md), [v2 model card](ml_model_card_xgb_v2.md), and [web replacement scope](../field-guide/web-model-replacement.md).
 - [Current metric code](../web/lib/metrics.ts), [worker contract](../contracts/model-job.v1.json), and [Week 1 output](../outputs/week1_2026_player_ranges.csv).
-- Selected artifacts: `outputs/xgb_p85_projection/selected_models.csv`, `metrics.csv`, and `shap/model_checks.csv` beneath `backtest_fbg_2023_2025/`.
+- Selected artifacts: `outputs/xgb_v2_quantile_projection/metadata.json`, `comparison_metrics.csv`, `comparison_rows.parquet`, `outcome_errors.csv`, and `quantile_crossings.csv` beneath `backtest_fbg_2023_2025/`.
 - Defense artifacts: `outputs/dst_xgb/models/dst_model_metadata.json`, `dst_tuning_target_2026.csv`, and `outputs/dst_xgb/dst_backtest_metrics.csv` beneath the backtest directory.
 - [Earlier override implementation](https://github.com/mattsavoca/rostership-model-4for4/blob/main/R/adjustments_and_utils.R), [tail-mean summaries](https://github.com/mattsavoca/rostership-model-4for4/blob/main/R/simulation_functions.R), and [manual point projections](https://github.com/mattsavoca/rostership-model-4for4/blob/main/R/manual_fp_proj_adjustments.R). These sources require repository access while private.
 - Owner-supplied local reference: `Floor Ceiling Design Doc.dc(1).html`. Its sections 4, 5, 6, and 10 explain the older override paths and conflicting range definitions.

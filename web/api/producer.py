@@ -30,6 +30,13 @@ FEATURE_VERSION = "fbg_rank_projection_v1"
 SCORING_CONTRACT_VERSION = "ppr_v1"
 MODEL_POSITIONS = {"RB", "WR", "TE"}
 QUANTILES = {"p15": 0.15, "p85": 0.85}
+V2_MODEL_RELEASE = "forecast-ppr-v2"
+V2_FEATURE_VERSION = "fbg_rank_projection_v2"
+V2_MODEL_ARTIFACT_VERSION = "xgb_v2_quantile_20260907"
+V2_MODEL_POSITIONS = {"QB", "RB", "WR", "TE"}
+V2_QUANTILE_ALPHA = [0.15, 0.5, 0.85]
+V2_QUANTILE_COLUMNS = {"0": "p15", "1": "p50", "2": "p85"}
+V2_MODEL_ENDPOINT = "/v2/models/predict"
 ASSET_ROOT = Path(__file__).resolve().parent / "producer-assets"
 MAX_BODY_BYTES = 20 * 1024 * 1024
 
@@ -211,6 +218,176 @@ class PredictionService:
         }
 
 
+class PredictionServiceV2:
+    """Load one v2 booster per position and return all three quantiles."""
+
+    def __init__(self) -> None:
+        self.model_root = ASSET_ROOT / "models" / "v2"
+        self.metadata_path = self.model_root / "metadata.json"
+        self.metadata = self._load_metadata()
+        self.records = self._load_records()
+        self._booster_cache: dict[Path, xgb.Booster] = {}
+        self._cache_lock = Lock()
+
+    def _load_metadata(self) -> dict[str, Any]:
+        try:
+            metadata = json.loads(self.metadata_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as error:
+            raise RuntimeError(f"Cannot read v2 model metadata at {self.metadata_path}: {error}") from error
+        if metadata.get("model_release") != V2_MODEL_RELEASE:
+            raise RuntimeError("The active model release is not forecast-ppr-v2")
+        if metadata.get("artifact_version") != V2_MODEL_ARTIFACT_VERSION:
+            raise RuntimeError("The active v2 artifact version is unsupported")
+        if metadata.get("feature_version") != V2_FEATURE_VERSION:
+            raise RuntimeError("The active v2 feature version is unsupported")
+        if metadata.get("scoring_contract_version") != SCORING_CONTRACT_VERSION:
+            raise RuntimeError("The active v2 scoring contract is unsupported")
+        if metadata.get("objective") != "reg:quantileerror" or metadata.get("target_column") != "actual_score":
+            raise RuntimeError("The active v2 objective or target is unsupported")
+        if metadata.get("quantile_alpha") != V2_QUANTILE_ALPHA or metadata.get("quantile_output_columns") != V2_QUANTILE_COLUMNS:
+            raise RuntimeError("The active v2 quantile metadata is unsupported")
+        if metadata.get("one_prediction_call_returns_all_quantiles") is not True:
+            raise RuntimeError("The active v2 release must return all quantiles in one call")
+        return metadata
+
+    def _load_records(self) -> tuple[ModelRecord, ...]:
+        records: list[ModelRecord] = []
+        feature_map = self.metadata.get("feature_names_by_position", {})
+        for item in self.metadata.get("model_records", []):
+            position = str(item.get("position", "")).upper()
+            if position not in V2_MODEL_POSITIONS:
+                continue
+            raw_features = item.get("features", [])
+            features = tuple(str(value) for value in raw_features) if not isinstance(raw_features, str) else tuple(value for value in raw_features.split(",") if value)
+            if not features or "n_projectors" in features or tuple(str(value) for value in feature_map.get(position, [])) != features:
+                raise RuntimeError(f"The active v2 feature list is invalid for {position}")
+            relative_path = str(item.get("model_path", "")).replace("\\", "/")
+            model_path = (self.model_root / relative_path).resolve()
+            if not model_path.is_file() or self.model_root.resolve() not in model_path.parents:
+                raise RuntimeError(f"The active v2 model file is missing: {model_path}")
+            records.append(ModelRecord(int(item["target_season"]), position, model_path, features))
+        by_position = {record.position for record in records}
+        if by_position != V2_MODEL_POSITIONS or len(records) != len(V2_MODEL_POSITIONS):
+            raise RuntimeError(f"The active v2 release must contain one QB, RB, WR, and TE booster: {by_position}")
+        return tuple(records)
+
+    def _load_booster(self, path: Path) -> xgb.Booster:
+        with self._cache_lock:
+            if path not in self._booster_cache:
+                booster = xgb.Booster()
+                booster.load_model(str(path))
+                self._booster_cache[path] = booster
+            return self._booster_cache[path]
+
+    def _select_record(self, position: str, season: int) -> ModelRecord:
+        candidates = [record for record in self.records if record.position == position]
+        if not candidates:
+            raise ProducerError(f"No active v2 booster exists for {position}", fields=["position"])
+        eligible = [record for record in candidates if record.target_season <= season]
+        return max(eligible or candidates, key=lambda record: record.target_season)
+
+    @staticmethod
+    def _validate_request(request: dict[str, Any]) -> tuple[str, int, int, list[dict[str, Any]]]:
+        if request.get("model_release") != V2_MODEL_RELEASE:
+            raise ProducerError("The requested v2 model release is unavailable", fields=["model_release"])
+        if request.get("scoring_contract_version") != SCORING_CONTRACT_VERSION:
+            raise ProducerError("The scoring contract is unsupported", fields=["scoring_contract_version"])
+        if request.get("feature_version") != V2_FEATURE_VERSION:
+            raise ProducerError("The feature version is unsupported", fields=["feature_version"])
+        position = str(request.get("position", "")).upper()
+        if position not in V2_MODEL_POSITIONS:
+            raise ProducerError("The v2 model accepts QB, RB, WR, and TE", fields=["position"])
+        try:
+            season = int(request["season"])
+            week = int(request["week"])
+        except (KeyError, TypeError, ValueError) as error:
+            raise ProducerError("season and week must be integers", fields=["season", "week"]) from error
+        if not 2020 <= season <= 2100 or not 1 <= week <= 18:
+            raise ProducerError("season or week is outside the supported range", fields=["season", "week"])
+        rows = request.get("rows")
+        if not isinstance(rows, list) or not rows:
+            raise ProducerError("rows must contain at least one feature row", fields=["rows"])
+        ids = []
+        for row in rows:
+            if not isinstance(row, dict) or not row.get("stable_player_id"):
+                raise ProducerError("Every row needs a stable_player_id", fields=["stable_player_id"])
+            ids.append(str(row["stable_player_id"]))
+        if len(ids) != len(set(ids)):
+            duplicates = sorted({player_id for player_id in ids if ids.count(player_id) > 1})
+            raise ProducerError("The v2 request contains duplicate stable IDs", player_ids=duplicates)
+        return position, season, week, rows
+
+    def predict(self, request: dict[str, Any]) -> dict[str, Any]:
+        position, season, week, rows = self._validate_request(request)
+        record = self._select_record(position, season)
+        values: list[list[float]] = []
+        ids: list[str] = []
+        errors: dict[str, list[str]] = {}
+        for row in rows:
+            player_id = str(row["stable_player_id"])
+            ids.append(player_id)
+            feature_values = row.get("features")
+            if not isinstance(feature_values, dict):
+                errors[player_id] = list(record.features)
+                continue
+            if "n_projectors" in feature_values:
+                errors[player_id] = ["n_projectors"]
+                continue
+            missing = [feature for feature in record.features if feature not in feature_values]
+            extra = [feature for feature in feature_values if feature not in record.features]
+            invalid = [
+                feature
+                for feature in record.features
+                if feature in feature_values
+                and (
+                    isinstance(feature_values[feature], bool)
+                    or not isinstance(feature_values[feature], (int, float))
+                    or not math.isfinite(float(feature_values[feature]))
+                )
+            ]
+            if missing or invalid or extra:
+                errors[player_id] = sorted(set(missing + invalid + [f"unsupported:{feature}" for feature in extra]))
+                continue
+            values.append([float(feature_values[feature]) for feature in record.features])
+        if errors:
+            raise ProducerError(
+                "One or more v2 prediction rows are missing valid model features",
+                fields=sorted({field for fields in errors.values() for field in fields}),
+                player_ids=sorted(errors),
+            )
+
+        matrix = xgb.DMatrix(np.asarray(values, dtype=np.float32), feature_names=list(record.features))
+        raw = np.asarray(self._load_booster(record.model_path).predict(matrix), dtype=np.float64)
+        expected_shape = (len(ids), 3)
+        if raw.shape != expected_shape or not np.isfinite(raw).all():
+            raise RuntimeError(f"The active v2 booster returned {raw.shape}, expected finite {expected_shape}")
+        crossing_ids = [player_id for player_id, row in zip(ids, raw, strict=True) if row[0] > row[1] or row[1] > row[2]]
+        negative_ids = [player_id for player_id, row in zip(ids, raw, strict=True) if np.any(row < 0)]
+        return {
+            "schema_version": "model-prediction.v2",
+            "model_release": V2_MODEL_RELEASE,
+            "feature_version": V2_FEATURE_VERSION,
+            "scoring_contract_version": SCORING_CONTRACT_VERSION,
+            "position": position,
+            "season": season,
+            "week": week,
+            "model_target_season": record.target_season,
+            "model_artifact_version": V2_MODEL_ARTIFACT_VERSION,
+            "feature_names": list(record.features),
+            "quantile_output_columns": V2_QUANTILE_COLUMNS,
+            "prediction_count": len(ids),
+            "prediction_call_count": 1,
+            "quantile_crossing_count": len(crossing_ids),
+            "quantile_crossing_player_ids": crossing_ids,
+            "negative_prediction_count": len(negative_ids),
+            "negative_prediction_player_ids": negative_ids,
+            "predictions": [
+                {"stable_player_id": player_id, "p15": float(row[0]), "p50": float(row[1]), "p85": float(row[2])}
+                for player_id, row in zip(ids, raw, strict=True)
+            ],
+        }
+
+
 class FfsimulatorService:
     """Implement the weekly rank-conditioned ffsimulator contract."""
 
@@ -337,17 +514,19 @@ def _check_token(headers: Any) -> None:
 
 
 class ProducerHandler(BaseHTTPRequestHandler):
-    """Handle model and ffsimulator POST requests."""
+    """Handle active v2 and legacy v1 model plus ffsimulator requests."""
 
     _prediction_services: dict[str, PredictionService] = {}
+    _prediction_service_v2: PredictionServiceV2 | None = None
     _ffsimulator_service: FfsimulatorService | None = None
     _service_lock = Lock()
 
     def do_POST(self) -> None:  # noqa: N802
         route = urlsplit(self.path).path.rstrip("/")
         model_match = re.search(r"/v1/models/(p15|p85)/predict$", route)
+        is_v2_model = route.endswith(V2_MODEL_ENDPOINT)
         is_ffsimulator = route.endswith("/v1/ffsimulator/predict")
-        if not model_match and not is_ffsimulator:
+        if not model_match and not is_v2_model and not is_ffsimulator:
             self._write_json(404, {"error": "Unknown producer route"})
             return
         try:
@@ -358,7 +537,10 @@ class ProducerHandler(BaseHTTPRequestHandler):
             request = json.loads(self.rfile.read(length))
             if not isinstance(request, dict):
                 raise ProducerError("The request body must be a JSON object")
-            if model_match:
+            if is_v2_model:
+                response = self._get_prediction_service_v2().predict(request)
+                print(f"[producer] release={V2_MODEL_RELEASE} endpoint={V2_MODEL_ENDPOINT} position={response['position']} rows={response['prediction_count']} crossings={response['quantile_crossing_count']}")
+            elif model_match:
                 quantile = model_match.group(1)
                 service = self._get_prediction_service(quantile)
                 response = service.predict(request)
@@ -384,6 +566,13 @@ class ProducerHandler(BaseHTTPRequestHandler):
                 service = PredictionService(quantile)
                 cls._prediction_services[quantile] = service
             return service
+
+    @classmethod
+    def _get_prediction_service_v2(cls) -> PredictionServiceV2:
+        with cls._service_lock:
+            if cls._prediction_service_v2 is None:
+                cls._prediction_service_v2 = PredictionServiceV2()
+            return cls._prediction_service_v2
 
     @classmethod
     def _get_ffsimulator_service(cls) -> FfsimulatorService:

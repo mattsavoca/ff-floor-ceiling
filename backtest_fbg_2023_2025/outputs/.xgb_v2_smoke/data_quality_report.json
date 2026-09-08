@@ -1,0 +1,355 @@
+{
+  "gate_status": "PASS_WITH_OUTCOME_WARNINGS",
+  "serious_top_player_error_count": 0,
+  "serious_top_player_errors": [],
+  "known_mappings": {
+    "GibbJa00": {
+      "expected_gsis_id": "00-0039139",
+      "resolved_gsis_ids": [
+        "00-0039139"
+      ],
+      "passed": true,
+      "row_count": 46
+    },
+    "McCaCh00": {
+      "expected_gsis_id": "00-0033280",
+      "resolved_gsis_ids": [
+        "00-0033280"
+      ],
+      "passed": true,
+      "row_count": 36
+    }
+  },
+  "top_player_gate": [
+    {
+      "position": "QB",
+      "top_limit": 30,
+      "selected_rows": 1435,
+      "identity_linked_rows": 1435,
+      "observed_outcome_rows": 1404,
+      "imputed_zero_rows": 31,
+      "serious_error_rows": 0,
+      "identity_coverage": 1.0,
+      "outcome_coverage": 0.978397212543554,
+      "gate_status": "PASS"
+    },
+    {
+      "position": "RB",
+      "top_limit": 40,
+      "selected_rows": 2040,
+      "identity_linked_rows": 2040,
+      "observed_outcome_rows": 2015,
+      "imputed_zero_rows": 25,
+      "serious_error_rows": 0,
+      "identity_coverage": 1.0,
+      "outcome_coverage": 0.9877450980392157,
+      "gate_status": "PASS"
+    },
+    {
+      "position": "WR",
+      "top_limit": 40,
+      "selected_rows": 2040,
+      "identity_linked_rows": 2040,
+      "observed_outcome_rows": 2030,
+      "imputed_zero_rows": 10,
+      "serious_error_rows": 0,
+      "identity_coverage": 1.0,
+      "outcome_coverage": 0.9950980392156863,
+      "gate_status": "PASS"
+    },
+    {
+      "position": "TE",
+      "top_limit": 30,
+      "selected_rows": 1530,
+      "identity_linked_rows": 1530,
+      "observed_outcome_rows": 1484,
+      "imputed_zero_rows": 46,
+      "serious_error_rows": 0,
+      "identity_coverage": 1.0,
+      "outcome_coverage": 0.9699346405228758,
+      "gate_status": "PASS"
+    }
+  ],
+  "top_player_selected_rows": 7045,
+  "top_player_identity_coverage": 1.0,
+  "top_player_outcome_coverage": 0.9841022001419446,
+  "top_player_observed_outcome_rows": 6933,
+  "top_player_imputed_zero_rows": 112,
+  "all_panel_rows": 14985,
+  "all_panel_imputed_zero_rows": 2382,
+  "outcome_error_rows": 5613,
+  "outcome_error_counts": {
+    "crosswalk_fields_disagree": 2920,
+    "no_actual_weekly_record;actual_score_created_from_missing_record": 1779,
+    "crosswalk_fields_disagree;no_actual_weekly_record;actual_score_created_from_missing_record": 509,
+    "master_name_conflict": 156,
+    "no_unique_gsis_id;no_actual_weekly_record;actual_score_created_from_missing_record": 52,
+    "crosswalk_fields_disagree;master_team_context_differs": 51,
+    "master_name_conflict;no_actual_weekly_record;actual_score_created_from_missing_record": 40,
+    "no_unique_gsis_id;crosswalk_fields_disagree;no_actual_weekly_record;actual_score_created_from_missing_record": 25,
+    "crosswalk_fields_disagree;master_team_context_differs;no_actual_weekly_record;actual_score_created_from_missing_record": 18,
+    "crosswalk_fields_disagree;master_position_conflict": 15,
+    "crosswalk_fields_disagree;master_name_conflict;no_actual_weekly_record;actual_score_created_from_missing_record": 11,
+    "crosswalk_fields_disagree;master_position_conflict;no_actual_weekly_record;actual_score_created_from_missing_record": 11,
+    "master_position_conflict;no_actual_weekly_record;actual_score_created_from_missing_record": 9,
+    "crosswalk_fields_disagree;master_name_conflict": 8,
+    "master_name_conflict;master_team_context_differs;no_actual_weekly_record;actual_score_created_from_missing_record": 5,
+    "master_name_conflict;master_team_context_differs": 3,
+    "master_position_conflict": 1
+  },
+  "identity_match_method_counts": {
+    "weekly_stats_name_position_team": 7901,
+    "master_name_position": 5416,
+    "weekly_roster_name_position_team": 1154,
+    "manual_override": 286,
+    "pfr_crosswalk_verified": 151,
+    "unmatched": 77
+  },
+  "identity_severity_counts": {
+    "Info": 10852,
+    "Warning": 4056,
+    "Serious": 77
+  },
+  "source_audit": {
+    "weekly_stats_rows": 16672,
+    "weekly_roster_rows": 38150,
+    "weekly_outcome_groups": 16672,
+    "master_rows": 8378,
+    "external_crosswalk_path": "C:\\Users\\matts\\Local Projects\\nfl2026\\ff_drafter_2026\\raw\\dynastyprocess\\db_playerids.csv",
+    "external_crosswalk_loaded": true
+  },
+  "modeling_audit": {
+    "ffsimulator_rows": 13343,
+    "identity_join_counts": {
+      "both": 13343,
+      "left_only": 0,
+      "right_only": 0
+    },
+    "modeling_rows": 13343,
+    "excluded_rows_without_resolved_id_or_actual_or_projection": 0,
+    "modeling_rows_by_season_position": {
+      "2023_QB": 457,
+      "2023_RB": 984,
+      "2023_TE": 1059,
+      "2023_WR": 1467,
+      "2024_QB": 483,
+      "2024_RB": 1191,
+      "2024_TE": 1158,
+      "2024_WR": 1737,
+      "2025_QB": 504,
+      "2025_RB": 1287,
+      "2025_TE": 1124,
+      "2025_WR": 1892
+    },
+    "n_projectors_distribution": {
+      "2": 1607,
+      "3": 1613,
+      "4": 5381,
+      "5": 6383,
+      "6": 1
+    },
+    "n_projectors_used_as_model_feature": false,
+    "serving_feature_row_contains_n_projectors": false,
+    "scoring_format": "PPR",
+    "scoring_contract_version": "ppr_v1"
+  },
+  "training_audit": {
+    "candidate_rows": 13343,
+    "positive_training_rows": 10622,
+    "nonpositive_candidate_rows": 2721,
+    "invalid_training_rows": 0,
+    "training_target": "actual_score",
+    "training_rule": "actual_score > 0",
+    "feature_names_by_position": {
+      "QB": [
+        "week",
+        "ecr",
+        "pass-att",
+        "pass-cmp",
+        "pass-1d",
+        "pass-int",
+        "pass-sck",
+        "pass-td",
+        "pass-yds",
+        "rush-car",
+        "rush-1d",
+        "rush-td",
+        "rush-yds",
+        "fum-lost",
+        "projection_fpts"
+      ],
+      "RB": [
+        "week",
+        "ecr",
+        "rush-car",
+        "rush-1d",
+        "rush-td",
+        "rush-yds",
+        "rec-rec",
+        "rec-tgt",
+        "rec-td",
+        "rec-yds",
+        "fum-lost",
+        "projection_fpts"
+      ],
+      "WR": [
+        "week",
+        "ecr",
+        "pass-int",
+        "rush-car",
+        "rush-1d",
+        "rush-td",
+        "rush-yds",
+        "rec-rec",
+        "rec-tgt",
+        "rec-td",
+        "rec-yds",
+        "fum-lost",
+        "projection_fpts"
+      ],
+      "TE": [
+        "week",
+        "ecr",
+        "rush-car",
+        "rush-1d",
+        "rush-td",
+        "rush-yds",
+        "rec-rec",
+        "rec-tgt",
+        "rec-td",
+        "rec-yds",
+        "fum-lost",
+        "projection_fpts"
+      ]
+    }
+  },
+  "feature_names_by_position": {
+    "QB": [
+      "week",
+      "ecr",
+      "pass-att",
+      "pass-cmp",
+      "pass-1d",
+      "pass-int",
+      "pass-sck",
+      "pass-td",
+      "pass-yds",
+      "rush-car",
+      "rush-1d",
+      "rush-td",
+      "rush-yds",
+      "fum-lost",
+      "projection_fpts"
+    ],
+    "RB": [
+      "week",
+      "ecr",
+      "rush-car",
+      "rush-1d",
+      "rush-td",
+      "rush-yds",
+      "rec-rec",
+      "rec-tgt",
+      "rec-td",
+      "rec-yds",
+      "fum-lost",
+      "projection_fpts"
+    ],
+    "WR": [
+      "week",
+      "ecr",
+      "pass-int",
+      "rush-car",
+      "rush-1d",
+      "rush-td",
+      "rush-yds",
+      "rec-rec",
+      "rec-tgt",
+      "rec-td",
+      "rec-yds",
+      "fum-lost",
+      "projection_fpts"
+    ],
+    "TE": [
+      "week",
+      "ecr",
+      "rush-car",
+      "rush-1d",
+      "rush-td",
+      "rush-yds",
+      "rec-rec",
+      "rec-tgt",
+      "rec-td",
+      "rec-yds",
+      "fum-lost",
+      "projection_fpts"
+    ]
+  },
+  "rank_summary_feature_audit": [
+    {
+      "field": "ecr",
+      "kept_as_model_feature": true,
+      "kept_in_data_quality_report": true,
+      "meaning_stable_one_or_many_projection_sets": true,
+      "reason": "Mean of the selected rank values. With one set it is that rank, and with many sets it is their mean."
+    },
+    {
+      "field": "rank_sd",
+      "kept_as_model_feature": false,
+      "kept_in_data_quality_report": true,
+      "meaning_stable_one_or_many_projection_sets": false,
+      "reason": "Source-set dispersion is undefined as a truthful serving value when only one projection set is sent."
+    },
+    {
+      "field": "n_projectors",
+      "kept_as_model_feature": false,
+      "kept_in_data_quality_report": true,
+      "meaning_stable_one_or_many_projection_sets": false,
+      "reason": "Source-set count is not available in the one-set serving row. It remains a data-quality field only."
+    },
+    {
+      "field": "rank_min",
+      "kept_as_model_feature": false,
+      "kept_in_data_quality_report": true,
+      "meaning_stable_one_or_many_projection_sets": false,
+      "reason": "Minimum across source sets changes meaning when there is only one set and is not available at serving."
+    },
+    {
+      "field": "rank_max",
+      "kept_as_model_feature": false,
+      "kept_in_data_quality_report": true,
+      "meaning_stable_one_or_many_projection_sets": false,
+      "reason": "Maximum across source sets changes meaning when there is only one set and is not available at serving."
+    },
+    {
+      "field": "consensus_rank",
+      "kept_as_model_feature": false,
+      "kept_in_data_quality_report": true,
+      "meaning_stable_one_or_many_projection_sets": false,
+      "reason": "This is a selected consensus-set field, while the v2 serving contract has a generic one-set rank."
+    },
+    {
+      "field": "consensus_projected_score",
+      "kept_as_model_feature": false,
+      "kept_in_data_quality_report": true,
+      "meaning_stable_one_or_many_projection_sets": false,
+      "reason": "This is a selected consensus-set field. v2 uses the explicit PPR projection_fpts field instead."
+    }
+  ],
+  "comparison_audit": {
+    "common_heldout_rows": 9376,
+    "xgboost_rows": 9376,
+    "ffsimulator_rows": 9376,
+    "same_heldout_rows": true,
+    "quantile_crossing_event_count": 0,
+    "quantile_crossing_row_count": 0,
+    "quantile_crossing_affected_stable_player_ids": []
+  },
+  "backend_release_model_count": 4,
+  "backend_release_model_positions": [
+    "QB",
+    "RB",
+    "WR",
+    "TE"
+  ]
+}

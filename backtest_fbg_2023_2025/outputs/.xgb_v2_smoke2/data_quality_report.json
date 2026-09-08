@@ -1,0 +1,1756 @@
+{
+  "gate_status": "PASS_WITH_OUTCOME_WARNINGS",
+  "serious_top_player_error_count": 0,
+  "serious_top_player_errors": [],
+  "known_mappings": {
+    "GibbJa00": {
+      "expected_gsis_id": "00-0039139",
+      "resolved_gsis_ids": [
+        "00-0039139"
+      ],
+      "passed": true,
+      "row_count": 46
+    },
+    "McCaCh00": {
+      "expected_gsis_id": "00-0033280",
+      "resolved_gsis_ids": [
+        "00-0033280"
+      ],
+      "passed": true,
+      "row_count": 36
+    }
+  },
+  "top_player_gate": [
+    {
+      "position": "QB",
+      "top_limit": 30,
+      "selected_rows": 1435,
+      "identity_linked_rows": 1435,
+      "observed_outcome_rows": 1404,
+      "imputed_zero_rows": 31,
+      "serious_error_rows": 0,
+      "identity_coverage": 1.0,
+      "outcome_coverage": 0.978397212543554,
+      "gate_status": "PASS"
+    },
+    {
+      "position": "RB",
+      "top_limit": 40,
+      "selected_rows": 2040,
+      "identity_linked_rows": 2040,
+      "observed_outcome_rows": 2015,
+      "imputed_zero_rows": 25,
+      "serious_error_rows": 0,
+      "identity_coverage": 1.0,
+      "outcome_coverage": 0.9877450980392157,
+      "gate_status": "PASS"
+    },
+    {
+      "position": "WR",
+      "top_limit": 40,
+      "selected_rows": 2040,
+      "identity_linked_rows": 2040,
+      "observed_outcome_rows": 2030,
+      "imputed_zero_rows": 10,
+      "serious_error_rows": 0,
+      "identity_coverage": 1.0,
+      "outcome_coverage": 0.9950980392156863,
+      "gate_status": "PASS"
+    },
+    {
+      "position": "TE",
+      "top_limit": 30,
+      "selected_rows": 1530,
+      "identity_linked_rows": 1530,
+      "observed_outcome_rows": 1484,
+      "imputed_zero_rows": 46,
+      "serious_error_rows": 0,
+      "identity_coverage": 1.0,
+      "outcome_coverage": 0.9699346405228758,
+      "gate_status": "PASS"
+    }
+  ],
+  "top_player_selection_by_group": [
+    {
+      "season": 2023,
+      "week": 1,
+      "position": "QB",
+      "selected_rows": 30,
+      "required_limit": 30,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2023,
+      "week": 1,
+      "position": "RB",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2023,
+      "week": 1,
+      "position": "TE",
+      "selected_rows": 30,
+      "required_limit": 30,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2023,
+      "week": 1,
+      "position": "WR",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2023,
+      "week": 2,
+      "position": "QB",
+      "selected_rows": 27,
+      "required_limit": 30,
+      "selection_status": "source_has_fewer_rows"
+    },
+    {
+      "season": 2023,
+      "week": 2,
+      "position": "RB",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2023,
+      "week": 2,
+      "position": "TE",
+      "selected_rows": 30,
+      "required_limit": 30,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2023,
+      "week": 2,
+      "position": "WR",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2023,
+      "week": 3,
+      "position": "QB",
+      "selected_rows": 30,
+      "required_limit": 30,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2023,
+      "week": 3,
+      "position": "RB",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2023,
+      "week": 3,
+      "position": "TE",
+      "selected_rows": 30,
+      "required_limit": 30,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2023,
+      "week": 3,
+      "position": "WR",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2023,
+      "week": 4,
+      "position": "QB",
+      "selected_rows": 28,
+      "required_limit": 30,
+      "selection_status": "source_has_fewer_rows"
+    },
+    {
+      "season": 2023,
+      "week": 4,
+      "position": "RB",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2023,
+      "week": 4,
+      "position": "TE",
+      "selected_rows": 30,
+      "required_limit": 30,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2023,
+      "week": 4,
+      "position": "WR",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2023,
+      "week": 5,
+      "position": "QB",
+      "selected_rows": 25,
+      "required_limit": 30,
+      "selection_status": "source_has_fewer_rows"
+    },
+    {
+      "season": 2023,
+      "week": 5,
+      "position": "RB",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2023,
+      "week": 5,
+      "position": "TE",
+      "selected_rows": 30,
+      "required_limit": 30,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2023,
+      "week": 5,
+      "position": "WR",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2023,
+      "week": 6,
+      "position": "QB",
+      "selected_rows": 26,
+      "required_limit": 30,
+      "selection_status": "source_has_fewer_rows"
+    },
+    {
+      "season": 2023,
+      "week": 6,
+      "position": "RB",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2023,
+      "week": 6,
+      "position": "TE",
+      "selected_rows": 30,
+      "required_limit": 30,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2023,
+      "week": 6,
+      "position": "WR",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2023,
+      "week": 7,
+      "position": "QB",
+      "selected_rows": 25,
+      "required_limit": 30,
+      "selection_status": "source_has_fewer_rows"
+    },
+    {
+      "season": 2023,
+      "week": 7,
+      "position": "RB",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2023,
+      "week": 7,
+      "position": "TE",
+      "selected_rows": 30,
+      "required_limit": 30,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2023,
+      "week": 7,
+      "position": "WR",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2023,
+      "week": 8,
+      "position": "QB",
+      "selected_rows": 28,
+      "required_limit": 30,
+      "selection_status": "source_has_fewer_rows"
+    },
+    {
+      "season": 2023,
+      "week": 8,
+      "position": "RB",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2023,
+      "week": 8,
+      "position": "TE",
+      "selected_rows": 30,
+      "required_limit": 30,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2023,
+      "week": 8,
+      "position": "WR",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2023,
+      "week": 9,
+      "position": "QB",
+      "selected_rows": 24,
+      "required_limit": 30,
+      "selection_status": "source_has_fewer_rows"
+    },
+    {
+      "season": 2023,
+      "week": 9,
+      "position": "RB",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2023,
+      "week": 9,
+      "position": "TE",
+      "selected_rows": 30,
+      "required_limit": 30,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2023,
+      "week": 9,
+      "position": "WR",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2023,
+      "week": 10,
+      "position": "QB",
+      "selected_rows": 24,
+      "required_limit": 30,
+      "selection_status": "source_has_fewer_rows"
+    },
+    {
+      "season": 2023,
+      "week": 10,
+      "position": "RB",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2023,
+      "week": 10,
+      "position": "TE",
+      "selected_rows": 30,
+      "required_limit": 30,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2023,
+      "week": 10,
+      "position": "WR",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2023,
+      "week": 11,
+      "position": "QB",
+      "selected_rows": 25,
+      "required_limit": 30,
+      "selection_status": "source_has_fewer_rows"
+    },
+    {
+      "season": 2023,
+      "week": 11,
+      "position": "RB",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2023,
+      "week": 11,
+      "position": "TE",
+      "selected_rows": 30,
+      "required_limit": 30,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2023,
+      "week": 11,
+      "position": "WR",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2023,
+      "week": 12,
+      "position": "QB",
+      "selected_rows": 26,
+      "required_limit": 30,
+      "selection_status": "source_has_fewer_rows"
+    },
+    {
+      "season": 2023,
+      "week": 12,
+      "position": "RB",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2023,
+      "week": 12,
+      "position": "TE",
+      "selected_rows": 30,
+      "required_limit": 30,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2023,
+      "week": 12,
+      "position": "WR",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2023,
+      "week": 13,
+      "position": "QB",
+      "selected_rows": 21,
+      "required_limit": 30,
+      "selection_status": "source_has_fewer_rows"
+    },
+    {
+      "season": 2023,
+      "week": 13,
+      "position": "RB",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2023,
+      "week": 13,
+      "position": "TE",
+      "selected_rows": 30,
+      "required_limit": 30,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2023,
+      "week": 13,
+      "position": "WR",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2023,
+      "week": 14,
+      "position": "QB",
+      "selected_rows": 25,
+      "required_limit": 30,
+      "selection_status": "source_has_fewer_rows"
+    },
+    {
+      "season": 2023,
+      "week": 14,
+      "position": "RB",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2023,
+      "week": 14,
+      "position": "TE",
+      "selected_rows": 30,
+      "required_limit": 30,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2023,
+      "week": 14,
+      "position": "WR",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2023,
+      "week": 15,
+      "position": "QB",
+      "selected_rows": 29,
+      "required_limit": 30,
+      "selection_status": "source_has_fewer_rows"
+    },
+    {
+      "season": 2023,
+      "week": 15,
+      "position": "RB",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2023,
+      "week": 15,
+      "position": "TE",
+      "selected_rows": 30,
+      "required_limit": 30,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2023,
+      "week": 15,
+      "position": "WR",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2023,
+      "week": 16,
+      "position": "QB",
+      "selected_rows": 28,
+      "required_limit": 30,
+      "selection_status": "source_has_fewer_rows"
+    },
+    {
+      "season": 2023,
+      "week": 16,
+      "position": "RB",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2023,
+      "week": 16,
+      "position": "TE",
+      "selected_rows": 30,
+      "required_limit": 30,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2023,
+      "week": 16,
+      "position": "WR",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2023,
+      "week": 17,
+      "position": "QB",
+      "selected_rows": 29,
+      "required_limit": 30,
+      "selection_status": "source_has_fewer_rows"
+    },
+    {
+      "season": 2023,
+      "week": 17,
+      "position": "RB",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2023,
+      "week": 17,
+      "position": "TE",
+      "selected_rows": 30,
+      "required_limit": 30,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2023,
+      "week": 17,
+      "position": "WR",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2024,
+      "week": 1,
+      "position": "QB",
+      "selected_rows": 30,
+      "required_limit": 30,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2024,
+      "week": 1,
+      "position": "RB",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2024,
+      "week": 1,
+      "position": "TE",
+      "selected_rows": 30,
+      "required_limit": 30,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2024,
+      "week": 1,
+      "position": "WR",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2024,
+      "week": 2,
+      "position": "QB",
+      "selected_rows": 30,
+      "required_limit": 30,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2024,
+      "week": 2,
+      "position": "RB",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2024,
+      "week": 2,
+      "position": "TE",
+      "selected_rows": 30,
+      "required_limit": 30,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2024,
+      "week": 2,
+      "position": "WR",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2024,
+      "week": 3,
+      "position": "QB",
+      "selected_rows": 30,
+      "required_limit": 30,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2024,
+      "week": 3,
+      "position": "RB",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2024,
+      "week": 3,
+      "position": "TE",
+      "selected_rows": 30,
+      "required_limit": 30,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2024,
+      "week": 3,
+      "position": "WR",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2024,
+      "week": 4,
+      "position": "QB",
+      "selected_rows": 30,
+      "required_limit": 30,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2024,
+      "week": 4,
+      "position": "RB",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2024,
+      "week": 4,
+      "position": "TE",
+      "selected_rows": 30,
+      "required_limit": 30,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2024,
+      "week": 4,
+      "position": "WR",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2024,
+      "week": 5,
+      "position": "QB",
+      "selected_rows": 29,
+      "required_limit": 30,
+      "selection_status": "source_has_fewer_rows"
+    },
+    {
+      "season": 2024,
+      "week": 5,
+      "position": "RB",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2024,
+      "week": 5,
+      "position": "TE",
+      "selected_rows": 30,
+      "required_limit": 30,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2024,
+      "week": 5,
+      "position": "WR",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2024,
+      "week": 6,
+      "position": "QB",
+      "selected_rows": 29,
+      "required_limit": 30,
+      "selection_status": "source_has_fewer_rows"
+    },
+    {
+      "season": 2024,
+      "week": 6,
+      "position": "RB",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2024,
+      "week": 6,
+      "position": "TE",
+      "selected_rows": 30,
+      "required_limit": 30,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2024,
+      "week": 6,
+      "position": "WR",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2024,
+      "week": 7,
+      "position": "QB",
+      "selected_rows": 30,
+      "required_limit": 30,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2024,
+      "week": 7,
+      "position": "RB",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2024,
+      "week": 7,
+      "position": "TE",
+      "selected_rows": 30,
+      "required_limit": 30,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2024,
+      "week": 7,
+      "position": "WR",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2024,
+      "week": 8,
+      "position": "QB",
+      "selected_rows": 30,
+      "required_limit": 30,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2024,
+      "week": 8,
+      "position": "RB",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2024,
+      "week": 8,
+      "position": "TE",
+      "selected_rows": 30,
+      "required_limit": 30,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2024,
+      "week": 8,
+      "position": "WR",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2024,
+      "week": 9,
+      "position": "QB",
+      "selected_rows": 29,
+      "required_limit": 30,
+      "selection_status": "source_has_fewer_rows"
+    },
+    {
+      "season": 2024,
+      "week": 9,
+      "position": "RB",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2024,
+      "week": 9,
+      "position": "TE",
+      "selected_rows": 30,
+      "required_limit": 30,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2024,
+      "week": 9,
+      "position": "WR",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2024,
+      "week": 10,
+      "position": "QB",
+      "selected_rows": 25,
+      "required_limit": 30,
+      "selection_status": "source_has_fewer_rows"
+    },
+    {
+      "season": 2024,
+      "week": 10,
+      "position": "RB",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2024,
+      "week": 10,
+      "position": "TE",
+      "selected_rows": 30,
+      "required_limit": 30,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2024,
+      "week": 10,
+      "position": "WR",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2024,
+      "week": 11,
+      "position": "QB",
+      "selected_rows": 26,
+      "required_limit": 30,
+      "selection_status": "source_has_fewer_rows"
+    },
+    {
+      "season": 2024,
+      "week": 11,
+      "position": "RB",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2024,
+      "week": 11,
+      "position": "TE",
+      "selected_rows": 30,
+      "required_limit": 30,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2024,
+      "week": 11,
+      "position": "WR",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2024,
+      "week": 12,
+      "position": "QB",
+      "selected_rows": 25,
+      "required_limit": 30,
+      "selection_status": "source_has_fewer_rows"
+    },
+    {
+      "season": 2024,
+      "week": 12,
+      "position": "RB",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2024,
+      "week": 12,
+      "position": "TE",
+      "selected_rows": 30,
+      "required_limit": 30,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2024,
+      "week": 12,
+      "position": "WR",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2024,
+      "week": 13,
+      "position": "QB",
+      "selected_rows": 30,
+      "required_limit": 30,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2024,
+      "week": 13,
+      "position": "RB",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2024,
+      "week": 13,
+      "position": "TE",
+      "selected_rows": 30,
+      "required_limit": 30,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2024,
+      "week": 13,
+      "position": "WR",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2024,
+      "week": 14,
+      "position": "QB",
+      "selected_rows": 25,
+      "required_limit": 30,
+      "selection_status": "source_has_fewer_rows"
+    },
+    {
+      "season": 2024,
+      "week": 14,
+      "position": "RB",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2024,
+      "week": 14,
+      "position": "TE",
+      "selected_rows": 30,
+      "required_limit": 30,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2024,
+      "week": 14,
+      "position": "WR",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2024,
+      "week": 15,
+      "position": "QB",
+      "selected_rows": 30,
+      "required_limit": 30,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2024,
+      "week": 15,
+      "position": "RB",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2024,
+      "week": 15,
+      "position": "TE",
+      "selected_rows": 30,
+      "required_limit": 30,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2024,
+      "week": 15,
+      "position": "WR",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2024,
+      "week": 16,
+      "position": "QB",
+      "selected_rows": 30,
+      "required_limit": 30,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2024,
+      "week": 16,
+      "position": "RB",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2024,
+      "week": 16,
+      "position": "TE",
+      "selected_rows": 30,
+      "required_limit": 30,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2024,
+      "week": 16,
+      "position": "WR",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2024,
+      "week": 17,
+      "position": "QB",
+      "selected_rows": 30,
+      "required_limit": 30,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2024,
+      "week": 17,
+      "position": "RB",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2024,
+      "week": 17,
+      "position": "TE",
+      "selected_rows": 30,
+      "required_limit": 30,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2024,
+      "week": 17,
+      "position": "WR",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2025,
+      "week": 1,
+      "position": "QB",
+      "selected_rows": 30,
+      "required_limit": 30,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2025,
+      "week": 1,
+      "position": "RB",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2025,
+      "week": 1,
+      "position": "TE",
+      "selected_rows": 30,
+      "required_limit": 30,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2025,
+      "week": 1,
+      "position": "WR",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2025,
+      "week": 2,
+      "position": "QB",
+      "selected_rows": 30,
+      "required_limit": 30,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2025,
+      "week": 2,
+      "position": "RB",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2025,
+      "week": 2,
+      "position": "TE",
+      "selected_rows": 30,
+      "required_limit": 30,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2025,
+      "week": 2,
+      "position": "WR",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2025,
+      "week": 3,
+      "position": "QB",
+      "selected_rows": 30,
+      "required_limit": 30,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2025,
+      "week": 3,
+      "position": "RB",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2025,
+      "week": 3,
+      "position": "TE",
+      "selected_rows": 30,
+      "required_limit": 30,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2025,
+      "week": 3,
+      "position": "WR",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2025,
+      "week": 4,
+      "position": "QB",
+      "selected_rows": 30,
+      "required_limit": 30,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2025,
+      "week": 4,
+      "position": "RB",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2025,
+      "week": 4,
+      "position": "TE",
+      "selected_rows": 30,
+      "required_limit": 30,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2025,
+      "week": 4,
+      "position": "WR",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2025,
+      "week": 5,
+      "position": "QB",
+      "selected_rows": 27,
+      "required_limit": 30,
+      "selection_status": "source_has_fewer_rows"
+    },
+    {
+      "season": 2025,
+      "week": 5,
+      "position": "RB",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2025,
+      "week": 5,
+      "position": "TE",
+      "selected_rows": 30,
+      "required_limit": 30,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2025,
+      "week": 5,
+      "position": "WR",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2025,
+      "week": 6,
+      "position": "QB",
+      "selected_rows": 30,
+      "required_limit": 30,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2025,
+      "week": 6,
+      "position": "RB",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2025,
+      "week": 6,
+      "position": "TE",
+      "selected_rows": 30,
+      "required_limit": 30,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2025,
+      "week": 6,
+      "position": "WR",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2025,
+      "week": 7,
+      "position": "QB",
+      "selected_rows": 30,
+      "required_limit": 30,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2025,
+      "week": 7,
+      "position": "RB",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2025,
+      "week": 7,
+      "position": "TE",
+      "selected_rows": 30,
+      "required_limit": 30,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2025,
+      "week": 7,
+      "position": "WR",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2025,
+      "week": 8,
+      "position": "QB",
+      "selected_rows": 26,
+      "required_limit": 30,
+      "selection_status": "source_has_fewer_rows"
+    },
+    {
+      "season": 2025,
+      "week": 8,
+      "position": "RB",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2025,
+      "week": 8,
+      "position": "TE",
+      "selected_rows": 30,
+      "required_limit": 30,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2025,
+      "week": 8,
+      "position": "WR",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2025,
+      "week": 9,
+      "position": "QB",
+      "selected_rows": 28,
+      "required_limit": 30,
+      "selection_status": "source_has_fewer_rows"
+    },
+    {
+      "season": 2025,
+      "week": 9,
+      "position": "RB",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2025,
+      "week": 9,
+      "position": "TE",
+      "selected_rows": 30,
+      "required_limit": 30,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2025,
+      "week": 9,
+      "position": "WR",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2025,
+      "week": 10,
+      "position": "QB",
+      "selected_rows": 29,
+      "required_limit": 30,
+      "selection_status": "source_has_fewer_rows"
+    },
+    {
+      "season": 2025,
+      "week": 10,
+      "position": "RB",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2025,
+      "week": 10,
+      "position": "TE",
+      "selected_rows": 30,
+      "required_limit": 30,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2025,
+      "week": 10,
+      "position": "WR",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2025,
+      "week": 11,
+      "position": "QB",
+      "selected_rows": 30,
+      "required_limit": 30,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2025,
+      "week": 11,
+      "position": "RB",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2025,
+      "week": 11,
+      "position": "TE",
+      "selected_rows": 30,
+      "required_limit": 30,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2025,
+      "week": 11,
+      "position": "WR",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2025,
+      "week": 12,
+      "position": "QB",
+      "selected_rows": 28,
+      "required_limit": 30,
+      "selection_status": "source_has_fewer_rows"
+    },
+    {
+      "season": 2025,
+      "week": 12,
+      "position": "RB",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2025,
+      "week": 12,
+      "position": "TE",
+      "selected_rows": 30,
+      "required_limit": 30,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2025,
+      "week": 12,
+      "position": "WR",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2025,
+      "week": 13,
+      "position": "QB",
+      "selected_rows": 30,
+      "required_limit": 30,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2025,
+      "week": 13,
+      "position": "RB",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2025,
+      "week": 13,
+      "position": "TE",
+      "selected_rows": 30,
+      "required_limit": 30,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2025,
+      "week": 13,
+      "position": "WR",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2025,
+      "week": 14,
+      "position": "QB",
+      "selected_rows": 29,
+      "required_limit": 30,
+      "selection_status": "source_has_fewer_rows"
+    },
+    {
+      "season": 2025,
+      "week": 14,
+      "position": "RB",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2025,
+      "week": 14,
+      "position": "TE",
+      "selected_rows": 30,
+      "required_limit": 30,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2025,
+      "week": 14,
+      "position": "WR",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2025,
+      "week": 15,
+      "position": "QB",
+      "selected_rows": 30,
+      "required_limit": 30,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2025,
+      "week": 15,
+      "position": "RB",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2025,
+      "week": 15,
+      "position": "TE",
+      "selected_rows": 30,
+      "required_limit": 30,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2025,
+      "week": 15,
+      "position": "WR",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2025,
+      "week": 16,
+      "position": "QB",
+      "selected_rows": 30,
+      "required_limit": 30,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2025,
+      "week": 16,
+      "position": "RB",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2025,
+      "week": 16,
+      "position": "TE",
+      "selected_rows": 30,
+      "required_limit": 30,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2025,
+      "week": 16,
+      "position": "WR",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2025,
+      "week": 17,
+      "position": "QB",
+      "selected_rows": 30,
+      "required_limit": 30,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2025,
+      "week": 17,
+      "position": "RB",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2025,
+      "week": 17,
+      "position": "TE",
+      "selected_rows": 30,
+      "required_limit": 30,
+      "selection_status": "full_limit"
+    },
+    {
+      "season": 2025,
+      "week": 17,
+      "position": "WR",
+      "selected_rows": 40,
+      "required_limit": 40,
+      "selection_status": "full_limit"
+    }
+  ],
+  "top_player_groups_below_limit": 28,
+  "top_player_selected_rows": 7045,
+  "top_player_identity_coverage": 1.0,
+  "top_player_outcome_coverage": 0.9841022001419446,
+  "top_player_observed_outcome_rows": 6933,
+  "top_player_imputed_zero_rows": 112,
+  "all_panel_rows": 14985,
+  "all_panel_imputed_zero_rows": 2382,
+  "outcome_error_rows": 5613,
+  "outcome_error_counts": {
+    "crosswalk_fields_disagree": 2920,
+    "no_actual_weekly_record;actual_score_created_from_missing_record": 1779,
+    "crosswalk_fields_disagree;no_actual_weekly_record;actual_score_created_from_missing_record": 509,
+    "master_name_conflict": 156,
+    "no_unique_gsis_id;no_actual_weekly_record;actual_score_created_from_missing_record": 52,
+    "crosswalk_fields_disagree;master_team_context_differs": 51,
+    "master_name_conflict;no_actual_weekly_record;actual_score_created_from_missing_record": 40,
+    "no_unique_gsis_id;crosswalk_fields_disagree;no_actual_weekly_record;actual_score_created_from_missing_record": 25,
+    "crosswalk_fields_disagree;master_team_context_differs;no_actual_weekly_record;actual_score_created_from_missing_record": 18,
+    "crosswalk_fields_disagree;master_position_conflict": 15,
+    "crosswalk_fields_disagree;master_name_conflict;no_actual_weekly_record;actual_score_created_from_missing_record": 11,
+    "crosswalk_fields_disagree;master_position_conflict;no_actual_weekly_record;actual_score_created_from_missing_record": 11,
+    "master_position_conflict;no_actual_weekly_record;actual_score_created_from_missing_record": 9,
+    "crosswalk_fields_disagree;master_name_conflict": 8,
+    "master_name_conflict;master_team_context_differs;no_actual_weekly_record;actual_score_created_from_missing_record": 5,
+    "master_name_conflict;master_team_context_differs": 3,
+    "master_position_conflict": 1
+  },
+  "identity_match_method_counts": {
+    "weekly_stats_name_position_team": 7901,
+    "master_name_position": 5416,
+    "weekly_roster_name_position_team": 1154,
+    "manual_override": 286,
+    "pfr_crosswalk_verified": 151,
+    "unmatched": 77
+  },
+  "identity_severity_counts": {
+    "Info": 10852,
+    "Warning": 4056,
+    "Serious": 77
+  },
+  "source_audit": {
+    "weekly_stats_rows": 16672,
+    "weekly_roster_rows": 38150,
+    "weekly_outcome_groups": 16672,
+    "master_rows": 8378,
+    "external_crosswalk_path": "C:\\Users\\matts\\Local Projects\\nfl2026\\ff_drafter_2026\\raw\\dynastyprocess\\db_playerids.csv",
+    "external_crosswalk_loaded": true
+  }
+}

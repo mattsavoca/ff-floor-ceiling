@@ -80,7 +80,10 @@ identity_input <- unique(rank_rows[, .(season, week, fbg_id, player_name, positi
 identity_map <- map_fbg_to_gsis(identity_input, rosters = rosters, stats = stats, players = players)
 rank_rows <- merge(
   rank_rows,
-  identity_map[, .(season, week, fbg_id, player_name, position, team, gsis_id, match_method, candidate_count)],
+  identity_map[, .(
+    season, week, fbg_id, player_name, position, team, gsis_id, match_method,
+    candidate_count, override_reason, resolution_notes
+  )],
   by = c("season", "week", "fbg_id", "player_name", "position", "team"),
   all.x = TRUE,
   sort = FALSE
@@ -152,7 +155,8 @@ team_actual[, `:=`(
 
 identity_audit <- unique(rank_rows[, .(
   season, week, fbg_id, player_name, position, fbg_team,
-  resolved_team = team, gsis_id, match_method, candidate_count
+  resolved_team = team, gsis_id, match_method, candidate_count,
+  override_reason, resolution_notes
 )])
 set_summary_path <- path_in_project("data", "derived", "fbg_set_selection.csv")
 identity_path <- path_in_project("data", "derived", "identity_audit.csv")

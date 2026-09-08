@@ -20,6 +20,9 @@ product scope.
 ## Apply this when
 
 - Changing `web/`, `contracts/`, or `services/model-worker/`.
+- Changing a model release, feature version, endpoint, output shape, position
+  policy, or range policy. Read [Web model replacement](web-model-replacement.md)
+  first.
 - Deploying, promoting, or rolling back the Vercel project.
 - Comparing current source, a preview URL, and the stable public alias.
 - Changing historical calibration data or public model evidence.
@@ -42,11 +45,18 @@ product scope.
 
 The browser does not run model training or simulation. The real forecast tab
 uploads a source file, creates a durable run record, and reads the complete
-`forecast-result.v2` output. The server worker derives rank and uncertainty,
-runs the rank-conditioned `ffsimulator` algorithm, calls the released p15 and
-p85 services for RB, WR, and TE, checks the full join, and publishes no result
-until all accepted IDs are present. Manual overrides remain in a separate
-run-scoped set.
+`forecast-result.v3` output. The server worker derives rank and uncertainty,
+runs the rank-conditioned `ffsimulator` algorithm, calls one active v2
+multi-quantile XGBoost endpoint for each populated position, checks the full
+join, and publishes no result until all accepted IDs are present. Manual
+overrides remain in a separate run-scoped set.
+
+The active release is `forecast-ppr-v2`. It uses feature version
+`fbg_rank_projection_v2`, PPR contract `ppr_v1`, objective
+`reg:quantileerror`, and quantiles p15, p50, and p85. XGBoost supplies the
+floor, median, and ceiling for QB, RB, WR, and TE. The CSV PPR projection
+supplies average. `ffsimulator` remains a diagnostic comparison. The retained
+`forecast-ppr-v1` asset pack is the rollback target.
 
 `/api/runs` creates a bounded queue request. The local preview starts the R
 fallback and Python model process inside the web process and uses a local file
@@ -72,6 +82,7 @@ permanent project policy.
 ## Related code or enforcement
 
 - `web/README.md`
+- `field-guide/web-model-replacement.md`
 - `web/lib/project-data.ts`
 - `web/package.json`
 - `services/model-worker/README.md`
@@ -81,6 +92,7 @@ permanent project policy.
 - `contracts/model-job.v1.json`
 - `contracts/forecast-result.v1.json`
 - `contracts/forecast-result.v2.json`
+- `contracts/forecast-result.v3.json`
 - `contracts/forecast-overrides.v1.json`
 - `scripts/test_forecast_workflow.ps1`
 - `scripts/create_ffsimulator_snapshot.R`

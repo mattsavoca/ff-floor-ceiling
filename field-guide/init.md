@@ -60,6 +60,11 @@ then promote reusable lessons into this guide after review.
     public Vercel deployment.
   - Keywords: Next.js, TypeScript, ECharts, Vercel, deployment, alias,
     rollback, historical calibration, preview, legacy labels
+- [Web model replacement](web-model-replacement.md)
+  - Read when a model candidate moves into the web app or when a model release
+    changes features, endpoints, output fields, positions, or range policy.
+  - Keywords: model release, replacement, model swap, feature version,
+    quantile, producer, forecast, result contract, rollback
 
 ## Recurring Problems
 

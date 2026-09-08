@@ -1,0 +1,209 @@
+{
+    "model_release":  "forecast-ppr-v2",
+    "artifact_version":  "xgb_v2_quantile_20260907",
+    "model_type":  "native_xgboost_multi_quantile_booster",
+    "objective":  "reg:quantileerror",
+    "target_column":  "actual_score",
+    "quantile_alpha":  [
+                           0.15,
+                           0.5,
+                           0.85
+                       ],
+    "quantile_output_columns":  {
+                                    "0":  "p15",
+                                    "1":  "p50",
+                                    "2":  "p85"
+                                },
+    "one_prediction_call_returns_all_quantiles":  true,
+    "feature_version":  "fbg_rank_projection_v2",
+    "feature_names_by_position":  {
+                                      "QB":  [
+                                                 "week",
+                                                 "ecr",
+                                                 "pass-att",
+                                                 "pass-cmp",
+                                                 "pass-1d",
+                                                 "pass-int",
+                                                 "pass-sck",
+                                                 "pass-td",
+                                                 "pass-yds",
+                                                 "rush-car",
+                                                 "rush-1d",
+                                                 "rush-td",
+                                                 "rush-yds",
+                                                 "fum-lost",
+                                                 "projection_fpts"
+                                             ],
+                                      "RB":  [
+                                                 "week",
+                                                 "ecr",
+                                                 "pass-att",
+                                                 "pass-cmp",
+                                                 "pass-1d",
+                                                 "pass-int",
+                                                 "pass-td",
+                                                 "pass-yds",
+                                                 "rush-car",
+                                                 "rush-1d",
+                                                 "rush-td",
+                                                 "rush-yds",
+                                                 "rec-rec",
+                                                 "rec-tgt",
+                                                 "rec-td",
+                                                 "rec-yds",
+                                                 "fum-lost",
+                                                 "projection_fpts"
+                                             ],
+                                      "WR":  [
+                                                 "week",
+                                                 "ecr",
+                                                 "pass-int",
+                                                 "rush-car",
+                                                 "rush-1d",
+                                                 "rush-td",
+                                                 "rush-yds",
+                                                 "rec-rec",
+                                                 "rec-tgt",
+                                                 "rec-td",
+                                                 "rec-yds",
+                                                 "fum-lost",
+                                                 "projection_fpts"
+                                             ],
+                                      "TE":  [
+                                                 "week",
+                                                 "ecr",
+                                                 "rush-car",
+                                                 "rush-1d",
+                                                 "rush-td",
+                                                 "rush-yds",
+                                                 "rec-rec",
+                                                 "rec-tgt",
+                                                 "rec-td",
+                                                 "rec-yds",
+                                                 "fum-lost",
+                                                 "projection_fpts"
+                                             ]
+                                  },
+    "scoring_format":  "PPR",
+    "scoring_contract_version":  "ppr_v1",
+    "xgboost_version":  "3.4.1",
+    "training_seasons":  [
+                             2023,
+                             2024,
+                             2025
+                         ],
+    "validation_result":  {
+                              "walk_forward":  true,
+                              "validation_weeks":  [
+                                                       14,
+                                                       15,
+                                                       16,
+                                                       17
+                                                   ],
+                              "selected_model_records":  8,
+                              "path":  "selected_models.csv"
+                          },
+    "target_season_policy":  "newest target season less than or equal to the requested season",
+    "model_card_path":  "model_card.md",
+    "comparison_metrics_path":  "comparison_metrics.csv",
+    "comparison_report_path":  "comparison_report.md",
+    "data_quality_report_path":  "data_quality_report.json",
+    "outcome_errors_path":  "outcome_errors.csv",
+    "quantile_crossings_path":  "quantile_crossings.csv",
+    "model_records":  [
+                          {
+                              "target_season":  2026,
+                              "position":  "QB",
+                              "model_path":  "models/xgb_v2_qb_through_2025.json",
+                              "features":  [
+                                               "week",
+                                               "ecr",
+                                               "pass-att",
+                                               "pass-cmp",
+                                               "pass-1d",
+                                               "pass-int",
+                                               "pass-sck",
+                                               "pass-td",
+                                               "pass-yds",
+                                               "rush-car",
+                                               "rush-1d",
+                                               "rush-td",
+                                               "rush-yds",
+                                               "fum-lost",
+                                               "projection_fpts"
+                                           ],
+                              "feature_count":  15,
+                              "training_rows":  1403
+                          },
+                          {
+                              "target_season":  2026,
+                              "position":  "RB",
+                              "model_path":  "models/xgb_v2_rb_through_2025.json",
+                              "features":  [
+                                               "week",
+                                               "ecr",
+                                               "pass-att",
+                                               "pass-cmp",
+                                               "pass-1d",
+                                               "pass-int",
+                                               "pass-td",
+                                               "pass-yds",
+                                               "rush-car",
+                                               "rush-1d",
+                                               "rush-td",
+                                               "rush-yds",
+                                               "rec-rec",
+                                               "rec-tgt",
+                                               "rec-td",
+                                               "rec-yds",
+                                               "fum-lost",
+                                               "projection_fpts"
+                                           ],
+                              "feature_count":  18,
+                              "training_rows":  2860
+                          },
+                          {
+                              "target_season":  2026,
+                              "position":  "WR",
+                              "model_path":  "models/xgb_v2_wr_through_2025.json",
+                              "features":  [
+                                               "week",
+                                               "ecr",
+                                               "pass-int",
+                                               "rush-car",
+                                               "rush-1d",
+                                               "rush-td",
+                                               "rush-yds",
+                                               "rec-rec",
+                                               "rec-tgt",
+                                               "rec-td",
+                                               "rec-yds",
+                                               "fum-lost",
+                                               "projection_fpts"
+                                           ],
+                              "feature_count":  13,
+                              "training_rows":  4244
+                          },
+                          {
+                              "target_season":  2026,
+                              "position":  "TE",
+                              "model_path":  "models/xgb_v2_te_through_2025.json",
+                              "features":  [
+                                               "week",
+                                               "ecr",
+                                               "rush-car",
+                                               "rush-1d",
+                                               "rush-td",
+                                               "rush-yds",
+                                               "rec-rec",
+                                               "rec-tgt",
+                                               "rec-td",
+                                               "rec-yds",
+                                               "fum-lost",
+                                               "projection_fpts"
+                                           ],
+                              "feature_count":  12,
+                              "training_rows":  2380
+                          }
+                      ]
+}

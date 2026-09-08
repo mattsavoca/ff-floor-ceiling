@@ -4,6 +4,7 @@ import { hasValidCsrfToken, readSession } from "@/lib/server/session";
 import { DEFAULT_SIMULATION_COUNT, isValidSimulationCount, MAX_SIMULATIONS, MIN_SIMULATIONS, SIMULATION_STEP } from "@/lib/simulation-config";
 import { processRun } from "@/lib/server/forecast";
 import { store } from "@/lib/server/store";
+import { METRIC_DEFINITION_VERSION, MODEL_RELEASE, SCORING_CONTRACT_VERSION } from "@/lib/model-release";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -41,6 +42,9 @@ export async function GET() {
       week: run.week,
       simulationCount: run.simulationCount,
       seed: run.seed,
+      scoringContractVersion: run.scoringContractVersion,
+      metricDefinitionVersion: run.metricDefinitionVersion,
+      modelRelease: run.modelRelease,
       createdAt: run.createdAt,
       startedAt: run.startedAt,
       completedAt: run.completedAt,
@@ -71,8 +75,8 @@ export async function POST(request: Request) {
   if (!Number.isInteger(week) || week < 1 || week > 18) return jsonError("Select a week from 1 through 18.");
   if (!isValidSimulationCount(simulationCount)) return jsonError(`Use an integer from ${MIN_SIMULATIONS.toLocaleString()} to ${MAX_SIMULATIONS.toLocaleString()} in steps of ${SIMULATION_STEP}.`);
   if (!Number.isInteger(upload.report.accepted) || upload.report.accepted < 1 || upload.report.accepted > MAX_ROWS) return jsonError("The upload must contain at least one accepted row.");
-  if (!body.metricDefinitionVersion || body.metricDefinitionVersion.length > 80) return jsonError("The metric definition version is required.");
-  if (body.scoringContractVersion !== "ppr_v1") return jsonError("The scoring contract is unsupported.");
+  if (body.metricDefinitionVersion !== METRIC_DEFINITION_VERSION) return jsonError("The metric definition version is unsupported.");
+  if (body.scoringContractVersion !== SCORING_CONTRACT_VERSION) return jsonError("The scoring contract is unsupported.");
   if (body.inputRevision !== upload.sourceInputRevision) return jsonError("The input revision does not match the uploaded file.");
   if (body.submissionToken && !/^[a-zA-Z0-9_-]{8,128}$/.test(body.submissionToken)) return jsonError("The submission token is invalid.");
   if (body.seed !== undefined && (!Number.isSafeInteger(body.seed) || body.seed < 0 || body.seed > 2_147_483_647)) return jsonError("The seed must be a non-negative 32-bit integer.");
@@ -87,9 +91,9 @@ export async function POST(request: Request) {
     sourceInputRevision: upload.sourceInputRevision,
     season,
     week,
-    scoringContractVersion: "ppr_v1",
-    metricDefinitionVersion: body.metricDefinitionVersion,
-    modelRelease: "forecast-ppr-v1",
+    scoringContractVersion: SCORING_CONTRACT_VERSION,
+    metricDefinitionVersion: METRIC_DEFINITION_VERSION,
+    modelRelease: MODEL_RELEASE,
     simulationCount,
     seed,
     state: "Queued",

@@ -74,6 +74,12 @@ function Assert-True {
   if (-not $Condition) { throw $Message }
 }
 
+function Assert-FiniteNumber {
+  param($Value, [string]$Message)
+  $number = [double]$Value
+  Assert-True ($null -ne $Value -and -not [double]::IsNaN($number) -and -not [double]::IsInfinity($number)) $Message
+}
+
 try {
   $sessionResponse = Invoke-Curl @("-c", $cookiePath, "$baseUrl/api/session")
   Assert-True ($sessionResponse.Status -eq 200) "The session endpoint failed."
@@ -123,6 +129,16 @@ try {
   $rows = @($result.rows)
   $ids = @($rows | ForEach-Object stablePlayerId)
   $uniqueIds = @($ids | Select-Object -Unique)
+  Assert-True ($result.schemaVersion -eq "forecast-result.v3") "The result schema is not forecast-result.v3."
+  Assert-True ($result.metadata.modelRelease -eq "forecast-ppr-v2") "The result model release is not forecast-ppr-v2."
+  Assert-True ($result.metadata.featureVersion -eq "fbg_rank_projection_v2") "The result feature version is not fbg_rank_projection_v2."
+  Assert-True ($result.metadata.scoringFormat -eq "PPR" -and $result.metadata.scoringContractVersion -eq "ppr_v1") "The result scoring contract is not PPR ppr_v1."
+  Assert-True ($result.metadata.modelTarget -eq "actual_score" -and $result.metadata.modelObjective -eq "reg:quantileerror") "The result model target or objective is wrong."
+  Assert-True ($result.metadata.xgboostVersion -eq "3.4.1" -and $result.metadata.modelArtifactVersion -eq "xgb_v2_quantile_20260907") "The result model artifact metadata is wrong."
+  Assert-True ((@($result.metadata.quantileLevels) -join ",") -eq "0.15,0.5,0.85") "The result quantile levels are wrong."
+  Assert-True ($result.metadata.rangePolicyVersion -eq "direct_xgb_quantiles_v1" -and $result.metadata.inferenceEndpoint -eq "/v2/models/predict") "The result range policy metadata is wrong."
+  Assert-True ($result.metadata.validationResult.walkForward -eq $true -and $result.metadata.validationResult.selectedModelRecords -eq 8) "The result validation metadata is wrong."
+  Assert-True ($result.metadata.quantileCrossingCount -eq 0 -and @($result.metadata.quantileCrossingPlayerIds).Count -eq 0 -and $result.metadata.negativePredictionCount -eq 0 -and @($result.metadata.negativePredictionPlayerIds).Count -eq 0) "The result quantile or negative-prediction audit is not clean."
   Assert-True ($result.metadata.acceptedRowCount -eq $upload.report.accepted) "Accepted count changed between upload and result."
   Assert-True ($result.metadata.outputRowCount -eq $upload.report.accepted -and $rows.Count -eq $upload.report.accepted) "Output count does not match accepted count."
   Assert-True ($ids.Count -eq $uniqueIds.Count) "The result contains duplicate stable IDs."
@@ -143,25 +159,30 @@ try {
     $raw = $row.rawProjection
     $ppr = ([double]$raw.pass_yds / 25) + ([double]$raw.pass_td * 4) - [double]$raw.pass_int + ([double]$raw.pass_2pt * 2) + ([double]$raw.rush_yds / 10) + ([double]$raw.rush_td * 6) + ([double]$raw.rush_2pt * 2) + ([double]$raw.rec_yds / 10) + ([double]$raw.rec_td * 6) + ([double]$raw.rec_2pt * 2) + [double]$raw.rec_rec - ([double]$raw.fum_lost * 2)
     Assert-True ([math]::Abs($ppr - [double]$row.csvProjection) -lt 0.000001) "PPR parity failed for $($row.stablePlayerId)."
+    Assert-FiniteNumber $row.xgbP15 "The v2 p15 value is missing for $($row.stablePlayerId)."
+    Assert-FiniteNumber $row.xgbP50 "The v2 p50 value is missing for $($row.stablePlayerId)."
+    Assert-FiniteNumber $row.xgbP85 "The v2 p85 value is missing for $($row.stablePlayerId)."
+    Assert-True ([double]$row.xgbP15 -le [double]$row.xgbP50 -and [double]$row.xgbP50 -le [double]$row.xgbP85) "The XGBoost quantile order failed for $($row.stablePlayerId)."
+    Assert-True ([math]::Abs([double]$row.floor - [double]$row.xgbP15) -lt 0.000001 -and [math]::Abs([double]$row.median - [double]$row.xgbP50) -lt 0.000001 -and [math]::Abs([double]$row.ceiling - [double]$row.xgbP85) -lt 0.000001) "The final range does not use the v2 quantiles for $($row.stablePlayerId)."
+    Assert-True ([math]::Abs([double]$row.average - [double]$row.csvProjection) -lt 0.000001) "The average does not use the CSV PPR projection for $($row.stablePlayerId)."
     Assert-True ($row.floor -le $row.median -and $row.median -le $row.ceiling) "The final range order failed for $($row.stablePlayerId)."
-    Assert-True ($row.ffsimMean -is [double] -or $row.ffsimMean -is [int] -or $row.ffsimMean -is [decimal]) "The ffsimulator output is missing for $($row.stablePlayerId)."
-    if ($row.position -eq "QB") {
-      Assert-True ($null -eq $row.xgbP15 -and $null -eq $row.xgbP85) "QB has an XGBoost value."
-      Assert-True ($row.valueSources.floor -match "ffsimulator" -and $row.valueSources.average -match "ffsimulator" -and $row.valueSources.median -match "ffsimulator" -and $row.valueSources.ceiling -match "ffsimulator") "QB source labels are wrong."
-    } else {
-      Assert-True ($null -ne $row.xgbP15 -and $null -ne $row.xgbP85) "The skill row is missing an XGBoost value."
-      Assert-True ($row.valueSources.floor -match "XGBoost p15" -and $row.valueSources.average -match "CSV PPR" -and $row.valueSources.median -match "ffsimulator" -and $row.valueSources.ceiling -match "XGBoost p85") "Skill source labels are wrong for $($row.stablePlayerId)."
-    }
+    Assert-FiniteNumber $row.ffsimMean "The diagnostic ffsimulator output is missing for $($row.stablePlayerId)."
+    Assert-True ($row.ffsimP15 -le $row.ffsimP50 -and $row.ffsimP50 -le $row.ffsimP85) "The diagnostic ffsimulator quantile order failed for $($row.stablePlayerId)."
+    Assert-True ($row.valueSources.floor -eq "XGBoost p15" -and $row.valueSources.average -eq "CSV PPR projection" -and $row.valueSources.median -eq "XGBoost p50" -and $row.valueSources.ceiling -eq "XGBoost p85") "The v2 source labels are wrong for $($row.stablePlayerId)."
   }
 
   $rb = @($rows | Where-Object position -eq "RB")[0]
   Assert-True ($rb.rankSdMatch -in @("exact", "nearest")) "Rank uncertainty match type is missing."
   $modelCalls = @($current.externalModelCalls)
   $expectedProducerCallCount = 0
-  foreach ($position in @("RB", "WR", "TE")) {
-    if ([int]$upload.report.positionCounts.$position -gt 0) { $expectedProducerCallCount += 2 }
+  foreach ($position in @("QB", "RB", "WR", "TE")) {
+    if ([int]$upload.report.positionCounts.$position -gt 0) { $expectedProducerCallCount += 1 }
   }
   Assert-True ($modelCalls.Count -eq $expectedProducerCallCount -and @($modelCalls | Where-Object status -ne "complete").Count -eq 0) "The external model call report is incomplete."
+  Assert-True (@($modelCalls | Where-Object model -ne "xgb_multi_quantile").Count -eq 0) "The run recorded a legacy quantile service call."
+  $calledPositions = (@($modelCalls | Select-Object -ExpandProperty position | Sort-Object -Unique) -join ",")
+  Assert-True ($calledPositions -eq "QB,RB,TE,WR") "The run did not record one v2 call for each populated position."
+  Assert-True ($result.metadata.predictionCallCount -eq $modelCalls.Count -and $result.modelStatus.xgb.release -eq "forecast-ppr-v2" -and $result.modelStatus.xgb.featureVersion -eq "fbg_rank_projection_v2" -and $result.modelStatus.xgb.predictionCount -eq $rows.Count -and $result.modelStatus.xgb.predictionCallCount -eq $modelCalls.Count -and $result.modelStatus.xgb.quantileCrossingCount -eq 0 -and $result.modelStatus.xgb.negativePredictionCount -eq 0) "The v2 model status is incomplete."
 
   $overridePayload = @{ factor = 1; workloadFactor = 1; preset = "half"; inactive = $false; exclude = $false; edits = @{}; reason = "E2E half workload check" }
   $overrideResponse = Send-Json $cookies "PUT" "/api/runs/$runId/overrides/$($rb.stablePlayerId)" $overridePayload

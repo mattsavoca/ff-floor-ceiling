@@ -70,11 +70,21 @@ parse_int_list <- function(value, label) {
 
 normalize_team <- function(value) {
   value <- toupper(trimws(as.character(value)))
-  value[value %in% c("LAR", "STL")] <- "LA"
-  value[value %in% c("OAK")] <- "LV"
-  value[value %in% c("SD")] <- "LAC"
-  value[value %in% c("JAC")] <- "JAX"
-  value[value %in% c("WAS", "WSH")] <- "WAS"
+    value[value %in% c("LAR", "STL")] <- "LA"
+    value[value %in% c("OAK", "RAI", "LVR")] <- "LV"
+    value[value %in% c("SD")] <- "LAC"
+    value[value %in% c("JAC")] <- "JAX"
+    value[value %in% c("WAS", "WSH")] <- "WAS"
+    value[value %in% c("SFO")] <- "SF"
+    value[value %in% c("GNB")] <- "GB"
+    value[value %in% c("NWE")] <- "NE"
+    value[value %in% c("NOR")] <- "NO"
+    value[value %in% c("KAN")] <- "KC"
+    value[value %in% c("TAM")] <- "TB"
+    value[value %in% c("CLV")] <- "CLE"
+    value[value %in% c("HST")] <- "HOU"
+    value[value %in% c("BLT")] <- "BAL"
+    value[value %in% c("OTI")] <- "TEN"
   value[is.na(value) | !nzchar(value)] <- NA_character_
   value
 }

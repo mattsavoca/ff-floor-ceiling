@@ -4,3 +4,7 @@ WalkKe01,RB,00-0038134,FBG uses Ken Walker and a stale KC team in the historical
 BrowMa05,WR,00-0035662,FBG uses Hollywood Brown and a stale PHI team in the historical export
 BeckAn00,RB,00-0034959,FBG position and team differ from the weekly roster record
 CartNa00,RB,00-0040547,Drafter player crosswalk supplies the GSIS ID
+IngoAl00,RB,00-0035125,Top-player gate override because the historical FBG row uses a stale LAC team while the weekly roster identifies Alec Ingold as RB 00-0035125 for MIA
+JoneVe00,RB,00-0037745,Top-player gate override because the historical FBG row labels Velus Jones Jr as RB with stale teams while the weekly records identify GSIS 00-0037745 and the master position is WR
+HeywCo00,TE,00-0037304,Top-player gate override because the historical FBG row uses a stale LV team while the weekly roster identifies Connor Heyward as TE 00-0037304 for PIT
+TillCe00,WR,00-0038979,Top-player gate override because the historical FBG row uses a stale NO team and the master has duplicate Cedric Tillman rows while weekly CLE records identify GSIS 00-0038979

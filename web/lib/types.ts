@@ -47,6 +47,7 @@ export type ForecastRow = {
     activeRate: number;
   };
   xgbP15?: number;
+  xgbP50?: number;
   xgbP85?: number;
   valueSources?: RangeValueSources;
   original: RangeValues;
@@ -139,6 +140,11 @@ export type ForecastModelStatus = {
   release?: string;
   featureVersion?: string;
   predictionCount?: number;
+  predictionCallCount?: number;
+  quantileCrossingCount?: number;
+  quantileCrossingPlayerIds?: string[];
+  negativePredictionCount?: number;
+  negativePredictionPlayerIds?: string[];
   error?: string;
 };
 
@@ -164,6 +170,7 @@ export type ForecastResultRow = {
   ffsimZeroRate: number;
   ffsimActiveRate: number;
   xgbP15: number | null;
+  xgbP50?: number | null;
   xgbP85: number | null;
   floor: number;
   average: number;
@@ -173,7 +180,7 @@ export type ForecastResultRow = {
   valueSources: RangeValueSources;
 };
 
-export type ForecastResult = {
+export type ForecastResultV2 = {
   schemaVersion: "forecast-result.v2";
   runId: string;
   uploadId: string;
@@ -204,6 +211,65 @@ export type ForecastResult = {
   };
   rows: ForecastResultRow[];
 };
+
+export type ForecastResultRowV3 = Omit<ForecastResultRow, "xgbP15" | "xgbP50" | "xgbP85"> & {
+  xgbP15: number;
+  xgbP50: number;
+  xgbP85: number;
+};
+
+export type ForecastResultV3 = {
+  schemaVersion: "forecast-result.v3";
+  runId: string;
+  uploadId: string;
+  state: "Complete";
+  metadata: {
+    season: number;
+    week: number;
+    scoringFormat: string;
+    scoringContractVersion: string;
+    metricDefinitionVersion: string;
+    simulationCount: number;
+    seed: number;
+    modelRelease: string;
+    featureVersion: string;
+    modelTarget: string;
+    modelObjective: string;
+    xgboostVersion: string;
+    modelArtifactVersion: string;
+    modelTrainingSeasons: readonly number[];
+    validationResult: {
+      walkForward: boolean;
+      validationWeeks: readonly number[];
+      selectedModelRecords: number;
+    };
+    predictionCallCount: number;
+    quantileCrossingCount: number;
+    quantileCrossingPlayerIds: readonly string[];
+    negativePredictionCount: number;
+    negativePredictionPlayerIds: readonly string[];
+    quantileLevels: readonly [0.15, 0.5, 0.85];
+    rangePolicyVersion: string;
+    inferenceEndpoint: string;
+    rankReferenceSnapshot: string;
+    sourceInputRevision: string;
+    createdAt: string;
+    completedAt: string;
+    acceptedRowCount: number;
+    excludedRowCount: number;
+    positionCounts: Record<"QB" | "RB" | "WR" | "TE", number>;
+    outputRowCount: number;
+    rankRule: string;
+    rankSourceOrder: "preserved";
+  };
+  modelStatus: {
+    ffsimulator: ForecastModelStatus;
+    xgb: ForecastModelStatus;
+  };
+  rows: ForecastResultRowV3[];
+};
+
+export type ForecastResult = ForecastResultV2 | ForecastResultV3;
 
 export type OverrideSet = {
   overrideSetId: string;
