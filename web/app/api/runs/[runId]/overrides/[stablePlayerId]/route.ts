@@ -54,7 +54,6 @@ function parseOverride(value: unknown) {
   if (!value || typeof value !== "object") return { error: "The override body must be an object." } as const;
   const body = value as OverrideRequest;
   const reason = typeof body.reason === "string" ? body.reason.trim() : "";
-  if (!reason) return { error: "A reason is required before saving an override." } as const;
   if (reason.length > 500) return { error: "The override reason must be 500 characters or fewer." } as const;
   if (!isFiniteOptional(body.factor) || !isFiniteOptional(body.workloadFactor) || !isFiniteOptional(body.analystProjection)) return { error: "Override numeric fields must be finite." } as const;
   if (!isBooleanOptional(body.inactive) || !isBooleanOptional(body.exclude) || !isBooleanOptional(body.defensePreset)) return { error: "Override state fields must be boolean." } as const;
